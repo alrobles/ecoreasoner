@@ -22,6 +22,8 @@ EcoReasoner-Hibrido
 ## Documentation
 
 - [Feasibility: Hybrid dLLM architecture](docs/feasibility-hybrid-dllm.md)
+- [dLLM literature map (v3, 34 refs)](docs/dllm-literature-map.md)
+- [dLLM experimental protocol (RQ1-RQ4, gates go/no-go)](docs/dllm-experimental-protocol.md)
 - [EcoReasoner design doc](docs/ecoreasoner-DESIGN.md) (from HPC)
 - [Fase 2 curriculum](docs/fase2-curriculum.md) (Block A/B/C)
 
@@ -33,7 +35,7 @@ EcoReasoner-Hibrido
 
 ## Related repositories
 
-- [alrobles/dLLM](https://github.com/alrobles/dLLM) — Literature review on diffusion LLMs
+- [alrobles/dLLM](https://github.com/alrobles/dLLM) — Literature review on diffusion LLMs (v3, DiDAL + corpus integration) + experimental protocol for MI210
 - [alrobles/ecoseek-litdump](https://github.com/alrobles/ecoseek-litdump) — Paper corpus and CoT traces
 - [alrobles/maxentcpp](https://github.com/alrobles/maxentcpp) — MaxEnt SDM engine (C++/R)
 

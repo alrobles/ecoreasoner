@@ -22,7 +22,9 @@ Construir un modelo de lenguaje hibrido AR-difusion orientado a agentes cientifi
 - [x] Q6000 persistente con GLM-4.7-Flash (:20010)
 - [x] Repo principal creado: github.com/alrobles/ecoreasoner
 - [x] Analisis de viabilidad: docs/feasibility-hybrid-dllm.md
-- [x] Lit review dLLM integrada: alrobles/dLLM (paper main_v2.tex)
+- [x] Lit review dLLM integrada: alrobles/dLLM (v3, DiDAL round-3 + corpus integration: 34 refs verificadas)
+- [x] Protocolo experimental dLLM integrado: docs/dllm-experimental-protocol.md (RQ1-RQ4, gates go/no-go, fases 0-4)
+- [x] Mapa literario dLLM: docs/dllm-literature-map.md (paper_graph.json, 40 papers en 3 niveles)
 
 ### M1 — Despliegue LLaDA-8B en MI210 (EN PROGRESO)
 **Fecha objetivo:** 28 ago 2026
@@ -46,6 +48,7 @@ Construir un modelo de lenguaje hibrido AR-difusion orientado a agentes cientifi
 - [ ] BFCL-V4 subset (function calling) — replicar del paper "bitter lesson"
 - [ ] Tareas no causales: summarization, draft generation, code scaffolding
 - [ ] Tareas causales: JSON schema, tool_call format, multi-step reasoning
+- [ ] Seguir el protocolo dLLM: gates A (hardware) y B (entrenamiento) antes de comparar ruido; Fase 1 (110M baseline AR+MDLM-mask) en MI210
 - [ ] Documento: docs/benchmark-m1-vs-m2.md
 
 **Criterio de exito:** dLLM >=3x mas rapido en tareas no causales; AR >=90% format validity en tool-calling
