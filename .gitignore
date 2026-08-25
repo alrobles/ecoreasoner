@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.eggs/
+*.egg-info/
+
+# Data (large files, not tracked)
+data/
+*.jsonl
+*.db
+*.parquet
+*.rds
+
+# HPC artifacts
+logs/
+outputs/
+*.sif
+*.sbatch
+*.err
+*.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
