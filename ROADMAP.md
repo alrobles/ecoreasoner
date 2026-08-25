@@ -25,6 +25,7 @@ Construir un modelo de lenguaje hibrido AR-difusion orientado a agentes cientifi
 - [x] Lit review dLLM integrada: alrobles/dLLM (v3, DiDAL round-3 + corpus integration: 34 refs verificadas)
 - [x] Protocolo experimental dLLM integrado: docs/dllm-experimental-protocol.md (RQ1-RQ4, gates go/no-go, fases 0-4)
 - [x] Mapa literario dLLM: docs/dllm-literature-map.md (paper_graph.json, 40 papers en 3 niveles)
+- [x] Factibilidad dLLM en KUHPC: docs/dllm-feasibility-kuhpc.md (análisis FLOPs sobre inventario real + wallet walltime 6h)
 
 ### M1 — Despliegue LLaDA-8B en MI210 (EN PROGRESO)
 **Fecha objetivo:** 28 ago 2026

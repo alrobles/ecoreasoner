@@ -22,6 +22,7 @@ EcoReasoner-Hibrido
 ## Documentation
 
 - [Feasibility: Hybrid dLLM architecture](docs/feasibility-hybrid-dllm.md)
+- [dLLM feasibility on KUHPC (qué modelo, cuánto)](docs/dllm-feasibility-kuhpc.md)
 - [dLLM literature map (v3, 34 refs)](docs/dllm-literature-map.md)
 - [dLLM experimental protocol (RQ1-RQ4, gates go/no-go)](docs/dllm-experimental-protocol.md)
 - [EcoReasoner design doc](docs/ecoreasoner-DESIGN.md) (from HPC)
