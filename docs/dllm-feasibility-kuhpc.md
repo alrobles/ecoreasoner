@@ -1,8 +1,12 @@
-# Factibilidad: ¿qué dLLM podemos entrenar en KUHPC?
+# Factibilidad: ¿qué dLLM podemos entrenar en KUHPC con 2 MI210?
 
-**Fecha:** 25 ago 2026 · **Basado en:** inventario real de la partición `sixhour` (scontrol, 25 ago 2026), throughput medido del entrenamiento Qwen3.5 LoRA, y leyes de escalado de dLLMs de alrobles/dLLM (literature_map, main_v3).
+**Fecha:** 25 ago 2026 · **Basado en:** inventario real de la partición `sixhour` (scontrol), throughput medido del entrenamiento Qwen3.5 LoRA, y leyes de escalado de dLLMs de alrobles/dLLM.
 
 ---
+
+## 0. Escenario asumido (aclaración del 25-ago)
+
+**El entrenamiento se hace en 2 MI210** (un nodo) — el resto de tarjetas del cluster comparten/están ocupadas por otros usuarios. El horizonte temporal **no es una limitación**: se entrena durante el tiempo que haga falta con checkpoint/resume. Lo que importa es el **cómputo real de 2 MI210**.
 
 ## 1. Hardware real disponible (partición sixhour)
 
@@ -10,62 +14,58 @@ Inventario medido con `scontrol show nodes` el 25-ago-2026:
 
 | Tarjeta | Nodos | GPUs | BF16 TF | Nota |
 |---|---|---|---|---|
-| **MI210** | 27 | 81 | 181 | **columna vertebral del proyecto** |
-| A100 | 8 | 20 | 312 | solo 2 nodos completos usables |
-| Q6000 | 9 | 29 | 149 | parte mesh, no dedicada |
+| **MI210** | 27 | 81 | 181 | **usaremos 2 (1 nodo)** |
+| A100 | 8 | 20 | 312 | compartida / no dedicada |
+| Q6000 | 9 | 29 | 149 | parte mesh |
 | V100 | 17 | 36 | 112 | arq. antigua |
-| PRO6000 (Blackwell) | 3 | 5 | 238 | reservada para teacher/serve |
+| PRO6000 (Blackwell) | 3 | 5 | 238 | teacher/serve |
 | A40 / L40 / Q8000 | — | 10 | ~150 | minoritaria |
 
-**Restricción clave (verificada):** el scheduler **topea a 2 MI210 por nodo** (`gpu:mi210:2` agenda; `mi210:3` queda PENDING). Los 27 nodos MI210 sirven **54 GPUs** efectivas.
+**Restricción clave:** el scheduler topea a **2 MI210 por nodo** (`gpu:mi210:2` agenda). Nuestro training usaría exactamente esas 2.
 
-## 2. Restricción por walltime (el verdadero cuello de botella)
+## 2. Restricción por walltime
 
 - Partición `sixhour`: **5:50 de walltime por job**.
-- El entrenamiento **desde cero no cabe** en 6h. La única forma de usar toda la semana es:
-  - **Checkpoint + resume cada ~6h** (patrón ya probado: el swarm `q35_wave.slurm` re-encadena vía SIGUSR1, y `swarm_watchdog.sh` lo mantiene vivo).
-  - Solapando el arranque del siguiente job con la bajada del anterior para **~no perder tiempo**.
-- Con encadenado continuo + watchdog, el efecto del walltime se reduce a ~5-10% overhead (reinicio de proceso, recarga de checkpoint), no a un factor multiplicativo.
+- Entrenamiento desde cero no cabe en 6h → se necesita **checkpoint + resume cada ~6h**.
+- Ya probado: `q35_wave.slurm` re-encadena vía SIGUSR1 + `swarm_watchdog.sh` mantiene vivas las cadenas. Con doble 2 MI210, el overhead de encadenado (~5-10%) se vuelve **dominante** frente a un cluster completo: por eso el análisis de "1 semana" previo infravaloraba el problema real.
 
-## 3. Cómputo disponible a la semana (modelo FLOPs)
+## 3. Cómputo de 2 MI210 (modelo FLOPs)
 
-Costo de entrenar un modelo denso de `P` parámetros sobre `T` tokens: **FLOPs = 6·P·T**.
+Costo de entrenar modelo denso de `P` params sobre `T` tokens: **FLOPs = 6·P·T**.
 
 | Escenario | FLOPs/semana |
 |---|---|
-| 54 MI210 × MFU 40% | 2.4e21 |
-| 54 MI210 × MFU 60% | 3.5e21 |
-| 81 MI210 (nominal) × MFU 60% | 5.3e21 |
+| 2 MI210 × MFU 40% | 8.76e19 |
+| 2 MI210 × MFU 60% | 1.31e20 |
 
-## 4. Modelo denso máximamente entrenable a la semana
+## 4. Modelo denso máximamente entrenable en 2 MI210
 
-Con 54 MI210 (MFU 40%) y la ratio data de cada familia:
+| Ratio datos (tok/param) | Params máx | Tokens máx | Tiempo |
+|---|---|---|---|
+| AR-like (20 tok/param) | 0.85B | 17B | ~1 semana |
+| **diffusion conservador (~40x)** | **0.60B** | **24B** | **~1 semana** |
+| diffusion agresivo (100x) | 0.38B | 38B | ~1 semana |
 
-| Ratio datos (tok/param) | Params máx | Tokens máx |
-|---|---|---|
-| AR-like (20 tok/param) | 4.4B | 89B |
-| **diffusion conservador (~40 tok/param, motivo Quokka)** | **3.1B** | **126B** |
-| diffusion agresivo (100 tok/param) | ~2.0B | ~200B |
+## 5. ¿Qué modelos reales cambiarían? (2 MI210)
 
-> La difusión es **data-hungrier** que AR (Quokka: 2-5× más datos en una sola epoch). Por eso los dLLM de frontera entrenan con ratios ~40-100 tok/param.
-
-## 5. ¿Qué modelos reales cambiarían? (referencias de escala)
-
-| Modelo objetivo | Params | Tokens | Coste | ¿1 semana? |
+| Modelo | Params | Tokens | Coste | ¿Tiempo en 2 MI210? |
 |---|---|---|---|---|
-| Calibración (Fase 0 protocol) | 10-50M | 1B | ~1e17 | ✅ horas |
-| Baseline (Fase 1) | 110M | 1-3B | ~6.6e17 | ✅ <1 día |
-| Confirmación (Fase 2) | 350M-1.3B | 10-40B | ~1.3e19 | ✅ 1-3 días |
-| **dLLM medio propio (objetivo)** | **1-3B** | **60-150B** | **~1-5e21** | **✅ SI, en la ventana** |
-| DiffuCoder-7B (130B tok) | 7B | 130B | 5.5e21 | ⚠️ ~2.3 semanas |
-| LLaDA-8B (2.3T tok) | 8B | 2300B | 1.1e23 | ❌ ~47 semanas |
+| Calibración (F0) | 10-50M | 1B | 2e17 | ✅ horas |
+| Baseline 110M (F1) | 110M | 3B | 2e18 | ✅ <2h |
+| Confirmación (F2) | 350M-1.3B | 40B | 2.4e20 | ⚠️ ~8 días |
+| Qwen2.5-1.5B (~90B tok) | 1.5B | 90B | 8.1e20 | ❌ ~9 semanas |
+| DiffuCoder-7B | 7B | 130B | 5.5e21 | ❌ ~62 semanas |
+| LLaDA-8B | 8B | 2300B | 1.1e23 | ❌ ~24 años |
 
-## 6. Conclusión / Veredicto
+## 6. Conclusión / Veredicto (2 MI210)
 
-1. **LLaDA-8B desde cero: NO.** 46 semanas continuas superan cualquier plazo útil.
-2. **DiffuCoder-7B (130B tok):** borderline — ~2.3 semanas, es decir >1 semana de margen pedido; solo viable con todas las MI210 y MFU alto.
-3. **LO REALISTA (recomendado):** entrenar un **dLLM denso de ~1-3B parámetros sobre ~60-150B tokens** en una semana con las 54 MI210 + encadenamiento continuo. Esto **encaja exactamente** con el `experimental_protocol.md` ya integrado en el repo (Fases 0→1→2: calibración → 110M → 350M-1.3B).
+1. **LLaDA-8B / DiffuCoder-7B: IMPOSIBLE** en 2 MI210 (años).
+2. **Incluso 1B/180B (~12 sem) o 1.5B/90B (~9 sem) quedan fuera** de un objetivo razonable.
+3. **LO REALISTA con 2 MI210:** entrenar un **dLLM denso de ~350M-1.3B parámetros sobre ~20-40B tokens** — el rango que cubre la **Fase 1 y Fase 2 del `experimental_protocol.md`** (110M baseline → 350M-1.3B confirmación).
+   - F1 baseline 110M: <2h ✅
+   - F2 confirmación 1B / ~40B tokens: ~1 semana ⚠️ (marginal)
+   - El punto dulce es **350M-700M / 15-30B tokens**: ~2-4 días.
 
-**Por qué merece la pena:** la ratio de datos de difusión nos permite, con el mismo presupuesto FLOPs de una semana, un modelo ~3B/126B que es comparable en tamaño al régimen donde MDLM/LLaDA descubrieron ventajas de calidad y velocidad paralela — y el protocolo ya lo diseña para que sea **reproducible y con gates go/no-go**.
+**Recomendación:** apuntar a la **Fase 2 del protocolo (modelo ~700M-1B, ~20-30B tokens)** como techo realista en 2 MI210 (~3-5 días), no a modelos de 7-8B. Esto demuestra RQ1/RQ3 (entrenabilidad + ventaja de inferencia) con rigor, sin comprometer el cómputo.
 
-**Riesgo real que el análisis expone:** con el walltime de 6h el proyecto solo es factible si la cadena de checkpoint/resume funciona a la perfección (qué ya hemos probado con el swarm). Sin eso, una semana continua es imposible por diseño.
+**Riesgo clave:** con solo 2 MI210 el overhead del encadenado por walltime (6h) es más significativo; hay que minimizar el tiempo de recarga de checkpoint entre jobs para que la Fase 2 no se estire.
