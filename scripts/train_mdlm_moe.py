@@ -165,7 +165,11 @@ def _save_checkpoint(tag):
     g = STEPS_DONE[0]
     ckpt = OUT / f"checkpoint-g{g}"
     ckpt.mkdir(parents=True, exist_ok=True)
-    torch.save({"model": glob_model.state_dict()}, ckpt/"model.pt")
+    # if DDP-wrapped, save the inner module weights (no "module." prefix)
+    sd = glob_model.state_dict()
+    if isinstance(glob_model, torch.nn.parallel.DistributedDataParallel):
+        sd = glob_model.module.state_dict()
+    torch.save({"model": sd}, ckpt/"model.pt")
     torch.save({"optimizer": glob_opt.state_dict()}, ckpt/"optimizer.pt")
     (OUT/"state.json").write_text(json.dumps(
         {"step": g, "checkpoint": f"checkpoint-g{g}", "updated": time.time()}))
@@ -196,11 +200,33 @@ signal.signal(signal.SIGUSR1, _handle_sig)
 
 # ---------------- train ----------------
 def main():
-    global glob_model, glob_opt
-    tok, batches = build_batches()
+    global glob_model, glob_opt, DEVICE
+    # ---- DDP init (multi-GPU via slurm) ----
+    rank = int(os.environ.get("SLURM_PROCID", "0"))
+    local_rank = int(os.environ.get("SLURM_LOCALID", "0"))
+    world = int(os.environ.get("SLURM_NTASKS", "1"))
+    world_size = world
+    ddp = world_size > 1
+    if ddp:
+        torch.distributed.init_process_group("nccl", rank=rank, world_size=world_size)
+        torch.cuda.set_device(local_rank)
+        DEVICE = torch.device("cuda", local_rank)
+        log(f"DDP: rank={rank} local={local_rank} world={world_size}")
+    else:
+        DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    tok, batches_all = build_batches()
+    # distribute batches across ranks (each rank trains on a distinct slice)
+    if ddp:
+        nb = len(batches_all)
+        per = nb // world_size
+        batches = batches_all[rank*per : (rank+1)*per] if rank < world_size-1 else batches_all[rank*per:]
+        if len(batches)==0: batches = batches_all[:1]
+    else:
+        batches = batches_all
     # derive vocab from the tokenizer (LLaDA = 126080); +1 slot for MASK
     ARGS.vocab = tok.vocab_size
-    log(f"using vocab_size={ARGS.vocab} (from tokenizer)")
+    if rank==0: log(f"using vocab_size={ARGS.vocab} (from tokenizer)")
     glob_model = build_model().to(DEVICE)
     nparam = glob_model.n_params()
     # active params ~ dense (attn/gate/emb) + activated expert weights (k/n_experts of MoE)
@@ -220,6 +246,9 @@ def main():
         log(f"model: total={nparam/1e6:.1f}M (dense)")
     glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr, weight_decay=0.01)
     resume()
+    # wrap in DDP after resume so state stays on raw module
+    if ddp:
+        glob_model = torch.nn.parallel.DistributedDataParallel(glob_model, device_ids=[local_rank])
     glob_model.zero_grad(set_to_none=True)
     MASK = ARGS.vocab
     n_masked = max(1, int((ARGS.seq_len//2) * ARGS.mask_p))
@@ -237,9 +266,12 @@ def main():
         if (step+1) % ARGS.grad_accum == 0:
             glob_opt.step(); glob_opt.zero_grad(set_to_none=True)
         LAST_LOSS[0] = loss.item(); STEPS_DONE[0] = step+1
-        if step % 10 == 0: log(f"step {step} loss {loss.item():.4f}")
-        if step % 50 == 0: _save_checkpoint("step")
-    _save_checkpoint("final"); log("COMPLETE")
+        if ddp: torch.distributed.barrier()
+        if (not ddp or rank==0) and step % 10 == 0: log(f"step {step} loss {loss.item():.4f}")
+        if (not ddp or rank==0) and step % 50 == 0: _save_checkpoint("step")
+    if not ddp or rank==0: _save_checkpoint("final")
+    if ddp: torch.distributed.destroy_process_group()
+    if not ddp or rank==0: log("COMPLETE")
 
 if __name__ == "__main__":
     main()
