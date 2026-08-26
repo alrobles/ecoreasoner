@@ -1,7 +1,8 @@
 # dLLM-MoE PoC — masked-diffusion modelo de lenguaje con FFN MoE
 
-**Estado:** diseño listo, script + slurm escritos, pendiente de lanzar como ola en MI210
-**Repo:** github.com/alrobles/ecoreasoner · **Hito:** M8 (fine-tune dLLM) / Fase 2 protocolo
+**Estado:** diseño listo, script + slurm escritos, **pendiente de portar a CUDA** (NVIDIA)
+**Fecha:** 25 ago 2026 · **Repo:** github.com/alrobles/ecoreasoner · **Hito:** M8 / Fase 2 protocolo
+**Hardware actualizado (25-ago):** PoC pasa a **NVIDIA (CUDA)** — ver sección [Hardware](#hardware)
 
 ---
 
@@ -91,3 +92,31 @@ nuestro hardware (2 MI210) puede entrenar en días, no en años (ver
   corre LoRA en las mismas 2 MI210).
 - Es el diferenciador: un **dLLM con MoE** entrenado estable en MI210, algo que no
   demuestra ningún otro grupo del cluster.
+
+## Hardware: portar a NVIDIA (CUDA)
+
+**Motivo (25-ago-2026):** la partición MI210 está saturada y acaparada por reservas
+(`hpc_wang_5` retiene r06r06/08/10/16 hasta 2027-01-01; resto ALLOCATED/MIXED), de
+modo que los jobs del PoC y del swarm quedan PENDING (Priority) indefinidamente.
+Para arrancar el PoC de forma real, **se cambia el objetivo a GPUs NVIDIA disponibles**
+en `sixhour`, lo que exige **portar el entrenador a CUDA**.
+
+**Estado de la portabilidad:** el código de `train_mdlm_moe.py` ya es CUDA-capable por
+construcción (PyTorch `to("cuda")`, `torch.cuda`), así que el cambio es de **entorno y de
+mecánica de lanzamiento**, no de lógica del modelo:
+
+| Aspecto | ROCm/MI210 | CUDA/NVIDIA |
+|---|---|---|
+| Container | Apptainer SIF ROCm (`qwen35-rocm-v2.sif`) | **Imagen/conda con CUDA** (o SIF que incluya CUDA torch) |
+| `DEVICE` | `cuda` (ROCm) | `cuda` (NVIDIA) — mismo código |
+| Scheduler gres | `gpu:mi210:N` | `gpu:a100:N` / `gpu:q6000:N` / `gpu:pro6000:N` |
+| TFLOPS (BF16) | 181 | A100 312 · Q6000 149 · PRO6000 238 |
+| VRAM | 64GB | A100 40-80 · Q6000 48 · PRO6000 96 |
+
+**Objetivo NVIDIA para el PoC:** A100/Q6000 (o PRO6000 si no interfiere con el
+teacher). El costo del PoC (~0.5B/20B) es pequeño, por lo que cabe holgado.
+
+**Pasos de portada pendientes:** (1) build/uso de imagen CUDA con PyTorch; (2)
+reemplazar el `sbatch --gres=gpu:mi210` por la GRES NVIDIA en `mdlm_moe_wave.slurm`;
+(3) validar disposición de device (DataParallel o single-GPU); (4) re-test del smoke
+forward/backward en CUDA.
