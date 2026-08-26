@@ -4,23 +4,24 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:mi210:1
-#SBATCH --mem=64G
+#SBATCH --gres=gpu:a100:1
+#SBATCH --mem=96G
 #SBATCH --time=05:50:00
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/mdlm_moe_%j.out
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/mdlm_moe_%j.err
 
 # =============================================================================
-# dLLM-MoE PoC — masked-diffusion MoE, ola encadenada (patrón q35_wave).
+# dLLM-MoE PoC — masked-diffusion MoE, ola encadenada (CUDA/NVIDIA).
 # Uso: sbatch --export=WAVE_ID=poc0d5,TARGET_STEPS=N mdlm_moe_wave.slurm
+# Objetivo: GPU NVIDIA A100. Imagen: pytorch-cuda.sif (torch 2.4.1+cu121).
 # SIGUSR1 300s antes de walltime -> trainer guarda checkpoint + exit 42 ->
 # este script relanza la siguiente ola (resume desde checkpoint-gN).
 # =============================================================================
 set -euo pipefail
 
 BASE=/beegfs/a474r867/ecoreasoner
-SIF=$BASE/qwen35-rocm-v2.sif
+SIF=$BASE/pytorch-cuda.sif
 SCRIPTS=$BASE/scripts
 DATA_DIR=$BASE/data
 DATA="$DATA_DIR/sci_v2_b1.jsonl $DATA_DIR/sci_v2_existing.jsonl $DATA_DIR/sci_v1.jsonl"
@@ -33,7 +34,7 @@ TARGET_STEPS="${TARGET_STEPS:-2000}"
 
 mkdir -p "$OUT" "$BASE/logs"
 
-echo "[$(date)] dLLM-MoE PoC $WAVE_ID empezando (TARGET_STEPS=$TARGET_STEPS)"
+echo "[$(date)] dLLM-MoE PoC $WAVE_ID empezando (A100/CUDA, TARGET_STEPS=$TARGET_STEPS)"
 
 FINALIZED=0
 finalize() {
