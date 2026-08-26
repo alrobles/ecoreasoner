@@ -128,7 +128,7 @@ def load_corpus(paths):
             if not ln: continue
             try:
                 o = json.loads(ln)
-                txt = (str(o.get("prompt","")) + "\n" + str(o.get("answer") or o.get("title") or "")).strip()
+                txt = (str(o.get("prompt","")) + "\n" + str(o.get("answer") or o.get("title") or o.get("text") or "")).strip()
             except Exception:
                 txt = ln
             rows.append(txt)
