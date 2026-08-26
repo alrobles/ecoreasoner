@@ -85,3 +85,31 @@ Comparar LLaDA-8B (dLLM) vs Qwen3.5-35B (AR) vs GLM-4.7-Flash (AR) en las 20 tar
 - Solo sería "posible" con acceso **exclusivo a TODO el cluster durante ~4 meses**, que no es nuestro caso.
 - **El techo realista de un dLLM entrenado desde cero con nuestro setup sigue siendo ~700M-1B / 20-30B tokens** (Fase 2 del `experimental_protocol.md`, ~3-5 días en 2 MI210).
 - Por eso la estrategia correcta es **Fases A/B/C (servir + benchmark + fine-tune)**, no entrenamiento desde cero.
+
+---
+
+## §5. ¿Y usando las Blackwell (PRO6000)?
+
+Las 3 Blackwell (5 GPUs, 96GB VRAM) son **más potentes por GPU** que las MI210 (238 TF BF16 vs 181). Pero solo hay 5, y **las 3 están MIXED** (parcialmente usadas; r30r24n01 es el teacher v4serve).
+
+### Tiempo para LLaDA-8B completo con 5x Blackwell
+
+| Escenario | FLOP/s útiles | Tiempo LLaDA-8B completo |
+|---|---|---|
+| 5x Blackwell BF16 · MFU 40% | 4.76e14 | **~7.4 años** ❌ |
+| 5x Blackwell MXFP4 · MFU 55% | 1.31e15 | ~2.7 años ❌ |
+
+### Variantes con 5x Blackwell
+
+| Objetivo | Coste | Tiempo (BF16 MFU 40%) |
+|---|---|---|
+| 8B · 100B tokens (mínimo útil) | 4.8e21 | ~16.7 semanas (~4 meses) ⚠️ |
+| 8B · 300B tokens | 1.4e22 | ~50 semanas (~1 año) ❌ |
+| LLaDA-MoE-7B-A1B · 2.3T | 1.4e22 | ~6.5 años ❌ |
+
+### Veredicto Blackwell
+
+- **Aún con las 5 Blackwell, LLaDA-8B completo desde cero es inviable** (~7 años BF16, ~2.7 años con MXFP4).
+- Las Blackwell **sí** mejoran el régimen útil: el "mínimo útil" de 8B/100B tokens baja a ~4 meses — pero eso requiere las 5 exclusivas y desactivar el teacher, que es crítico para la destilación (M4). **No compensa.**
+- Las Blackwell son mucho más valiosas donde están: **teacher v4serve + candidate de fine-tune**, no como planta de pretraining.
+- Para un dLLM **entrenado desde cero**, el techo sigue siendo el de la Fase 2 del protocolo (~1B/20-30B) — y ahí las 2 MI210 son suficientes.
