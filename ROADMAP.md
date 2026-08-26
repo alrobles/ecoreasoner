@@ -120,6 +120,7 @@ Construir un modelo de lenguaje hibrido AR-difusion orientado a agentes cientifi
 ### M8 — Fine-tuning del dLLM Core
 **Fecha objetivo:** 15 nov 2026
 
+- [x] Sistema MoE (train_mdlm_moe.py + mdlm_moe_wave.slurm, 0.5B/134M act)
 - [ ] Adaptar trazas B1 al formato LLaDA (mask + denoise)
 - [ ] SFT sobre datos ecologicos (10K trazas)
 - [ ] Eval: comparar LLaDA-base vs LLaDA-ecoreasoner en tareas cientificas
