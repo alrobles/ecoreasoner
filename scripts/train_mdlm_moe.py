@@ -202,16 +202,26 @@ signal.signal(signal.SIGUSR1, _handle_sig)
 def main():
     global glob_model, glob_opt, DEVICE
     # ---- DDP init (multi-GPU via slurm) ----
-    rank = int(os.environ.get("SLURM_PROCID", "0"))
-    local_rank = int(os.environ.get("SLURM_LOCALID", "0"))
-    world = int(os.environ.get("SLURM_NTASKS", "1"))
+    rank = int(os.environ.get("SLURM_PROCID", os.environ.get("RANK", "0")))
+    local_rank = int(os.environ.get("SLURM_LOCALID", os.environ.get("LOCAL_RANK", "0")))
+    world = int(os.environ.get("SLURM_NTASKS", os.environ.get("WORLD_SIZE", "1")))
     world_size = world
     ddp = world_size > 1
     if ddp:
+        import socket
+        # ensure rendezvous env (srun/apptainer may not forward these)
+        os.environ.setdefault("MASTER_ADDR", socket.gethostname())
+        os.environ.setdefault("MASTER_PORT", "29512")
+        os.environ.setdefault("RANK", str(rank))
+        os.environ.setdefault("LOCAL_RANK", str(local_rank))
+        os.environ.setdefault("WORLD_SIZE", str(world_size))
         torch.distributed.init_process_group("nccl", rank=rank, world_size=world_size)
-        torch.cuda.set_device(local_rank)
-        DEVICE = torch.device("cuda", local_rank)
-        log(f"DDP: rank={rank} local={local_rank} world={world_size}")
+        # srun+gres may expose one GPU/task (CUDA_VISIBLE_DEVICES) -> clamp to visible set
+        nvis = torch.cuda.device_count()
+        dev_idx = min(local_rank, max(0, nvis-1))
+        torch.cuda.set_device(dev_idx)
+        DEVICE = torch.device("cuda", dev_idx)
+        log(f"DDP: rank={rank} local={local_rank} world={world_size} visible={nvis} dev={dev_idx}")
     else:
         DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -246,9 +256,11 @@ def main():
         log(f"model: total={nparam/1e6:.1f}M (dense)")
     glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr, weight_decay=0.01)
     resume()
-    # wrap in DDP after resume so state stays on raw module
+    # wrap in DDP after resume so state stays on raw module.
+    # MoE: per-iteration unused experts -> need find_unused_parameters=True
     if ddp:
-        glob_model = torch.nn.parallel.DistributedDataParallel(glob_model, device_ids=[local_rank])
+        glob_model = torch.nn.parallel.DistributedDataParallel(
+            glob_model, device_ids=[dev_idx], find_unused_parameters=True)
     glob_model.zero_grad(set_to_none=True)
     MASK = ARGS.vocab
     n_masked = max(1, int((ARGS.seq_len//2) * ARGS.mask_p))

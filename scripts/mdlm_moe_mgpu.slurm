@@ -3,9 +3,9 @@
 #SBATCH --partition=sixhour
 #SBATCH --nodes=1
 #SBATCH --ntasks=4
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:q6000:4
-#SBATCH --mem=220G
+#SBATCH --mem=120G
 #SBATCH --time=05:50:00
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/mdlm_moe_mgpu_%j.out
@@ -58,8 +58,15 @@ handle_signal() {
 trap handle_signal USR1
 trap 'echo SIGTERM; exit 1' TERM
 
+# ---- DDP rendezvous env (torch uses env://) ----
+export MASTER_ADDR=$(hostname)
+export MASTER_PORT=29512
+export WORLD_SIZE=$SLURM_NTASKS
+export RANK=$SLURM_PROCID
+export LOCAL_RANK=$SLURM_LOCALID
+
 # Config 0.5B MoE, batch 2, grad_accum 2, mask_p 0.15
-srun -n 4 apptainer exec --nv \
+srun -n 4 /usr/bin/apptainer exec --nv \
     --env HF_HUB_OFFLINE=1 --env TRANSFORMERS_OFFLINE=1 \
     "$SIF" python3 "$SCRIPTS/train_mdlm_moe.py" \
         --data $DATA --output "$OUT" \
