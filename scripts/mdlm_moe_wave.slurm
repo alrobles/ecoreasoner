@@ -4,8 +4,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:a100:1
-#SBATCH --mem=96G
+#SBATCH --gres=gpu:q6000:1
+#SBATCH --mem=60G
 #SBATCH --time=05:50:00
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/mdlm_moe_%j.out
@@ -14,7 +14,9 @@
 # =============================================================================
 # dLLM-MoE PoC — masked-diffusion MoE, ola encadenada (CUDA/NVIDIA).
 # Uso: sbatch --export=WAVE_ID=poc0d5,TARGET_STEPS=N mdlm_moe_wave.slurm
-# Objetivo: GPU NVIDIA A100. Imagen: pytorch-cuda.sif (torch 2.4.1+cu121).
+# Objetivo: GPU NVIDIA Q6000 (6 idle) / configurable via GRES_OVERRIDE.
+#   Ej A100: sbatch --gres=gpu:a100:1 --export=... mdlm_moe_wave.slurm
+# Imagen: pytorch-cuda.sif (torch 2.4.1+cu121). CUDA validated (smoke r22r10).
 # SIGUSR1 300s antes de walltime -> trainer guarda checkpoint + exit 42 ->
 # este script relanza la siguiente ola (resume desde checkpoint-gN).
 # =============================================================================

@@ -1,8 +1,8 @@
 # dLLM-MoE PoC — masked-diffusion modelo de lenguaje con FFN MoE
 
-**Estado:** diseño listo, script + slurm escritos, **pendiente de portar a CUDA** (NVIDIA)
+**Estado:** diseño listo, **portado a CUDA y validado** (smoke PASS en Q6000 r22r10)
 **Fecha:** 25 ago 2026 · **Repo:** github.com/alrobles/ecoreasoner · **Hito:** M8 / Fase 2 protocolo
-**Hardware actualizado (25-ago):** PoC pasa a **NVIDIA (CUDA)** — ver sección [Hardware](#hardware)
+**Hardware actualizado (25-ago):** PoC en **NVIDIA/CUDA (Q6000, 6 idle)** — ver sección [Hardware](#hardware)
 
 ---
 
@@ -113,10 +113,12 @@ mecánica de lanzamiento**, no de lógica del modelo:
 | TFLOPS (BF16) | 181 | A100 312 · Q6000 149 · PRO6000 238 |
 | VRAM | 64GB | A100 40-80 · Q6000 48 · PRO6000 96 |
 
-**Objetivo NVIDIA para el PoC:** A100/Q6000 (o PRO6000 si no interfiere con el
-teacher). El costo del PoC (~0.5B/20B) es pequeño, por lo que cabe holgado.
+**Objetivo NVIDIA para el PoC:** **Q6000 (6 idle ahora, 149 TF)** — validado con smoke
+test (torch 2.4.1+cu121, modelo 531.6M, forward/backward 0.16s/step en r22r10n01).
+A100 es configurable (`--gres=gpu:a100:1`, 312 TF) pero está saturada (1 idle).
+PRO6000 si no interfiere con el teacher.
 
-**Pasos de portada pendientes:** (1) build/uso de imagen CUDA con PyTorch; (2)
-reemplazar el `sbatch --gres=gpu:mi210` por la GRES NVIDIA en `mdlm_moe_wave.slurm`;
-(3) validar disposición de device (DataParallel o single-GPU); (4) re-test del smoke
-forward/backward en CUDA.
+**Portada ejecutada (25-ago):** (1) imagen CUDA con PyTorch detectada (`pytorch-cuda.sif`,
+2.4.1+cu121); (2) slurm con GRES NVIDIA (Q6000 por defecto, A100 configurable);
+(3) dispositivo validado en GPU real; (4) smoke test PASS en r22r10n01 (531.6M,
+0.16s/step). Pendiente: lanzar el PoC en producción (ola `poc0d5`) en Q6000.
