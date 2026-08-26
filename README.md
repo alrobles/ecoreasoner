@@ -42,6 +42,19 @@ EcoReasoner-Hibrido
 - [alrobles/ecoseek-litdump](https://github.com/alrobles/ecoseek-litdump) — Paper corpus and CoT traces
 - [alrobles/maxentcpp](https://github.com/alrobles/maxentcpp) — MaxEnt SDM engine (C++/R)
 
+## Corpus (PubMed/PMC multi-dominio)
+
+Pipeline de ingesta en beegfs (ver `scripts/mine_pubmed_duckdb.py`, `map_pmc_fulltext.py`, `port_pubmed_parquet.py`):
+
+| Artefacto | Path (HPC) | Contenido |
+|---|---|---|
+| Parquet PubMed | `/beegfs/a474r867/litdump/pubmed/parsed/parquet/` | 30.8M abstracts, particionado por año (6.3GB) |
+| PMC-ids.csv.gz | `/beegfs/a474r867/litdump/pubmed/PMC-ids.csv.gz` | 11.4M pmid→pmcid (252MB) |
+| `eco_corpus.jsonl` | `/beegfs/a474r867/ecoreasoner/data/` | abstracts multi-dominio (ecología/filo/genómica/bioc) |
+| `fulltext_corpus.jsonl` | `/beegfs/a474r867/ecoreasoner/data/` | **11,137 artículos full-text PMC, ~153M tokens (580MB)** |
+
+Fuentes: abstracts vía DuckDB sobre Parquet; full-text via `pmc-oa-opendata.s3.amazonaws.com` (AWS Cloud, sin FTP/captcha).
+
 ## License
 
 MIT License — A.L. Robles Fernández
