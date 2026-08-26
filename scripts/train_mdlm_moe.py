@@ -34,7 +34,7 @@ def parse():
     p.add_argument("--mask_p", type=float, default=0.15)
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="+", required=True)
-    p.add_argument("--tokenizer", default="gpt2")
+    p.add_argument("--tokenizer", default="/beegfs/a474r867/hf-cache/models--GSAI-ML--LLaDA-8B-Instruct/snapshots/08b83a6feb34df1a6011b80c3c00c7563e963b07")
     p.add_argument("--output", required=True)
     return p.parse_args()
 ARGS = parse()
@@ -136,7 +136,8 @@ def load_corpus(paths):
 
 def build_batches():
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(ARGS.tokenizer, trust_remote_code=True)
+    tok = AutoTokenizer.from_pretrained(ARGS.tokenizer, trust_remote_code=True,
+                                        local_files_only=True)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     corp = load_corpus(ARGS.data)
     seqs = []
@@ -145,13 +146,14 @@ def build_batches():
         if len(ids) >= 4:
             seqs.append(torch.tensor(ids, dtype=torch.long))
     log(f"corpus docs: {len(corp)}, usable: {len(seqs)}")
+    log(f"tokenizer vocab_size: {tok.vocab_size}")
     all_ids = torch.cat(seqs) if seqs else torch.tensor([], dtype=torch.long)
     b = ARGS.batch_size
     n = (all_ids.numel() // (b * ARGS.seq_len)) * (b * ARGS.seq_len)
     if n == 0: raise RuntimeError("corpus too small for a single batch")
     buf = all_ids[:n].view(b, -1)
-    return [buf[:, i*ARGS.seq_len:(i+1)*ARGS.seq_len]
-            for i in range(buf.size(1)//ARGS.seq_len)]
+    return tok, [buf[:, i*ARGS.seq_len:(i+1)*ARGS.seq_len]
+                 for i in range(buf.size(1)//ARGS.seq_len)]
 
 # ---------------- checkpoint / resume ----------------
 glob_model = None
@@ -195,7 +197,10 @@ signal.signal(signal.SIGUSR1, _handle_sig)
 # ---------------- train ----------------
 def main():
     global glob_model, glob_opt
-    batches = build_batches()
+    tok, batches = build_batches()
+    # derive vocab from the tokenizer (LLaDA = 126080); +1 slot for MASK
+    ARGS.vocab = tok.vocab_size
+    log(f"using vocab_size={ARGS.vocab} (from tokenizer)")
     glob_model = build_model().to(DEVICE)
     nparam = glob_model.n_params()
     # active params ~ dense (attn/gate/emb) + activated expert weights (k/n_experts of MoE)
