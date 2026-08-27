@@ -43,11 +43,11 @@ def parse():
     p.add_argument("--timestep_emb_dim", type=int, default=64, help="dim del emb de timestep (sumado al gate)")
     return p.parse_args()
 
-ARGS = parse()
+# ARGS se parsea SOLO en __main__ (no al importar), para no romper el import desde el trainer
 
 class MoEMLP(nn.Module):
     """MoE FFN top-k con gate condicionado al TIMESTEP de denoising."""
-    def __init__(self, dim, ff, n_experts, k, tdim=64, n_steps=100):
+    def __init__(self, dim, ff, n_experts, k, tdim=64, n_steps=100, shared=True):
         super().__init__()
         self.n, self.k = n_experts, k
         self.gate = nn.Linear(dim+tdim, n_experts, bias=False)
@@ -55,6 +55,7 @@ class MoEMLP(nn.Module):
         self.experts = nn.ModuleList([
             nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim))
             for _ in range(n_experts)])
+        self.shared = nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim)) if shared else None
     def forward(self, x, t=None):
         B, T, D = x.shape
         flat = x.reshape(-1, D)
@@ -67,6 +68,9 @@ class MoEMLP(nn.Module):
         g = torch.softmax(self.gate(gate_in).float(), dim=-1)
         gv, gi = g.topk(self.k, dim=-1)
         out = torch.zeros_like(flat)
+        # E4: experto compartido SIEMPRE activo (aporta base/tool-calling) + top-k especializados
+        if self.shared is not None:
+            out = self.shared(flat)
         for rank in range(self.k):
             ids = gi[:, rank]; w = gv[:, rank]
             for e in range(self.n):
@@ -76,12 +80,12 @@ class MoEMLP(nn.Module):
         return out.reshape(B, T, D)
 
 class Block(nn.Module):
-    def __init__(self, dim, ff, heads, n_experts, k, tdim=64, n_steps=100):
+    def __init__(self, dim, ff, heads, n_experts, k, tdim=64, n_steps=100, shared=True):
         super().__init__()
         self.ln1 = nn.LayerNorm(dim)
         self.attn = nn.MultiheadAttention(dim, heads, batch_first=True)
         self.ln2 = nn.LayerNorm(dim)
-        self.mlp = MoEMLP(dim, ff, n_experts, k, tdim, n_steps)
+        self.mlp = MoEMLP(dim, ff, n_experts, k, tdim, n_steps, shared)
     def forward(self, x, t=None):
         a, _ = self.attn(self.ln1(x), self.ln1(x), self.ln1(x), need_weights=False)
         x = x + a
@@ -89,13 +93,13 @@ class Block(nn.Module):
 
 class MdLMMoE(nn.Module):
     def __init__(self, vocab, hidden, layers, heads, ff_mult, seq_len, n_experts, k,
-                 tdim=64, n_steps=100):
+                 tdim=64, n_steps=100, shared=True):
         super().__init__()
         self.vocab = vocab
         self.tok_emb = nn.Embedding(vocab + 1, hidden)  # +1 MASK
         self.pos = nn.Embedding(seq_len, hidden)
         self.blocks = nn.ModuleList([
-            Block(hidden, hidden*ff_mult, heads, n_experts, k, tdim, n_steps) for _ in range(layers)])
+            Block(hidden, hidden*ff_mult, heads, n_experts, k, tdim, n_steps, shared) for _ in range(layers)])
         self.ln_f = nn.LayerNorm(hidden)
         self.head = nn.Linear(hidden, vocab)
     def forward(self, ids, timestep=None):
