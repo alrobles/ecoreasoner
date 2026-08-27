@@ -1,182 +1,105 @@
-# EcoReasoner ROADMAP
+# ROADMAP — Ingesta masiva PMC OA → Parquet → DuckDB → RAG
 
-**Ultima actualizacion:** 25 ago 2026  
-**Repo:** github.com/alrobles/ecoreasoner
-
----
-
-## Vision
-
-Construir un modelo de lenguaje hibrido AR-difusion orientado a agentes cientificos (ecologia, SDM, biologia computacional) que aproveche el hardware MI210 del HPC de KU y lo aprendido con Nemotron/EcoReasoner.
+> ReumanLab · EcoReasoner · 2026-08-26
+> Objetivo: bajar el **Open Access Subset de PMC**, filtrar por tiempo/dominio,
+> almacenar en **Parquet (columnar, consultas rápidas)**, y servir como **RAG** del agente
+> científico. Decisión de diseño: usar el enfoque **heurístico C** (calibrar PMCID↔año)
+> para el filtro "últimos 10 años" con volumen medible ANTES de descargar en bulto.
 
 ---
 
-## Milestones
+## 0. Decisión técnica clave (algoritmo C — PMCID↔año)
 
-### M0 — Infraestructura y Viabilidad (COMPLETADO)
-**Fecha objetivo:** 25 ago 2026
+**Por qué:** los PMCIDs no son contiguos y el bucket se ordena por clave `PMCID.ver/`. PM
+se publica cronológicamente → **PMCID alto ≈ artículo reciente** (monotónico). Para filtrar
+"últimos 10 años" sin bajar 500 GB completos, CALIBRAMOS la curva PMCID→año:
 
-- [x] Audit de 21 endpoints HPC, 4 maquinas mesh sincronizadas
-- [x] Inventario de 53 GPUs en HPC (5 PRO6000, 14 Q6000, 6 MI210, 6 A100, 12 V100, 8 A40/L40)
-- [x] Catalogo de modelos en beegfs (deepseek-v4-flash, gpt-oss:120b, nemotron-3-super)
-- [x] Q6000 persistente con GLM-4.7-Flash (:20010)
-- [x] Repo principal creado: github.com/alrobles/ecoreasoner
-- [x] Analisis de viabilidad: docs/feasibility-hybrid-dllm.md
-- [x] Lit review dLLM integrada: alrobles/dLLM (v3, DiDAL round-3 + corpus integration: 34 refs verificadas)
-- [x] Protocolo experimental dLLM integrado: docs/dllm-experimental-protocol.md (RQ1-RQ4, gates go/no-go, fases 0-4)
-- [x] Mapa literario dLLM: docs/dllm-literature-map.md (paper_graph.json, 40 papers en 3 niveles)
-- [x] Factibilidad dLLM en KUHPC: docs/dllm-feasibility-kuhpc.md (análisis FLOPs sobre inventario real + wallet walltime 6h)
-- [x] Estrategia LLaDA-8B: docs/llada-8b-strategy.md (servir + fine-tune, NO desde cero: 24 años en 2 MI210)
+1. Muestreo estratificado del bucket S3 (listado paginado, PMCIDs REALES de distintos rangos).
+2. Por cada PMCID, bajar solo el `.json` (metadata) → año+cita+licencia.
+3. Ajustar modelo (spline) PMCID→año.
+4. Resolver el PMCID umbral del corte (año_actual − 10) y estimar el volumen de esos artículos.
 
-### M1 — Despliegue LLaDA-8B en MI210 (EN PROGRESO)
-**Fecha objetivo:** 28 ago 2026
+`scripts/pmc/calibrar_pmcid_anio.py` implementa esto (validado en kuhpc donde hay pyarrow+duckdb).
 
-- [ ] LLaDA-8B-Instruct descargado al HPC (COMPLETADO)
-- [ ] Script SLURM llada_serve.slurm (COMPLETADO)
-- [ ] Lanzar job en MI210 y verificar carga del modelo
-- [ ] Tunel SSH :20012 al nodo de compute
-- [ ] Smoke test: /v1/models, /v1/chat/completions
-- [ ] Medir throughput base (tok/s) en MI210
-- [ ] Configurar provider hpc-llada en Hermes config
+## 1. Tecnologías (investigadas y confirmadas)
 
-**Criterio de exito:** LLaDA-8B responde en <10s para 256 tokens en MI210
-
-### M2 — Benchmark AR vs dLLM
-**Fecha objetivo:** 01 sep 2026
-
-- [ ] Suite de tests: 20 prompts estratificados (tool-calling, code gen, summarization, CoT)
-- [ ] Comparar LLaDA-8B (dLLM) vs Qwen3.5-35B (AR) vs GLM-4.7-Flash (AR)
-- [ ] Metricas: latencia, throughput, calidad (humana eval), format_validity
-- [ ] BFCL-V4 subset (function calling) — replicar del paper "bitter lesson"
-- [ ] Tareas no causales: summarization, draft generation, code scaffolding
-- [ ] Tareas causales: JSON schema, tool_call format, multi-step reasoning
-- [ ] Seguir el protocolo dLLM: gates A (hardware) y B (entrenamiento) antes de comparar ruido; Fase 1 (110M baseline AR+MDLM-mask) en MI210
-- [ ] Documento: docs/benchmark-m1-vs-m2.md
-
-**Criterio de exito:** dLLM >=3x mas rapido en tareas no causales; AR >=90% format validity en tool-calling
-
-### M3 — Bloque A: Evaluacion Baseline EcoReasoner (EN PROGRESO)
-**Fecha objetivo:** 28 ago 2026
-
-- [x] 3 replicas LoRA entrenadas a 400 pasos (m1/w1/w2) en MI210
-- [x] Script eval_baseline_A.py + eval_baseline_A.slurm
-- [ ] Job eval completado en MI210 (actualmente PENDING)
-- [ ] Metricas: tool_call_format (gate >=0.70), memory_verbatim, regression_vs_base
-- [ ] Documento: docs/eval-baseline-A-results.md
-
-**Criterio de exito:** Al menos 1 replica con tool_call_format >=0.70
-
-### M4 — Bloque B1: Destilacion Multi-Teacher (EN PROGRESO)
-**Fecha objetivo:** 05 sep 2026
-
-- [x] Script distill_b1_multiteacher.py (PubMed + GBIF sources)
-- [x] System prompt con maxentcpp como motor SDM preferido
-- [x] 40 queries estratificadas
-- [x] 4287 trazas existentes consolidadas de litdump
-- [ ] 10K trazas totales (objetivo: ~5700 nuevas)
-- [ ] Code_valid rate >=95%
-- [ ] Rotacion del teacher (DeepSeek-V4-Flash) cada 6h
-- [ ] Documento: docs/b1-distillation-report.md
-
-**Criterio de exito:** 10K trazas con code_valid >=95%, diversidad de topics >=20 categorias
-
-### M5 — Arquitectura Hibrida: Router + Integrador
-**Fecha objetivo:** 15 sep 2026
-
-- [ ] Diseno del Router (heuristic + scoring)
-  - Tareas causales -> AR Core (Qwen3.5-35B)
-  - Tareas no causales -> dLLM Core (LLaDA-8B)
-  - Mixto -> dLLM draft + AR validation
-- [ ] Implementar Integrador (schema validation + AR fallback)
-- [ ] Pipeline: query -> Router -> (dLLM | AR) -> Integrador -> output
-- [ ] Endpoint OpenAI-compatible en :20014
-- [ ] Test en Hermes: configurar como provider hpc-hibrido
-- [ ] Documento: docs/hybrid-architecture-design.md
-
-**Criterio de exito:** Router dispatch correcto >=90%; Integrador corrige 100% de JSON invalidos
-
-### M6 — Bloque C: Re-entrenamiento con Curriculum
-**Fecha objetivo:** 30 sep 2026
-
-- [ ] Curriculum Fase 2: Block A (400 pasos) -> Block B1 (1000 pasos) -> Block B2 (agentic traces)
-- [ ] Re-encadenar las 3 replicas (m1/w1/w2) con datos B1 (10K trazas)
-- [ ] Eval post-entrenamiento vs baseline (M3)
-- [ ] Comparar: AR-only vs AR+dLLM en tareas cientificas
-- [ ] Documento: docs/curriculum-c-results.md
-
-**Criterio de exito:** Mejora >=15% en tool_call_format vs M3 baseline
-
-### M7 — Bloque B2: Trazas Agenticas de Sesiones Hermes
-**Fecha objetivo:** 15 oct 2026
-
-- [ ] Extraer trazas tool-call de sesiones Hermes reales (session_search)
-- [ ] Formatear al esquema context/reasoning/code + tool_calls
-- [ ] Muestreo estratificado: SDM, GBIF query, phylogenetic, bioclim
-- [ ] 2K trazas agenticas adicionales al dataset B1
-- [ ] Documento: docs/b2-agentic-traces.md
-
-**Criterio de exito:** 2K trazas con tool_calls validos, diversidad de herramientas >=10
-
-### M8 — Fine-tuning del dLLM Core
-**Fecha objetivo:** 15 nov 2026
-
-- [x] Sistema MoE (train_mdlm_moe.py + mdlm_moe_wave.slurm, 0.5B/134M act)
-- [ ] Adaptar trazas B1 al formato LLaDA (mask + denoise)
-- [ ] SFT sobre datos ecologicos (10K trazas)
-- [ ] Eval: comparar LLaDA-base vs LLaDA-ecoreasoner en tareas cientificas
-- [ ] Si MI210 no es suficiente para training, usar A100 o Blackwell
-- [ ] Documento: docs/dllm-finetune-results.md
-
-**Criterio de exito:** LLaDA-ecoreasoner mejora >=10% en CoT ecologico vs LLaDA-base
-
-### M9 — Integracion End-to-End en Hermes
-**Fecha objetivo:** 01 dic 2026
-
-- [ ] Router + Integrador como microservicio
-- [ ] Provider hpc-hibrido en config.yaml de las 4 maquinas
-- [ ] Test en produccion: sesiones reales de EcoSeek
-- [ ] Benchmark en produccion: latencia, calidad, coste
-- [ ] Documento: docs/production-deployment.md
-
-**Criterio de exito:** Latencia media <3s para drafts; tool_call_format >=95%
-
-### M10 — Levenshtein Editing (Futuro)
-**Fecha objetivo:** Q1 2027
-
-- [ ] Adaptar L-EBPO del paper LLaDA 2.2 para datos ecologicos
-- [ ] Entrenar edit operations (KEEP/SUB/DEL/INS) sobre trazas agenticas
-- [ ] Eval en Hermes real: usar como backend de agentes
-- [ ] Documento: docs/levenshtein-editing-results.md
-
-**Criterio de exito:** Self-correction rate >=30% en tool_calls sin fallback AR
-
----
-
-## Dependencias
-
-```
-M0 (done) ──> M1 (in progress) ──> M2 ──> M5 ──> M9
-                                        │
-M0 (done) ──> M3 (in progress) ──> M4 ──> M6 ──> M8 ──> M9
-                                        │          │
-                                        M7 ────────┘
-```
-
-## Hardware Asignado
-
-| Componente | Hardware | Puerto | Estado |
+| Capa | Tecnología | Por qué | Estado verificado |
 |---|---|---|---|
-| AR Core (Qwen3.5-35B) | 2x MI210 (BF16) | :20012 | Pendiente |
-| dLLM Core (LLaDA-8B) | 2x MI210 (BF16) | :20014 | M1 |
-| Router + Integrador | Login node / reumanlab | :20016 | M5 |
-| Teacher (DeepSeek-V4-Flash) | 2x PRO6000 (Blackwell) | :20006 | Activo |
-| Q6000 agent (GLM-4.7-Flash) | 1x Q6000 | :20010 | Activo |
-| Local ollama | reumanlab gamma | :11434 | Activo |
+| Fuente OA | PMC S3 `pmc-oa-opendata` (world-readable, sin auth) | 1.5–5M artículos OA (CC/reuso) | ✅ listable (ListBucketResult), .json+ .txt por PMCID |
+| Fuente metadata | S3 inventory reports (oficial, `inventory-reports/`) | filtra por fecha/licencia/PMCID | ✅ documentado (pmcaws) |
+| Almacen. columnar | **Parquet** (pyarrow 21/24) | columnar, comprimido, footer metadata rápido | ✅ kuhpc pyarrow 21, local 24 |
+| Consultas | **DuckDB** (1.4.4) | SQL sobre Parquet, vectorizado, zero-copy con Arrow | ✅ kuhpc duckdb 1.4.4 |
+| Streaming (opcional) | Apache NiFi/MiNiFi + Kafka | para ingesta masiva en tiempo real (exactamente tu idea) | referenciado (ADR/Arrow, ~1M filas/s) |
+| RAG futuro | DuckDB/Parquet → vector (retrieval) | papers completos consultables por el agente | diseño |
 
-## Riesgos Clave
+**Por qué DuckDB+Arrow (no solo Spark):** hay integración Arrow zero-copy, query directa sobre
+Parquet en S3, merge de millones de filas/s en un solo nodo; suficiente para nuestro
+volumen (GB a TB). NiFi/Kafka solo si necesitamos streaming en producción (batch basta).
 
-1. **LLaDA-8B no carga en MI210** — Mitigacion: usar device_map="auto" o LLaDA-MoE-7B-A1B
-2. **vLLM no soporta LLaDA en gfx90a** — Mitigacion: usar codigo nativo de LLaDA (generate.py)
-3. **Teacher muere antes de completar B1** — Mitigacion: chain script con auto-relaunch
-4. **Eval A sigue PENDING** — Mitigacion: monitorear squeue, relanzar si necesario
-5. **Fine-tuning dLLM en MI210 falla** — Mitigacion: usar A100 o Blackwell para training
+## 2. Arquitectura propuesta
+
+```
+PMC S3 (pmc-oa-opendata)
+   │  [ingestor: descarga .txt por PMCID ± .json fecha/licencia]
+   ▼
+staging/ raw jsonl (pmcid, ver, text, year, license)
+   │  [procesador: filtra año≥corte, licencia CC, dedup, tokeniza]
+   ▼
+Parquet columnar  (particionado por año; filtro 10 años / dominio)
+   │                 (pyarrow / DuckDB COPY)
+   ├──► dLLM corpus (entrenamiento)        ← mina actual
+   └──► RAG index (futuro agente)  ← DuckDB query / retrieval
+
+Pipeline "industrial" : S3 → ingest shards (slurm multi-proc) → staging → parquet → duckdb.
+Opcional NiFi/Kafka si se quiere streaming continuo (no requerido para batch).
+```
+
+## 3. Milestones (medibles)
+
+### M1 — Calibración PMCID↔año (estimación de volumen) — [objetivo]
+- [ ] `calibrar_pmcid_anio.py` corre en kuhpc, **≥300 muestras** (PMCID→año real).
+- [ ] **✓** Rango de años cubierto y curva PMCID→año ajustada.
+- [ ] Estima el **número de PMCIDs** de los últimos 10 años (≥2016) y su **tamaño** (GB).
+- **Criterio (medible):** reportar estimación con margen (ej. "~N artículos, ~X GB, ±20%").
+
+### M2 — Ingestor S3→Parquet (primero un shard demo) — [VALIDAR]
+- [ ] Script `ingest_pmc_to_parquet.py` descarga PMCID+texto y escribe Parquet.
+- [ ] Ejecutar **1 shard demo** (ej. 200 PMCIDs) → Parquet local/beegfs, validar con DuckDB.
+- **Criterio:** contar filas en el Parquet con DuckDB `SELECT count(*)` OK, y columnas (year, license, text) presentes.
+
+### F3 — Ingesta completa últimos 10 años (filtro dominio) — [ ]
+- [ ] Slurm array (shards paralelos) en kucpc baja los PMCIDs del corte PMCID→10 años.
+- [ ] Filtrar por año y licencia (CC-BY/CC0/NC) y por dominio ecológico/biología (conceptos malla) si se quiere.
+- **Criterio:** **~decenas de miles - cientos de miles** papers completos en Parquet, tamaño conocido, en beegfs.
+
+### M4 — DuckDB lake / query service — [ ]
+- [ ] Catálogo Parquet registrado en DuckDB (tabla virtual `PMC` con año, texto, licencia).
+- **Criterio:** query de ejemplo `SELECT * FROM PMC WHERE year>=2016 AND text ILIKE '%species%' LIMIT 10` responde <1s.
+
+### F5 — RAG prototipo (opcional, futuro) — [ ]
+- [ ] Extensión: embeddings sobre Parquet → retrieval (DuckDB FTS o vector).
+- **Criterio:** consulta de paper completo relevante al concepto retorna el doc >100 tokens.
+
+### F6 — Integración dLLM — [ ]
+- [ ] El corpus Parquet (10 años, ecológico opcional) se convierte a JSONL para el training dLLM v4.
+- **Criterio:** v4 incorpora los papers completos nuevos; medida de tokens/volumen superior al v3 (97k PMC).
+
+## 4. Dependencias / recursos
+
+- kuhpc: pyarrow 21, duckdb 1.4.4 ✓. S3 acceso HTTP (sin auth) ✓.
+- Almacenamiento: /beegfs (~860TB libre) — cabe (decenas–cientos GB de text real).
+- Inodes: usar archivos Parquet grandes (no 1m mini) para no quemar inodes.
+
+## 5. Riesgos / mitigaciones
+
+| Riesgo | Mitigación |
+|---|---|
+| PMCID↔año del modelo: no es exacto | algoritmo heurístico + reportar estimación con margen; el corte real se valida con muestra |
+| Volumen subestimado | filtrar por fecha con S3 inventory (oficial) antes que bulk |
+| licencias | respetar (CC-BY/CC0/commercial vs NC), filtro por `license` |
+| DuckDB/ram en nodos | parquet por shard, no abrir todo en memoria; consulta columnar parcial |
+| Coste ITRM | gratuito (S3 world-readable); solo traffic del cluster |
+
+---
+
+_Redactado como parte de la documentación del montaje. Siguiente paso: ejecutar M1 (calibración) en el cluster._
