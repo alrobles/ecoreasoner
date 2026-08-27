@@ -10,16 +10,21 @@
 
 ## 0. Decisión técnica clave (algoritmo C — PMCID↔año)
 
-**Por qué:** los PMCIDs no son contiguos y el bucket se ordena por clave `PMCID.ver/`. PM
-se publica cronológicamente → **PMCID alto ≈ artículo reciente** (monotónico). Para filtrar
-"últimos 10 años" sin bajar 500 GB completos, CALIBRAMOS la curva PMCID→año:
+**Por qué:** los PMCIDs no son contiguos y el bucket se ordena por clave `PMCID.ver/`. PMC
+se publica cronológicamente → PMCID alto ≈ artículo reciente (monotónico). Para filtrar
+"últimos 10 años" sin bajar ~8M objetos completos, calibramos PMCID→año usando el **S3
+Inventory oficial** (CSV diario de todos los `metadata/*.json`):
 
-1. Muestreo estratificado del bucket S3 (listado paginado, PMCIDs REALES de distintos rangos).
-2. Por cada PMCID, bajar solo el `.json` (metadata) → año+cita+licencia.
-3. Ajustar modelo (spline) PMCID→año.
-4. Resolver el PMCID umbral del corte (año_actual − 10) y estimar el volumen de esos artículos.
+1. Bajar el inventory (`s3://pmc-oa-opendata/inventory-reports/.../metadata/`).
+2. Los `metadata/PMCID.ver.json` traen **citation (año), license_code, title, doi,
+   is_pmc_openaccess, is_manuscript, is_retracted** — el filtro se hace sobre esto, no el texto.
+3. Ajustar la curva PMCID→año (o año directo desde citation) y estimar volumen/tamaño de
+   los últimos 10 años (≥2016) antes de descargar texto.
+4. Enriquecer con el token Entrez de NCBI si hace falta cruzar PMID→año.
 
-`scripts/pmc/calibrar_pmcid_anio.py` implementa esto (validado en kuhpc donde hay pyarrow+duckdb).
+`scripts/pmc/calibrar_pmcid_anio.py` implementa el muestreo base.
+**Dato oficial (pmcaws, 2026):** ~**8M PMC article versions**; el JSON tiene `license_code`
+(CC BY / CC BY-NC / `TDM` para author manuscripts con full-text reusable).
 
 ## 1. Tecnologías (investigadas y confirmadas)
 
