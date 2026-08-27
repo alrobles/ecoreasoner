@@ -57,7 +57,8 @@ class MoEMLP(nn.Module):
             for _ in range(n_experts)])
         self.shared = nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim)) if shared else None
         # ---- métricas aux (para loss aux de balance + monitoreo) ----
-        self._gate_probs = None   # probs softmax del último forward (para balance loss)
+        self._gate_probs = None   # probs softmax del último forward (detach, para switch aux)
+        self._gate_probs_live = None  # probs con grafo (para entropía reg)
         self._tokens = 0
         self.register_buffer("_fcount", torch.zeros(n_experts), persistent=False)
     def forward(self, x, t=None):
@@ -72,6 +73,7 @@ class MoEMLP(nn.Module):
         g = torch.softmax(self.gate(gate_in).float(), dim=-1)
         gv, gi = g.topk(self.k, dim=-1)
         # ---- registrar para balance loss (sin retener grafo de routing discreto) ----
+        self._gate_probs_live = g if self.training else None
         self._gate_probs = g.detach() if self.training else None
         if self.training:
             N = gi.numel()
@@ -91,6 +93,7 @@ class MoEMLP(nn.Module):
         return out.reshape(B, T, D)
     def reset_router_stats(self):
         self._gate_probs = None
+        self._gate_probs_live = None
         self._tokens = 0
         self._fcount.zero_()
     def balance_loss(self, alpha=0.01):
@@ -115,6 +118,18 @@ class MoEMLP(nn.Module):
         f = self._fcount.to(g.dtype) / max(self._tokens, 1)
         eff = torch.exp(-torch.sum(f * torch.log(f + 1e-12))).item()
         return {"entropy": ent, "top1_freq": f.tolist(), "eff_n": eff}
+    def entropy_reg(self, beta=0.1):
+        """Regularización por entropía del gate (Plan B).
+
+        L_ent = -beta * mean_tokens( H(gate) )   con grafo (no detach).
+        Minimizar => maximizar entropía => softmax más plana => el router reparte
+        masa de probabilidad entre expertos (ataca el colapso de capas altas).
+        """
+        if self._gate_probs_live is None:
+            return torch.zeros((), device=self.gate.weight.device)
+        g = self._gate_probs_live
+        H = -(g * (g + 1e-12).log()).sum(-1)
+        return -beta * H.mean()
 
 class Block(nn.Module):
     def __init__(self, dim, ff, heads, n_experts, k, tdim=64, n_steps=100, shared=True):

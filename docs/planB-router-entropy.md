@@ -1,9 +1,12 @@
 # Plan B — Regularización de balance del router (entropía) para E2+E4 v3
 
-> Fecha: 2026-08-27 · Estado: PROPUESTA (a decidir)
+> Fecha: 2026-08-27 · Estado: **APROBADO — implementado en ola v3 (job a lanzar)**
 > Contexto: la ola v2 (27452507) terminó con **effN 2.49** (loss 0.593, aux 0.51).
 > El Switch aux (f·P, alpha=0.01) **no logró desplegar el router**: subió effN de 1.76
 > (mínimo en warmup) a 2.49, pero sigue lejos de 8. El plan A es insuficiente.
+> Implementación: `entropy_reg()` en `moe_exp_E2_router_timestep.py` (L_ent = -beta*H,
+> con grafo), flag `--ent_beta` en el trainer, slurm `moe_e2_v3.slurm` (aux 0.01 + ent 0.1,
+> 6000 steps, cosine).
 
 ## Diagnóstico
 

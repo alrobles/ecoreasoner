@@ -43,6 +43,7 @@ def parse():
     p.add_argument("--timestep_emb",type=int,default=64)
     p.add_argument("--shared",type=int,default=1,help="1=experto compartido (E4), 0=sin")
     p.add_argument("--aux_coeff",type=float,default=0.0,help="coef del loss aux de balance de carga (0=off; recomienda 0.01)")
+    p.add_argument("--ent_beta",type=float,default=0.0,help="coef de regularización por entropía del gate (Plan B; 0=off; probar 0.05-0.2)")
     p.add_argument("--lr_decay",type=str,default="none",choices=["none","cosine"],help="decay de LR tras warmup: none o cosine")
     p.add_argument("--lr_min_ratio",type=float,default=0.1,help="LR final como fracción del LR inicial (cosine)")
     p.add_argument("--ckpt_every",type=int,default=200,help="guardar checkpoint cada N steps")
@@ -107,7 +108,7 @@ def main():
     MASK=ARGS.vocab
     n_masked=max(1,int((ARGS.seq_len//2)*ARGS.mask_p))
     nb=len(batches); it=0
-    acc=0; acc_aux=0; t0=time.time(); opt_steps=0
+    acc=0; acc_aux=0; acc_ent=0; t0=time.time(); opt_steps=0
     for step in range(ARGS.max_steps):
         model.train()
         xb=batches[it%nb].to(DEVICE); it+=1
@@ -120,8 +121,11 @@ def main():
         loss=F.cross_entropy(logits.reshape(-1,ARGS.vocab), xb.reshape(-1), ignore_index=-100)
         # loss aux de balance de carga (Switch-Transformer), si activo
         aux = sum(b.mlp.balance_loss(alpha=ARGS.aux_coeff) for b in model.blocks) if ARGS.aux_coeff > 0 else torch.zeros((), device=DEVICE)
-        (loss + ARGS.aux_coeff * aux if ARGS.aux_coeff > 0 else loss).backward()
-        acc+=loss.item(); acc_aux+= aux.item() if ARGS.aux_coeff > 0 else 0.0
+        # regularización por entropía del gate (Plan B), si activo
+        ent = sum(b.mlp.entropy_reg(beta=ARGS.ent_beta) for b in model.blocks) if ARGS.ent_beta > 0 else torch.zeros((), device=DEVICE)
+        loss_total = loss + (ARGS.aux_coeff * aux if ARGS.aux_coeff > 0 else 0) + ent
+        loss_total.backward()
+        acc+=loss.item(); acc_aux+= aux.item() if ARGS.aux_coeff > 0 else 0.0; acc_ent+= ent.item() if ARGS.ent_beta > 0 else 0.0
         if (step+1)%ARGS.grad_accum==0:
             opt.step(); opt.zero_grad(set_to_none=True); opt_steps+=1
             sched.step()
@@ -133,8 +137,8 @@ def main():
             eff=[s["eff_n"] for s in st if s]
             ent = sum(ents)/len(ents) if ents else float("nan")
             effn = sum(eff)/len(eff) if eff else float("nan")
-            log(f"[step {step+1}] loss {acc/ARGS.log_every:.4f} aux {acc_aux/ARGS.log_every:.4f} lr {lr:.2e} entH {ent:.3f} effN {effn:.2f} ({time.time()-t0:.0f}s)")
-            acc=0; acc_aux=0
+            log(f"[step {step+1}] loss {acc/ARGS.log_every:.4f} aux {acc_aux/ARGS.log_every:.4f} ent {acc_ent/ARGS.log_every:.4f} lr {lr:.2e} entH {ent:.3f} effN {effn:.2f} ({time.time()-t0:.0f}s)")
+            acc=0; acc_aux=0; acc_ent=0
         # save ckpt
         if (step+1)%ARGS.ckpt_every==0:
             torch.save(model.state_dict(), f"{ARGS.out_dir}/e2_step{step+1}.pt")

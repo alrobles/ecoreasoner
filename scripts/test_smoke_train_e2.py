@@ -20,6 +20,7 @@ T.ARGS.data_cache = os.path.join(d, "ids.npy")
 T.ARGS.max_steps = 6
 T.ARGS.log_every = 2
 T.ARGS.aux_coeff = 0.01
+T.ARGS.ent_beta = 0.1
 T.ARGS.lr_decay = "cosine"
 T.ARGS.warmup = 3
 T.ARGS.ckpt_every = 4
