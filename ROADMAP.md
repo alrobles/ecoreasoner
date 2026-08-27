@@ -61,11 +61,13 @@ Opcional NiFi/Kafka si se quiere streaming continuo (no requerido para batch).
 
 ## 3. Milestones (medibles)
 
-### M1 — Calibración PMCID↔año (estimación de volumen) — [objetivo]
-- [ ] `calibrar_pmcid_anio.py` corre en kuhpc, **≥300 muestras** (PMCID→año real).
-- [ ] **✓** Rango de años cubierto y curva PMCID→año ajustada.
-- [ ] Estima el **número de PMCIDs** de los últimos 10 años (≥2016) y su **tamaño** (GB).
-- **Criterio (medible):** reportar estimación con margen (ej. "~N artículos, ~X GB, ±20%").
+### M1 — Calibración PMCID↔año (estimación de volumen) — ✅ COMPLETADO
+- [x] `calibrar_pmcid_anio.py` / `m1_inventory_calibrar.py` corre en kuhpc con S3 Inventory real.
+- [x] S3 Inventory descargado: **~3M metadata/artículos** en el PMC OA subset.
+- [x] Muestra aleatoria uniforme de 400 metadata → **98.8% ≥2016** (últimos 10 años ≈ todo el subset).
+- [x] Rango de años cubierto y curva PMCID→año ajustada (rango 1000-2026 en muestras).
+- [x] Licencias: CC BY (mayoría), CC BY-NC/ND, TDM, CC0 → filtrable.
+- **Criterio cumplido (medible):** ~3.0M artículos ≥2016, estimación **~150-170 GB de texto** (a ~54k chars/doc) → `scripts/pmc/m1_resultado.json`.
 
 ### M2 — Ingestor S3→Parquet (primero un shard demo) — [VALIDAR]
 - [ ] Script `ingest_pmc_to_parquet.py` descarga PMCID+texto y escribe Parquet.
