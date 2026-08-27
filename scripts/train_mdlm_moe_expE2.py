@@ -81,8 +81,39 @@ def build_batches():
 def main():
     random.seed(ARGS.seed); np.random.seed(ARGS.seed); torch.manual_seed(ARGS.seed)
     os.makedirs(ARGS.out_dir, exist_ok=True)
-    tok,batches=build_batches()
+    # ---- DDP init (multi-GPU via slurm, igual que baseline) ----
+    rank = int(os.environ.get("SLURM_PROCID", os.environ.get("RANK", "0")))
+    local_rank = int(os.environ.get("SLURM_LOCALID", os.environ.get("LOCAL_RANK", "0")))
+    world = int(os.environ.get("SLURM_NTASKS", os.environ.get("WORLD_SIZE", "1")))
+    world_size = world
+    ddp = world_size > 1
+    if ddp:
+        import socket
+        os.environ.setdefault("MASTER_ADDR", socket.gethostname())
+        os.environ.setdefault("MASTER_PORT", "29513")
+        os.environ.setdefault("RANK", str(rank))
+        os.environ.setdefault("LOCAL_RANK", str(local_rank))
+        os.environ.setdefault("WORLD_SIZE", str(world_size))
+        torch.distributed.init_process_group("nccl", rank=rank, world_size=world_size)
+        nvis = torch.cuda.device_count()
+        dev_idx = min(local_rank, max(0, nvis-1))
+        torch.cuda.set_device(dev_idx)
+        DEVICE = torch.device("cuda", dev_idx)
+        log(f"DDP: rank={rank} local={local_rank} world={world_size} visible={nvis} dev={dev_idx}")
+    else:
+        DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    tok,batches_all=build_batches()
+    # distribuir batches entre ranks
+    if ddp:
+        nb = len(batches_all)
+        per = nb // world_size
+        batches = batches_all[rank*per : (rank+1)*per] if rank < world_size-1 else batches_all[rank*per:]
+        if len(batches)==0: batches = batches_all[:1]
+    else:
+        batches = batches_all
     ARGS.vocab=tok.vocab_size
+    if rank==0: log(f"using vocab_size={ARGS.vocab}")
     model=build_model().to(DEVICE)
     nparam=model.n_params()
     # conteo activos (incl shared)
@@ -91,6 +122,11 @@ def main():
     all_dense=nparam-all_exp-shared_p
     active=all_dense+shared_p+all_exp*(ARGS.expert_k/ARGS.n_experts)
     log(f"[E2+E4] total={nparam/1e6:.1f}M act≈{active/1e6:.1f}M | shared={shared_p/1e6:.1f}M | MoE {ARGS.n_experts} top-{ARGS.expert_k} + timestep-router")
+    # DDP wrap (MoE: expertos no usados cada iteración -> find_unused_parameters)
+    raw_model = model  # para iterar bloques (métricas/aux) incluso con DDP
+    if ddp:
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, device_ids=[dev_idx], find_unused_parameters=True)
     opt=torch.optim.AdamW(model.parameters(),lr=ARGS.lr,weight_decay=0.01)
     # ---- LR schedule: warmup lineal + (opcional) cosine decay ----
     total = max(ARGS.max_steps, 1)
@@ -120,30 +156,33 @@ def main():
         logits=model(xm, timestep=timestep)
         loss=F.cross_entropy(logits.reshape(-1,ARGS.vocab), xb.reshape(-1), ignore_index=-100)
         # loss aux de balance de carga (Switch-Transformer), si activo
-        aux = sum(b.mlp.balance_loss(alpha=ARGS.aux_coeff) for b in model.blocks) if ARGS.aux_coeff > 0 else torch.zeros((), device=DEVICE)
+        aux = sum(b.mlp.balance_loss(alpha=ARGS.aux_coeff) for b in raw_model.blocks) if ARGS.aux_coeff > 0 else torch.zeros((), device=DEVICE)
         # regularización por entropía del gate (Plan B), si activo
-        ent = sum(b.mlp.entropy_reg(beta=ARGS.ent_beta) for b in model.blocks) if ARGS.ent_beta > 0 else torch.zeros((), device=DEVICE)
+        ent = sum(b.mlp.entropy_reg(beta=ARGS.ent_beta) for b in raw_model.blocks) if ARGS.ent_beta > 0 else torch.zeros((), device=DEVICE)
         loss_total = loss + (ARGS.aux_coeff * aux if ARGS.aux_coeff > 0 else 0) + ent
         loss_total.backward()
         acc+=loss.item(); acc_aux+= aux.item() if ARGS.aux_coeff > 0 else 0.0; acc_ent+= ent.item() if ARGS.ent_beta > 0 else 0.0
         if (step+1)%ARGS.grad_accum==0:
             opt.step(); opt.zero_grad(set_to_none=True); opt_steps+=1
             sched.step()
-        if (step+1)%ARGS.log_every==0:
+        if ddp: torch.distributed.barrier()
+        if (not ddp or rank==0) and (step+1)%ARGS.log_every==0:
             lr=opt.param_groups[0]["lr"]
             # métricas de router (media sobre capas)
-            st=[b.mlp.router_stats() for b in model.blocks if hasattr(b.mlp,"router_stats")]
+            st=[b.mlp.router_stats() for b in raw_model.blocks if hasattr(b.mlp,"router_stats")]
             ents=[s["entropy"] for s in st if s]
             eff=[s["eff_n"] for s in st if s]
             ent = sum(ents)/len(ents) if ents else float("nan")
             effn = sum(eff)/len(eff) if eff else float("nan")
             log(f"[step {step+1}] loss {acc/ARGS.log_every:.4f} aux {acc_aux/ARGS.log_every:.4f} ent {acc_ent/ARGS.log_every:.4f} lr {lr:.2e} entH {ent:.3f} effN {effn:.2f} ({time.time()-t0:.0f}s)")
             acc=0; acc_aux=0; acc_ent=0
-        # save ckpt
-        if (step+1)%ARGS.ckpt_every==0:
-            torch.save(model.state_dict(), f"{ARGS.out_dir}/e2_step{step+1}.pt")
-    torch.save(model.state_dict(), f"{ARGS.out_dir}/e2_final.pt")
-    log(f"DONE {ARGS.max_steps} steps -> {ARGS.out_dir}/e2_final.pt")
+        # save ckpt (solo rank 0)
+        if (not ddp or rank==0) and (step+1)%ARGS.ckpt_every==0:
+            torch.save(raw_model.state_dict(), f"{ARGS.out_dir}/e2_step{step+1}.pt")
+    if not ddp or rank==0:
+        torch.save(raw_model.state_dict(), f"{ARGS.out_dir}/e2_final.pt")
+        log(f"DONE {ARGS.max_steps} steps -> {ARGS.out_dir}/e2_final.pt")
+    if ddp: torch.distributed.destroy_process_group()
 
 if __name__=="__main__":
     main()
