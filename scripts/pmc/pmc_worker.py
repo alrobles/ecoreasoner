@@ -56,7 +56,14 @@ def main():
     else:
         print("error: --list-file o --num-min/--num-max requerido"); return
 
-    rows=[]; t0=time.time()
+    rows=[]; t0=time.time(); last_flush=0
+    import pyarrow as pa, pyarrow.parquet as pq
+    def flush():
+        if rows:
+            try:
+                pq.write_table(pa.Table.from_pylist(rows), a.out)
+            except Exception as e:
+                print("  flush err", str(e)[:60])
     for num in cands:
         meta=get_meta(num)
         if not meta or not meta["year"]: continue
@@ -66,10 +73,11 @@ def main():
         if len(text)<500: continue
         rows.append({"pmcid":meta["pmcid"],"year":meta["year"],"license":meta["license"],"text":text[:8000]})
         if len(rows)%20==0: print(f"  shard {a.out}: +{len(rows)} ({(time.time()-t0):.0f}s)", flush=True)
-    # escribir parquet
-    import pyarrow as pa, pyarrow.parquet as pq
+        if len(rows)-last_flush>=5000:   # flush incremental (no perder todo al cortar)
+            flush(); last_flush=len(rows); print(f"  -> flush parcial {len(rows)}", flush=True)
+    # escritura final
+    flush()
     if rows:
-        pq.write_table(pa.Table.from_pylist(rows), a.out)
         print(f"  shard {a.out}: {len(rows)} rows OK")
     else:
         print(f"  shard {a.out}: 0 rows (sin artículos válidos)")
