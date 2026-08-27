@@ -14,9 +14,11 @@ def main():
     ap.add_argument("--csv", required=True, help="CSV del inventory (puede .gz)")
     ap.add_argument("--shards", type=int, default=20)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--num-min", type=int, default=None, help="filtrar PMCIDs con num >= (proxy año; 2024-2026 ~ 11M+)")
+    ap.add_argument("--num-max", type=int, default=None, help="filtrar PMCIDs con num <= (proxy; cota alta)")
     a=ap.parse_args()
 
-    # leer PMCIDs del CSV (formato inventory S3: bucket,key,lastmod,etag)
+    # leer PMCIDs del CSV (formato inventory S3: bucket,key,lastmod,etag); filtrar por num si se pide
     pmcs=set()
     if a.csv.endswith(".gz"):
         f=gzip.open(a.csv, "rt")
@@ -28,7 +30,11 @@ def main():
             if len(parts)<2: continue
             key=parts[1].strip().strip('"')
             m=re.match(r"metadata/(PMC\d+)\.\d+\.json$", key)
-            if m: pmcs.add(m.group(1))
+            if not m: continue
+            num=int(m.group(1)[3:])
+            if a.num_min is not None and num<a.num_min: continue
+            if a.num_max is not None and num>a.num_max: continue
+            pmcs.add(m.group(1))
     pmcs=sorted(pmcs)
     print(f"PMCIDs únicos del inventory: {len(pmcs)}")
     os.makedirs(a.out, exist_ok=True)

@@ -34,6 +34,9 @@ def parse():
     p.add_argument("--mask_p", type=float, default=0.15)
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="+", required=True)
+    p.add_argument("--data_cache", default=None,
+                   help="Path a un .npy de IDs pre-tokenizados (evita re-tokenizar el corpus en cada slurm). "
+                        "Si se da, build_batches carga los IDs de disco en vez de tokenizar.")
     p.add_argument("--tokenizer", default="/beegfs/a474r867/hf-cache/models--GSAI-ML--LLaDA-8B-Instruct/snapshots/08b83a6feb34df1a6011b80c3c00c7563e963b07")
     p.add_argument("--output", required=True)
     return p.parse_args()
@@ -135,10 +138,25 @@ def load_corpus(paths):
     return rows
 
 def build_batches():
-    from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(ARGS.tokenizer, trust_remote_code=True,
-                                        local_files_only=True)
-    if tok.pad_token is None: tok.pad_token = tok.eos_token
+    # ---------- carga desde cache (evita re-tokenizar) ----------
+    if ARGS.data_cache and os.path.exists(ARGS.data_cache):
+        import numpy as np
+        t0 = time.time()
+        arr = np.load(ARGS.data_cache)   # int32 plano: tokens concatenados
+        tok = _load_tokenizer()
+        all_ids = torch.from_numpy(arr.astype(np.int64))
+        log(f"cache: cargado {arr.size/1e9:.2f}B tokens desde {ARGS.data_cache} "
+            f"({time.time()-t0:.1f}s). tokenizer vocab={tok.vocab_size}")
+        b = ARGS.batch_size
+        n = (all_ids.numel() // (b * ARGS.seq_len)) * (b * ARGS.seq_len)
+        if n == 0:
+            raise RuntimeError("cache too small for a single batch")
+        buf = all_ids[:n].view(b, -1)
+        return tok, [buf[:, i*ARGS.seq_len:(i+1)*ARGS.seq_len]
+                     for i in range(buf.size(1)//ARGS.seq_len)]
+
+    # ---------- tokenizar en vivo (solo si NO hay cache) ----------
+    tok = _load_tokenizer()
     corp = load_corpus(ARGS.data)
     seqs = []
     for t in corp:
@@ -150,10 +168,19 @@ def build_batches():
     all_ids = torch.cat(seqs) if seqs else torch.tensor([], dtype=torch.long)
     b = ARGS.batch_size
     n = (all_ids.numel() // (b * ARGS.seq_len)) * (b * ARGS.seq_len)
-    if n == 0: raise RuntimeError("corpus too small for a single batch")
+    if n == 0:
+        raise RuntimeError("corpus too small for a single batch")
     buf = all_ids[:n].view(b, -1)
     return tok, [buf[:, i*ARGS.seq_len:(i+1)*ARGS.seq_len]
                  for i in range(buf.size(1)//ARGS.seq_len)]
+
+def _load_tokenizer():
+    from transformers import AutoTokenizer
+    tok = AutoTokenizer.from_pretrained(ARGS.tokenizer, trust_remote_code=True,
+                                        local_files_only=True)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    return tok
 
 # ---------------- checkpoint / resume ----------------
 glob_model = None
