@@ -77,10 +77,14 @@ Opcional NiFi/Kafka si se quiere streaming continuo (no requerido para batch).
 
 Nota de alcance: se espera ingesta de **últimos 5 años primero** (más barato; ~99% del subset es ≥2021) y luego ampliar.
 
-### F3 — Ingesta completa últimos 10 años (filtro dominio) — [ ]
-- [ ] Slurm array (shards paralelos) en kucpc baja los PMCIDs del corte PMCID→10 años.
-- [ ] Filtrar por año y licencia (CC-BY/CC0/NC) y por dominio ecológico/biología (conceptos malla) si se quiere.
-- **Criterio:** **~decenas de miles - cientos de miles** papers completos en Parquet, tamaño conocido, en beegfs.
+### F3 — Ingesta completa 2024-2026 (primer chunk real) — EN PROGRESO
+- [x] Probe validado: rango num 11M-13M = **1,802,253 PMCIDs** del inventory (proxy 2024-2026).
+- [x] Probe 500 PMCIDs → **469 filas válidas 2024** (94% densidad), ~0.6s/artículo, Parquet OK DuckDB COUNT=469.
+- [x] Worker con flush incremental cada 5000 (tolerante a cortes).
+- [ ] Slurm array **~55 shards** (~33K artículos/cada ≈ ~5.5h) → **~6h turnaround** para 1.8M artículos (~160MB-1GB por shard ≈ ~50-90GB total).
+- [ ] Filtrar por año≥2024 y licencia (CC BY/CC0/TDM/NC); dominio ecológico opcional post-hoc.
+- **Criterio:** ~1.5-1.8M papers completos en Parquet en beegfs, validable con DuckDB COUNT.
+Nota de alcance: si se alcanza buen techo en pocos días, se detiene (el usuario lo autorizó).
 
 ### M4 — DuckDB lake / query service — [ ]
 - [ ] Catálogo Parquet registrado en DuckDB (tabla virtual `PMC` con año, texto, licencia).

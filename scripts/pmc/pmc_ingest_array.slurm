@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --array=0-19
+#SBATCH --array=0-54
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/pmc_ingest_%A_%a.out
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/pmc_ingest_%A_%a.err
 
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
-SHARDS=$BASE/data/pmc_shards_20
+SHARDS=$BASE/data/pmc_shards_55
 OUT=$BASE/data/pmc_parquet
 mkdir -p "$OUT"
 
