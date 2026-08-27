@@ -1,0 +1,3 @@
+id,family,question,lang,code_hint,data_path,expected_type,expected_value,expected_tolerance,output_artifact,split,license,notes
+eco-sdm-002,SDM,"Dado que 120 registros de <especie> y 3 bioclim, ajusta MaxEnt con <paquete>, aplica umbral, reporta AUC",R,"<paquete/método, EJ: maxentcpp>",<ruta datos>,numeric,<AUC u otra num>,0.01,pred_results/<archivo>.csv,,own,plantilla SDM
+eco-phylo-002,phylo,"Dada una matriz de distancias genéticas y filogenia de <N> especies, estima lambda y K de Blomberg y di si OU supera a BM",R,phytools,<matriz/filogenia>,numeric,lambda,0.05,pred_results/phylo.csv,,own,plantilla filo
