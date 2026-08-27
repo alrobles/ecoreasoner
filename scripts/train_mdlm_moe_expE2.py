@@ -42,6 +42,10 @@ def parse():
     p.add_argument("--data",default="",help="fallback jsonl (sin cache)")
     p.add_argument("--timestep_emb",type=int,default=64)
     p.add_argument("--shared",type=int,default=1,help="1=experto compartido (E4), 0=sin")
+    p.add_argument("--aux_coeff",type=float,default=0.0,help="coef del loss aux de balance de carga (0=off; recomienda 0.01)")
+    p.add_argument("--lr_decay",type=str,default="none",choices=["none","cosine"],help="decay de LR tras warmup: none o cosine")
+    p.add_argument("--lr_min_ratio",type=float,default=0.1,help="LR final como fracción del LR inicial (cosine)")
+    p.add_argument("--ckpt_every",type=int,default=200,help="guardar checkpoint cada N steps")
     p.add_argument("--out_dir",default="outputs/moe_expE2")
     return p.parse_args()
 
@@ -87,10 +91,23 @@ def main():
     active=all_dense+shared_p+all_exp*(ARGS.expert_k/ARGS.n_experts)
     log(f"[E2+E4] total={nparam/1e6:.1f}M act≈{active/1e6:.1f}M | shared={shared_p/1e6:.1f}M | MoE {ARGS.n_experts} top-{ARGS.expert_k} + timestep-router")
     opt=torch.optim.AdamW(model.parameters(),lr=ARGS.lr,weight_decay=0.01)
+    # ---- LR schedule: warmup lineal + (opcional) cosine decay ----
+    total = max(ARGS.max_steps, 1)
+    warm = ARGS.warmup
+    def _lr(step):
+        # step = número de optim steps (ya en grad_accum)
+        if step < warm:
+            return step / max(warm, 1)
+        if ARGS.lr_decay == "cosine":
+            p = (step - warm) / max(total - warm, 1)
+            cos = 0.5 * (1 + math.cos(math.pi * p))
+            return ARGS.lr_min_ratio + (1 - ARGS.lr_min_ratio) * cos
+        return 1.0
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=_lr)
     MASK=ARGS.vocab
     n_masked=max(1,int((ARGS.seq_len//2)*ARGS.mask_p))
     nb=len(batches); it=0
-    acc=0; t0=time.time()
+    acc=0; acc_aux=0; t0=time.time(); opt_steps=0
     for step in range(ARGS.max_steps):
         model.train()
         xb=batches[it%nb].to(DEVICE); it+=1
@@ -101,16 +118,25 @@ def main():
         timestep=torch.zeros_like(xb); timestep[:,mp]=1
         logits=model(xm, timestep=timestep)
         loss=F.cross_entropy(logits.reshape(-1,ARGS.vocab), xb.reshape(-1), ignore_index=-100)
-        # load balance aux: diversidad de gate (sin etiquetas; uniforme ligera)
-        loss.backward()
-        acc+=loss.item()
+        # loss aux de balance de carga (Switch-Transformer), si activo
+        aux = sum(b.mlp.balance_loss(alpha=ARGS.aux_coeff) for b in model.blocks) if ARGS.aux_coeff > 0 else torch.zeros((), device=DEVICE)
+        (loss + ARGS.aux_coeff * aux if ARGS.aux_coeff > 0 else loss).backward()
+        acc+=loss.item(); acc_aux+= aux.item() if ARGS.aux_coeff > 0 else 0.0
         if (step+1)%ARGS.grad_accum==0:
-            opt.step(); opt.zero_grad(set_to_none=True)
+            opt.step(); opt.zero_grad(set_to_none=True); opt_steps+=1
+            sched.step()
         if (step+1)%ARGS.log_every==0:
-            log(f"[step {step+1}] loss {acc/ARGS.log_every:.4f} ({time.time()-t0:.0f}s)")
-            acc=0
+            lr=opt.param_groups[0]["lr"]
+            # métricas de router (media sobre capas)
+            st=[b.mlp.router_stats() for b in model.blocks if hasattr(b.mlp,"router_stats")]
+            ents=[s["entropy"] for s in st if s]
+            eff=[s["eff_n"] for s in st if s]
+            ent = sum(ents)/len(ents) if ents else float("nan")
+            effn = sum(eff)/len(eff) if eff else float("nan")
+            log(f"[step {step+1}] loss {acc/ARGS.log_every:.4f} aux {acc_aux/ARGS.log_every:.4f} lr {lr:.2e} entH {ent:.3f} effN {effn:.2f} ({time.time()-t0:.0f}s)")
+            acc=0; acc_aux=0
         # save ckpt
-        if (step+1)%200==0:
+        if (step+1)%ARGS.ckpt_every==0:
             torch.save(model.state_dict(), f"{ARGS.out_dir}/e2_step{step+1}.pt")
     torch.save(model.state_dict(), f"{ARGS.out_dir}/e2_final.pt")
     log(f"DONE {ARGS.max_steps} steps -> {ARGS.out_dir}/e2_final.pt")

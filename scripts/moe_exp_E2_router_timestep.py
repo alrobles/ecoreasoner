@@ -56,6 +56,10 @@ class MoEMLP(nn.Module):
             nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim))
             for _ in range(n_experts)])
         self.shared = nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim)) if shared else None
+        # ---- métricas aux (para loss aux de balance + monitoreo) ----
+        self._gate_probs = None   # probs softmax del último forward (para balance loss)
+        self._tokens = 0
+        self.register_buffer("_fcount", torch.zeros(n_experts), persistent=False)
     def forward(self, x, t=None):
         B, T, D = x.shape
         flat = x.reshape(-1, D)
@@ -67,6 +71,13 @@ class MoEMLP(nn.Module):
         gate_in = torch.cat([flat, te], dim=-1)
         g = torch.softmax(self.gate(gate_in).float(), dim=-1)
         gv, gi = g.topk(self.k, dim=-1)
+        # ---- registrar para balance loss (sin retener grafo de routing discreto) ----
+        self._gate_probs = g.detach() if self.training else None
+        if self.training:
+            N = gi.numel()
+            self._fcount.zero_()
+            self._fcount.scatter_add_(0, gi.reshape(-1), torch.ones(N, device=gi.device))
+            self._tokens = N
         out = torch.zeros_like(flat)
         # E4: experto compartido SIEMPRE activo (aporta base/tool-calling) + top-k especializados
         if self.shared is not None:
@@ -78,6 +89,32 @@ class MoEMLP(nn.Module):
                 if sel.any():
                     out[sel] += w[sel, None] * self.experts[e](flat[sel])
         return out.reshape(B, T, D)
+    def reset_router_stats(self):
+        self._gate_probs = None
+        self._tokens = 0
+        self._fcount.zero_()
+    def balance_loss(self, alpha=0.01):
+        """Loss aux de balance de carga (estilo Switch-Transformer).
+
+        L_aux = alpha * N * sum_e f_e * P_e
+          f_e = fracción de tokens ruteados a experto e (del routing top-k, detach)
+          P_e = media de probs del gate para e (del propio gate, detach)
+        Minimizar empuja la distribución de asignación hacia uniforme.
+        """
+        if self._gate_probs is None or self._tokens == 0:
+            return torch.zeros((), device=self.gate.weight.device)
+        f = self._fcount.to(self._gate_probs.dtype) / max(self._tokens, 1)
+        P = self._gate_probs.mean(0)
+        return alpha * self.n * (f * P.detach()).sum()
+    def router_stats(self):
+        """Métricas de monitoreo tras un forward: (entropía media, fracción top-1 por experto, N efectivo)."""
+        if self._gate_probs is None or self._tokens == 0:
+            return None
+        g = self._gate_probs
+        ent = (-g * (g + 1e-12).log()).sum(-1).mean().item()
+        f = self._fcount.to(g.dtype) / max(self._tokens, 1)
+        eff = torch.exp(-torch.sum(f * torch.log(f + 1e-12))).item()
+        return {"entropy": ent, "top1_freq": f.tolist(), "eff_n": eff}
 
 class Block(nn.Module):
     def __init__(self, dim, ff, heads, n_experts, k, tdim=64, n_steps=100, shared=True):
