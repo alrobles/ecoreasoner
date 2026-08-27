@@ -6,10 +6,13 @@ Entrena el dLLM-MoE con dos mejoras fronterizas sobre el baseline (train_mdlm_mo
   E2: router condicionado al TIMESTEP de denoising (gate(x + t_emb(mask)))
   E4: EXPERTO COMPARTIDO siempre activo + top-k especializados (patrón DeepSeek)
 
+DATASET (ver docs/dataset-registry.md): usa 2_ids_3 (train_ids_v3.npy),
+el pre-tokenizado único de 2_pretrain_3 (train_corpus_v3.jsonl).
+
 El resto (datos cache, DDP, resume, SIGUSR1, slurm) es idéntico al baseline.
 
 Uso (en cluster, 1 GPU):
-  python3 train_mdlm_moe_expE2.py --data_cache train_ids_v3.npy --max_steps 500
+  python3 train_mdlm_moe_expE2.py --data_cache data/train_ids_v3.npy --max_steps 500
 """
 import argparse, os, sys, time, json, math, random
 import numpy as np

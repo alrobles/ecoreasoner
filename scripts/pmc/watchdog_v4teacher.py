@@ -47,7 +47,8 @@ def check_endpoint(node,port):
     return "deepseek" in out or "model" in out.lower() and "error" not in out.lower()
 
 def main():
-    interval=int(sys.argv[1]) if len(sys.argv)>1 else 60
+    args=[a for a in sys.argv[1:] if a!="--interval"]
+    interval=int(args[0]) if args else 60
     last_endpoint=None
     while True:
         job=get_v4serve_job()

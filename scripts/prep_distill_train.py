@@ -3,6 +3,10 @@
 en un corpus de texto plano con formato estructurado, compatible con
 train_mdlm_moe.py (--data).
 
+DATASET (ver docs/dataset-registry.md): lee 3_distill_* (distill_v4_round*.jsonl /
+distill_data.jsonl) y escribe 3_distill_train (distill_train.jsonl), input directo
+de Fase B/C del entrenamiento.
+
 Cada trayectoria se serializa como texto con delimitadores que preservan la
 estructura agéntica (user -> assistant reasoning/tool_call -> tool_result -> final),
 para que el dLLM masked-diffusion aprenda el formato de tool-use y razonamiento.

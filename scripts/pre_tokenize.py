@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """pre_tokenize.py — tokeniza el corpus una sola vez y guarda a disco.
 
-Lee train_corpus_v{3}.jsonl, tokeniza con el tokenizer LLaDA (local, offline),
+Lee 2_pretrain_3 (train_corpus_v3.jsonl), tokeniza con el tokenizer LLaDA (local, offline),
 y guarda los IDs concatenados en un solo array plano .npy (int32) + metadata .json.
 Esto elimina el re-tokenizado dentro de cada slurm (build_batches), que hoy
 cuenta todo el corpus por rank (muy lento con 1M docs).
+
+DATASET (ver docs/dataset-registry.md): lee 2_pretrain_3 -> escribe 2_ids_3.
 
 Uso:
   python3 pre_tokenize.py --input data/train_corpus_v3.jsonl \

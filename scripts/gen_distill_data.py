@@ -7,7 +7,11 @@ calls, nosotros devolvemos un tool-result simulado (JSON), y el teacher da la
 respuesta final. Guardamos la trayectoria completa en formato listo para
 entrenamiento (secuencia de mensajes con tool-calls).
 
-Output: distill_data.jsonl
+DATASET (ver docs/dataset-registry.md): lee T_toolcall (prompts_toolcall_canonical.jsonl)
+y escribe 3_distill_rN (distill_v4_round{N}.jsonl) o 3_distill_0 (distill_data.jsonl).
+Teachers: deepseek-v4-flash (por defecto :20006), o qwen3.6:35b / glm-4.7 via --endpoint.
+
+Output: e.g. distill_v4_round3.jsonl
   {"prompt": str, "trajectory": [{role, content, tool_calls?}, ...], "model": str}
 
 Uso: python3 gen_distill_data.py [--endpoint http://127.0.0.1:20006]

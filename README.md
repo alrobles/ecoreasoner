@@ -44,6 +44,11 @@ EcoReasoner-Hibrido
 
 ## Corpus (PubMed/PMC multi-dominio)
 
+**Nomenclatura canónica de datasets:** ver **[docs/dataset-registry.md](docs/dataset-registry.md)**
+— cada dataset tiene un código estable `ETAPA__TIPO` (p.ej. `2_pretrain_3` = corpus v3,
+`2_ids_3` = su pre-tokenizado, `3_distill_r3` = trayectorias de destilación round 3).
+Para auditar el estado vivo de los datos en el cluster: `python3 scripts/dataset_catalog.py --group`.
+
 Pipeline de ingesta en beegfs (ver `scripts/mine_pubmed_duckdb.py`, `map_pmc_fulltext.py`, `port_pubmed_parquet.py`):
 
 | Artefacto | Path (HPC) | Contenido |
