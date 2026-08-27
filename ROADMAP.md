@@ -69,10 +69,13 @@ Opcional NiFi/Kafka si se quiere streaming continuo (no requerido para batch).
 - [x] Licencias: CC BY (mayoría), CC BY-NC/ND, TDM, CC0 → filtrable.
 - **Criterio cumplido (medible):** ~3.0M artículos ≥2016, estimación **~150-170 GB de texto** (a ~54k chars/doc) → `scripts/pmc/m1_resultado.json`.
 
-### M2 — Ingestor S3→Parquet (primero un shard demo) — [VALIDAR]
-- [ ] Script `ingest_pmc_to_parquet.py` descarga PMCID+texto y escribe Parquet.
-- [ ] Ejecutar **1 shard demo** (ej. 200 PMCIDs) → Parquet local/beegfs, validar con DuckDB.
-- **Criterio:** contar filas en el Parquet con DuckDB `SELECT count(*)` OK, y columnas (year, license, text) presentes.
+### M2 — Ingestor S3→Parquet (shard demo) — ✅ COMPLETADO
+- [x] `m2_ingest_demo.py` descarga metadata+texto y escribe Parquet.
+- [x] Shard demo **200 PMCIDs** → `pmc_demo.parquet` en **125s**, validado `DuckDB COUNT(*)=200`, columnas (year, license, text) presentes.
+- [x] Licencias del demo: CC BY (186), CC0 (8), TDM (5), None (1) → CC BY dominante.
+- **Criterio cumplido:** Parquet consultable por DuckDB; **~1.6s/artículo** (grosso = descarga texto) ⇒ 3M artículos ≈ **~58 días en 1 hilo** → NO viable secuencial, exige paralelizar por shards (slurm).
+
+Nota de alcance: se espera ingesta de **últimos 5 años primero** (más barato; ~99% del subset es ≥2021) y luego ampliar.
 
 ### F3 — Ingesta completa últimos 10 años (filtro dominio) — [ ]
 - [ ] Slurm array (shards paralelos) en kucpc baja los PMCIDs del corte PMCID→10 años.
