@@ -72,11 +72,20 @@ class MoEMLP(nn.Module):
         self.experts = nn.ModuleList([
             nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim))
             for _ in range(n_experts)])
+        self.register_buffer("_fcount", torch.zeros(n_experts), persistent=False)
+        self._gate_probs = None
+        self._tokens = 0
     def forward(self, x):
         B, T, D = x.shape
         flat = x.reshape(-1, D)
         g = torch.softmax(self.gate(flat).float(), dim=-1)
         gv, gi = g.topk(self.k, dim=-1)
+        # registrar métricas aux (para balance loss -> todos los expertos reciben grad)
+        self._gate_probs = g.detach() if self.training else None
+        if self.training:
+            self._fcount.zero_()
+            self._fcount.scatter_add_(0, gi.reshape(-1), torch.ones(gi.numel(), device=gi.device))
+            self._tokens = gi.numel()
         out = torch.zeros_like(flat)
         for rank in range(self.k):
             ids = gi[:, rank]; w = gv[:, rank]
@@ -85,6 +94,14 @@ class MoEMLP(nn.Module):
                 if sel.any():
                     out[sel] += w[sel, None] * self.experts[e](flat[sel])
         return out.reshape(B, T, D)
+    def balance_loss(self, alpha=0.01):
+        """Switch aux: alpha*n*sum(f_e * P_e). Toca TODOS los expertos via gate
+        (cada iteración), evitando params 'unused' en DDP -> sin deadlock."""
+        if self._gate_probs is None or self._tokens == 0:
+            return torch.zeros((), device=self.gate.weight.device)
+        f = self._fcount.to(self._gate_probs.dtype) / max(self._tokens, 1)
+        P = self._gate_probs.mean(0)
+        return alpha * self.n * (f * P.detach()).sum()
 
 class Block(nn.Module):
     def __init__(self, dim, ff, heads, n_experts, k):
@@ -284,10 +301,11 @@ def main():
     glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr, weight_decay=0.01)
     resume()
     # wrap in DDP after resume so state stays on raw module.
-    # MoE: per-iteration unused experts -> need find_unused_parameters=True
+    # MoE: con el loss aux de balance tocando TODOS los expertos cada iteración,
+    # no hay params 'unused' -> find_unused_parameters=False (evita deadlock).
     if ddp:
         glob_model = torch.nn.parallel.DistributedDataParallel(
-            glob_model, device_ids=[dev_idx], find_unused_parameters=True)
+            glob_model, device_ids=[dev_idx], find_unused_parameters=False)
     glob_model.zero_grad(set_to_none=True)
     MASK = ARGS.vocab
     n_masked = max(1, int((ARGS.seq_len//2) * ARGS.mask_p))
@@ -301,7 +319,11 @@ def main():
         out = glob_model(xm)
         loss = F.cross_entropy(out[:, mp].reshape(-1, ARGS.vocab),
                                xb[:, mp].reshape(-1))
-        (loss/ARGS.grad_accum).backward()
+        # aux loss de balance (Switch): toca TODOS los expertos cada iteración
+        # -> evita params 'unused' en DDP (deadlock). Solo si n_experts>1.
+        raw = glob_model.module if ddp else glob_model
+        aux = sum(b.mlp.balance_loss(0.01) for b in raw.blocks)
+        (loss/ARGS.grad_accum + aux).backward()
         if (step+1) % ARGS.grad_accum == 0:
             glob_opt.step(); glob_opt.zero_grad(set_to_none=True)
         LAST_LOSS[0] = loss.item(); STEPS_DONE[0] = step+1
