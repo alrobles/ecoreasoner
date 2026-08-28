@@ -122,11 +122,12 @@ def main():
     all_dense=nparam-all_exp-shared_p
     active=all_dense+shared_p+all_exp*(ARGS.expert_k/ARGS.n_experts)
     log(f"[E2+E4] total={nparam/1e6:.1f}M act≈{active/1e6:.1f}M | shared={shared_p/1e6:.1f}M | MoE {ARGS.n_experts} top-{ARGS.expert_k} + timestep-router")
-    # DDP wrap (MoE: expertos no usados cada iteración -> find_unused_parameters)
+    # DDP wrap. find_unused_parameters=False: loss aux+ent toca TODOS los expertos
+    # cada iteración, así que no hacen falta buffers de no-usados (ahorra VRAM).
     raw_model = model  # para iterar bloques (métricas/aux) incluso con DDP
     if ddp:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[dev_idx], find_unused_parameters=True)
+            model, device_ids=[dev_idx], find_unused_parameters=False)
     opt=torch.optim.AdamW(model.parameters(),lr=ARGS.lr,weight_decay=0.01)
     # ---- LR schedule: warmup lineal + (opcional) cosine decay ----
     total = max(ARGS.max_steps, 1)
