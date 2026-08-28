@@ -74,18 +74,24 @@ class MoEMLP(nn.Module):
             for _ in range(n_experts)])
         self.register_buffer("_fcount", torch.zeros(n_experts), persistent=False)
         self._gate_probs = None
+        self._probe_x = None
         self._tokens = 0
     def forward(self, x):
         B, T, D = x.shape
         flat = x.reshape(-1, D)
         g = torch.softmax(self.gate(flat).float(), dim=-1)
         gv, gi = g.topk(self.k, dim=-1)
-        # registrar métricas aux (para balance loss -> todos los expertos reciben grad)
-        self._gate_probs = g.detach() if self.training else None
+        # registrar métricas aux. _gate_probs se conserva DIFERENCIABLE para que el
+        # balance_loss pase grad real al router (load balancing). _fcount es stop-grad.
         if self.training:
+            self._gate_probs = g
             self._fcount.zero_()
             self._fcount.scatter_add_(0, gi.reshape(-1), torch.ones(gi.numel(), device=gi.device))
             self._tokens = gi.numel()
+            # Azada probe: elegimos hasta n_experts filas (detach) y en el aux las pasamos
+            # por CADA experto -> unidad de peso de cada experto recibe grad siempre.
+            s = min(self.n, flat.shape[0])
+            self._probe_x = flat[torch.arange(s, device=flat.device)].detach()
         out = torch.zeros_like(flat)
         for rank in range(self.k):
             ids = gi[:, rank]; w = gv[:, rank]
@@ -94,14 +100,31 @@ class MoEMLP(nn.Module):
                 if sel.any():
                     out[sel] += w[sel, None] * self.experts[e](flat[sel])
         return out.reshape(B, T, D)
-    def balance_loss(self, alpha=0.01):
-        """Switch aux: alpha*n*sum(f_e * P_e). Toca TODOS los expertos via gate
-        (cada iteración), evitando params 'unused' en DDP -> sin deadlock."""
-        if self._gate_probs is None or self._tokens == 0:
+    def balance_loss(self, alpha=0.01, probe_alpha=0.01):
+        """Aux cargada en grad REAL a TODO el bloque MoE, cada iteración:
+
+        router_aux  = alpha*n*sum(f_e * P_e):  f_e = fracción ocupada de tokens (stop-grad),
+                                              P_e = prob media de gate (DIFERENCIABLE).
+                                              Equilibra el router -> evita colapso de carga.
+        probe_aux   = probe_alpha * (1/n) * sum_e mean(experts_e(probe_x)^2):
+                                              pasa un token por TODOS los expertos =>
+                                              cada experto recibe grad real SIEMPRE.
+                                              -> find_unused_parameters=False no da deadlock
+                                                 y ningún experto queda 'no usado' en DDP.
+        """
+        if self._gate_probs is None or self._tokens == 0 or self._probe_x is None:
             return torch.zeros((), device=self.gate.weight.device)
-        f = self._fcount.to(self._gate_probs.dtype) / max(self._tokens, 1)
-        P = self._gate_probs.mean(0)
-        return alpha * self.n * (f * P.detach()).sum()
+        P = self._gate_probs.mean(0)                       # differentiable
+        f = self._fcount.to(P.dtype) / max(self._tokens, 1)  # stop-grad (int scatter)
+        router_aux = alpha * self.n * (f * P).sum()
+        # ---- probe: gradito real a cada experto (anti 'unused' DDP) ----
+        probe = torch.zeros((), device=P.device)
+        n = self.n
+        for e in range(n):
+            ye = self.experts[e](self._probe_x)            # differentiable en w_e
+            probe = probe + (ye ** 2).mean()
+        probe = probe / n
+        return router_aux + probe_alpha * probe
 
 class Block(nn.Module):
     def __init__(self, dim, ff, heads, n_experts, k):

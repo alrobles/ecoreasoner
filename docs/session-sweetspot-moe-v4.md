@@ -36,7 +36,11 @@
 ## PENDIENTE (próxima sesión)
 1. ⚠️ **PROBLEMA ABIERTO (el que hay que resolver)**: el MoE-DDP con batch pequeño deja expertos inactivos SIN grad → DDP exige `find_unused_parameters=True` (OOM) o da RuntimeError. El `balance_loss` con `P.detach()` balancea el gate pero NO da grad a los MLP de expertos inactivos.
    - Error exacto: `Expected to have finished reduction... Parameter indices which did not receive grad for rank 0: 90 91 ... 397` (los MoE experts inactivos del mini-batch).
-   - Solución pendiente (elegir): (a) `find_unused_parameters=True` pero en single-nodo donde quizá quepa VRAM (el OOM era multi-nodo), (b) forzar activar todos los expertos cada iteración (token de guardia / routing forzado), (c) hacer que el aux dé grad real a todos los expertos (p.ej. `aux = sum(exp_e(x))` dummy por cada experto), (d) aceptar dense-DDP (que SÍ funciona).
-2. Seguir monitorizando/relanzando MoE v4 single-node una vez resuelto el punto 1.
+   - [RESUELTO 2026-08-27 segunda pasada] El balance_loss con P.detach() además estaba MUERTO (grad 0 a TODO, ni siquiera equilibraba el router). Fix en scripts/train_mdlm_moe.py (opción c):
+     * `_gate_probs` se guarda DIFERENCIABLE (no detach) → `router_aux = alpha*n*sum(f*P)` equilibra el router (P con grad, f stop-grad).
+     * Nuevo `probe`: en forward se eligen ≤n_experts tokens (detach) y en `balance_loss()` se pasan por CADA experto (`sum_e mean(experts_e(probe_x)^2)`) → grad real a los pesos de todos los expertos SIEMPRE.
+     * Resultado: `find_unused_parameters=False` ya no encuentra params sin grad (verificado en smoke test CPU: EXPERTS_ALL_GRAD=True, GATE_GRAD=True, sin NaN, batch de 1 slice).
+   - `balance_loss(alpha=0.01, probe_alpha=0.01)`. Llamada en main ya usa alpha=0.01, probe por defecto.
+2. Seguir monitorizando/relanzando MoE v4 single-node una vez resuelto el punto 1 (falta lanzar job definitivo con este fix; pedir confirmación antes de lanzar).
 3. "Usar la arquitectura a nuestro favor": investigar cómo apalancar el MoE (especialización por dominio).
 4. El usuario pidió guardar y reiniciar para que no se cuelgue el agente.
