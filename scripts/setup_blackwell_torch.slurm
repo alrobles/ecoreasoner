@@ -22,7 +22,7 @@ SZ=20000   # 20GB overlay
 cd "$BASE"
 echo "== 1. crear overlay =="
 if [ ! -f "$OVL" ]; then
-  apptainer overlay create --size $SZ --fstype ext3 "$OVL"
+  apptainer overlay create --size $SZ "$OVL"
   echo "overlay creado: $OVL"
 else
   echo "overlay ya existe"
