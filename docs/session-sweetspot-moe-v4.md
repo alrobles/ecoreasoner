@@ -34,6 +34,9 @@
 - **e2-v3**: loss 0.595, Plan B validado.
 
 ## PENDIENTE (próxima sesión)
-1. Seguir monitorizando 27475104 (MoE v4 single-node) hasta 6000 steps → comparar loss final vs dense control (0.66).
-2. "Usar la arquitectura a nuestro favor": investigar/docs cómo apalancar el MoE (especialización por dominio, expertos semánticos).
-3. El usuario pidió "guardar la sesión y reiniciar" — el reinicio es para que no se cuelgue el agente; el job 27475104 sigue en el cluster.
+1. ⚠️ **PROBLEMA ABIERTO (el que hay que resolver)**: el MoE-DDP con batch pequeño deja expertos inactivos SIN grad → DDP exige `find_unused_parameters=True` (OOM) o da RuntimeError. El `balance_loss` con `P.detach()` balancea el gate pero NO da grad a los MLP de expertos inactivos.
+   - Error exacto: `Expected to have finished reduction... Parameter indices which did not receive grad for rank 0: 90 91 ... 397` (los MoE experts inactivos del mini-batch).
+   - Solución pendiente (elegir): (a) `find_unused_parameters=True` pero en single-nodo donde quizá quepa VRAM (el OOM era multi-nodo), (b) forzar activar todos los expertos cada iteración (token de guardia / routing forzado), (c) hacer que el aux dé grad real a todos los expertos (p.ej. `aux = sum(exp_e(x))` dummy por cada experto), (d) aceptar dense-DDP (que SÍ funciona).
+2. Seguir monitorizando/relanzando MoE v4 single-node una vez resuelto el punto 1.
+3. "Usar la arquitectura a nuestro favor": investigar cómo apalancar el MoE (especialización por dominio).
+4. El usuario pidió guardar y reiniciar para que no se cuelgue el agente.
