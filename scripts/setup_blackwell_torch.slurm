@@ -29,12 +29,12 @@ else
 fi
 
 echo "== 2. instalar torch cu128 (sm_120) dentro del overlay =="
-apptainer exec --nv --overlay "$OV" "$SIF" \
+apptainer exec --nv --overlay "$OVL" "$SIF" \
   /opt/conda/bin/pip install --no-cache-dir \
     torch==2.7.1 --index-url https://download.pytorch.org/whl/cu128
 
 echo "== 3. validar sm_120 =="
-apptainer exec --nv --overlay "$OV" "$SIF" \
+apptainer exec --nv --overlay "$OVL" "$SIF" \
   /opt/conda/bin/python -c \
     "import torch; print('torch', torch.__version__); print('cap', torch.cuda.get_device_capability(0)); print('arch', torch.cuda.get_arch_list()); print('OK sm120' if (12,0)==torch.cuda.get_device_capability(0) else 'FAIL')"
 
