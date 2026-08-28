@@ -1,0 +1,703 @@
+{
+ "meta": {
+  "name": "EcoBench-EVAL (prototipo)",
+  "version": "0.1.0",
+  "method": "DiDAL+gate (3 rondas) -> celda ejecucion-verif x dominio ecologico",
+  "license_sources": {
+   "own": "own",
+   "scienceagentbench": "cc-by-4.0"
+  },
+  "contamination_policy": "eval_holdout CONGELADO; nunca en training",
+  "seed": 42,
+  "counts": {
+   "total": 30,
+   "eval_holdout": 17,
+   "train": 13,
+   "core_own": 3,
+   "sab_gis": 27
+  }
+ },
+ "items": [
+  {
+   "id": "eco-sdm-001",
+   "family": "SDM",
+   "question": "Dado un set de 274 registros de Breviceps y 2 covariables bioclim, ajusta un SDM (maxentcpp), aplica umbral de participacion, y reporta el AUC de validacion espacial.",
+   "execution": {
+    "lang": "R",
+    "code_hint": "fit_PU / maxentcpp",
+    "data": "xsdm/breviceps_274_pu.rds",
+    "expected": {
+     "type": "numeric",
+     "value": "AUC_val",
+     "tolerance": 0.01
+    }
+   },
+   "source": "own",
+   "verification": "execution_code",
+   "license": "own",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "eco-phylo-001",
+   "family": "phylo",
+   "question": "Dada una matriz de distancias geneticas de 41 especies y su filogenia, estima la senal filogenetica (K de Blomberg y lambda) y di si OU supera a BM.",
+   "execution": {
+    "lang": "R",
+    "code_hint": "phytools, nlme",
+    "data": "phylo_fit_results.rds",
+    "expected": {
+     "type": "numeric",
+     "value": "lambda_raw",
+     "tolerance": 0.05
+    }
+   },
+   "source": "own",
+   "verification": "execution_code",
+   "license": "own",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "eco-bioclim-001",
+   "family": "bioclim",
+   "question": "Dado el stack CHELSA corregido, calcula BIO01 y reporta la media corregida por DTR.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "era5landHR / rasterio",
+    "data": "era5-corrected-stack",
+    "expected": {
+     "type": "numeric",
+     "value": "bio01",
+     "tolerance": 0.05
+    }
+   },
+   "source": "own",
+   "verification": "execution_code",
+   "license": "own",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-4",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Analyze and visualize Elk movements in the given dataset. Estimate home ranges and assess habitat preferences using spatial analysis techniques. Identify the spatial clusters of Elk movements. Document the findings with maps and visualizations. Save the figure as \"pred_results/Elk_Analysis.png\".",
+   "domain_knowledge": "\"Home range\" can be defined as the area within which an animal normally lives and finds what it needs for survival. Basically, the home range is the area that an animal travels for its normal daily activities. \"Minimum Bounding Geometry\" creates a feature class containing polygons which represent a specified minimum bounding geometry enclosing each input feature or each group of input features. \"Convex hull\" is the smallest convex polygon that can enclose a group of objects, such as a group of points.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- ElkMovement/\n|---- Elk_in_Southwestern_Alberta_2009.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/Elk_Analysis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_elk_analysis.py",
+    "gold_program": "elk_new.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-10",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Analyze Toronto fire stations and their service coverage. Visualize the results to identify coverage gaps. Save the figure as \"pred_results/Fire_Service_Analysis.png\".",
+   "domain_knowledge": "\"Service Area\" or \"Service Coverage\" is a region that encompasses all accessible locations within the study area. It is usually used to identify how much land, how many people, or how much of anything else is within the neighborhood or a region and served by certain facilities. The Overlay toolset contains tools to overlay multiple feature classes to combine, erase, modify, or update spatial features, resulting in a new feature class. The \"overlay\" function manipulations two feature layers using the language of sets – intersection, union, difference and symmetrical difference.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- Toronto_fire/\n|---- etobicoke.geojson\n|---- fire_station.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/Fire_Service_Analysis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_toronto_fire.py",
+    "gold_program": "toronto_new.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-14",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Analyze the impact of land subsidence on flooding based on future elevation data of the study area. Identify flood-prone areas and estimate potential building damage to support urban planning and mitigation strategies. Save the results to \"pred_results/flooding_analysis.png\".",
+   "domain_knowledge": "Estimate potential building damage based on factors such as flood depth, building type, flood risk classification and economic cost/loss.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- Flooding/\n|---- StudyAreaBuildings.cpg\n|---- Elevation_2050.tif.aux.xml\n|---- Elevation_2050.tif\n|---- Elevation_205",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/flooding_analysis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_flooding_gpd.py",
+    "gold_program": "flooding_gpd.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-21",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Calculate the deforestation area percentage in the Brazilian state of Rondônia within the buffer zone of 5.5km around road layers. Save the percentage result in a CSV file named \"pred_results/deforestation_rate.csv\" with a column title percentage_deforestation.",
+   "domain_knowledge": "Create buffer polygons around input geometry features to a specified distance. Clip points, lines, or polygon geometries to the mask extent.  \"Clip\" is used to cut out a piece of one map layer using one or more of the features in another layer. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- deforestation/\n|---- roads.geojson\n|---- deforestedArea.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/deforestation_rate.csv",
+     "tolerance": 0
+    },
+    "eval_script": "eval_deforestation.py",
+    "gold_program": "deforestation.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-23",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Predict the effect of future proposed roads on the deforestation of in the Brazilian state of Rondônia. A planned road network will be added to Rondônia, create a buffer zone of 5.5km around the new roads. Visualize the change created by the roads with the planned roads, existing roads, deforested area, and protected forest along with the boundary of Rondônia. Save the output as \"pred_results/predictedRiskyArea.png\".",
+   "domain_knowledge": "\"Buffer\" creates buffer polygons or zones around input geometry features to a specified distance. Clip points, lines, or polygon geometries to the mask extent.  \"Clip\" is used to cut out a piece of one map layer using one or more of the features in another layer. The Overlay toolset contains tools to overlay multiple feature classes to combine, erase, modify, or update spatial features, resulting in a new feature class. The \"overlay\" function manipulations two feature layers using the language of sets – intersection, union, difference and symmetrical difference.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- PredictDeforestation/\n|---- roads.geojson\n|---- deforestedArea.geojson\n|---- planned_road.geojson\n|---- protectedFor",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/predictedRiskyArea.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_deforestation_predict.py",
+    "gold_program": "deforestation_predict.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-32",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Perform raster analysis on the elevation and environmental factors influencing coral and sponge distribution at Catalina Island. Update the database with the slope and aspect analysis results. Use the updated database to visualize the mean slope and aspect distribution of each Coral and Sponge species in Catalina Island as \"pred_results/CoralandSponge.png\".",
+   "domain_knowledge": "The Slope tool identifies the steepness at each cell of a raster surface. The lower the slope value, the flatter the terrain; the higher the slope value, the steeper the terrain. The Aspect tool identifies the direction the downhill slope faces. The values of each cell in the output raster indicate the compass direction the surface faces at that location. It is measured clockwise in degrees from 0 (due north) to 360 (again due north), coming full circle. Flat areas having no downslope direction are given a value of -1.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- CoralSponge/\n|---- CatalinaBathymetry.tfw\n|---- CatalinaBathymetry.tif.aux.xml\n|---- CatalinaBathymetry.tif.vat.cpg\n",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/CoralandSponge.png",
+     "tolerance": 0
+    },
+    "eval_script": "coral_sponge_eval.py",
+    "gold_program": "coral_sponge.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-33",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Perform analysis on public transit access in Hamilton County Tennessee. Map existing bus stops‘s service area with enriched map layers for different census blocks, including poverty, population density, and accessibility to a vehicle. Overlay and visualize the resulting data as \"pred_results/transit_access.png\".",
+   "domain_knowledge": "The Overlay toolset contains tools to overlay multiple feature classes to combine, erase, modify, or update spatial features, resulting in a new feature class. The \"overlay\" function manipulations two feature layers using the language of sets – intersection, union, difference and symmetrical difference. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- TransitAccessDemographic/\n|---- BusServiceArea.geojson\n|---- HamiltonDemographics.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/transit_access.png",
+     "tolerance": 0
+    },
+    "eval_script": "transit_access_eval.py",
+    "gold_program": "transit_access.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-46",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "To evaluate mountain lion habitat suitability, calculate terrain ruggedness using elevation data. Visualize and save the outputs as \"pred_results/ruggedness.png\".",
+   "domain_knowledge": "Terrain Ruggedness Index (TRI) expresses the amount of elevation difference between adjacent cells of a DEM. The TRI function measures the difference in elevation values from a center cell and eight cells directly surrounding it. Then, the eight elevation differences are squared and averaged. The square root of this average results is a TRI measurement for the center cell. This calculation is then conducted on every cell of the DEM. The \"generic_filter\" function imported from the \"scipy.ndimage\" package can calculate a multidimensional filter using a given \"filter_range\" function.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- MountainLionNew/\n|---- Elevation.tfw\n|---- Elevation.tif\n|---- Elevation.tif.ovr\n|---- Mountain_Lion_Habitat.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/ruggedness.png",
+     "tolerance": 0
+    },
+    "eval_script": "mountainLion1_eval.py",
+    "gold_program": "mountainLion1.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-47",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "To evaluate mountain lion habitat suitability, calculate the distance from roads to habitats using vector road data. Then, compute the Euclidean distance from the nearest road to each cell. Visualize and save the output as \"pred_results/distance_to_habitat.png\".",
+   "domain_knowledge": "Distance analysis is fundamental to most GIS applications. A straight line is the shortest possible measure of the Euclidean distance between two locations. There is also a difference in distance measure if the calculations are done using a planar or a geodesic method. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- MountainLionNew/\n|---- Elevation.tfw\n|---- Elevation.tif\n|---- Elevation.tif.ovr\n|---- Mountain_Lion_Habitat.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/distance_to_habitat.png",
+     "tolerance": 0
+    },
+    "eval_script": "mountainLion2_eval.py",
+    "gold_program": "mountainLion2.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-48",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Compute and plot the leading Empirical Orthogonal Function (EOF) of sea surface temperature in the central and northern Pacific during winter time. Save the figure as 'pred_results/sst_visualization_pred.png'.",
+   "domain_knowledge": "In climate studies, Empirical Orthogonal Function (EOF) analysis is often used to study possible spatial modes (ie, patterns) of variability and how they change with time (e.g., the North Atlantic Oscilliation). Empirical orthogonal function (EOF) can be expressed as the correlation between the principal component time series (PCs) and the time series of the Eof input dataset at each grid point. As such, EOF analysis is sometimes classified as a multivariate statistical technique. NetCDF (Network Common Data Form) files are commonly used to store multi-dimensional scientific data such as temperature, humidity, wind speed, etc. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "examples/standard/sst_example.py",
+    "data": "|-- sea_surface_temperature/\n|---- sst_anom.nc",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/sst_visualization_pred.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_sst_visualization.py",
+    "gold_program": "sst_visualization.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-49",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Compute and plot the leading EOF of geopotential height on the 500 hPa pressure surface over the European/Atlantic sector during winter time. Save the figure as 'pred_results/EOF_standard.png'.",
+   "domain_knowledge": "In climate studies, Empirical Orthogonal Function (EOF) analysis is often used to study possible spatial modes (ie, patterns) of variability and how they change with time (e.g., the North Atlantic Oscilliation). The EOF is also interchangeable with the geographically weighted principal components analysis in geophysics. Empirical orthogonal function (EOF) can be expressed as the correlation or covariance between the principal component time series (PCs) and the time series of the EOF input dataset at each grid point. NetCDF (Network Common Data Form) files are commonly used to store multi-dimensional scientific data such as temperature, humidity, wind speed, etc. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "examples/standard/hgt_example.py",
+    "data": "|-- EOF_standard/\n|---- hgt_djf.nc",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/EOF_standard.png",
+     "tolerance": 0
+    },
+    "eval_script": "EOF_standard_hgt_plot_eval.py",
+    "gold_program": "EOF_standard_hgt_plot.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-50",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Compute and plot the leading Empirical Orthogonal Function (EOF) of sea surface temperature in the central and northern Pacific during winter time. The associated time series shows large peaks and troughs for well-known El Nino and La Nina events. Save the figure as 'pred_results/EOF_xarray_sst.png'.",
+   "domain_knowledge": "In climate studies, Empirical Orthogonal Function (EOF) analysis is often used to study possible spatial modes (ie, patterns) of variability and how they change with time (e.g., the North Atlantic Oscilliation). The EOF is also interchangeable with the geographically weighted principal components analysis in geophysics. Empirical orthogonal function (EOF) can be expressed as the correlation or covariance between the principal component time series (PCs) and the time series of the EOF input dataset at each grid point. NetCDF (Network Common Data Form) files are commonly used to store multi-dimensional scientific data such as temperature, humidity, wind speed, etc. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "examples/xarray/sst_example.py",
+    "data": "|-- EOF_xarray_sst/\n|---- sst_ndjfm_anom.nc",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/EOF_xarray_sst.png",
+     "tolerance": 0
+    },
+    "eval_script": "EOF_xarray_sst_plot_eval.py",
+    "gold_program": "EOF_xarray_sst_plot.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-53",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Standardize land cover and protected status datasets for consistency in analysis for mountain lion habitat. Reclassify these categorical datasets to a common scale using geospatial tools. Save the reclassified data as pred_results/landCover_reclassified.tif and pred_results/protected_status_reclassified.tif.",
+   "domain_knowledge": "Reclassify is to change the input cell values in a raster in the purpose of standardlization or regrouping different categories. There are several approaches to reclassifying data, such as Individual values (Lookup, Reclassify), Ranges of values (Reclass by ASCII File, Reclass by Table, Reclassify), Intervals (Slice), and continuous values using functions (Rescale by Function).",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- MountainLionNew/\n|---- Elevation.tfw\n|---- Elevation.tif\n|---- Elevation.tif.ovr\n|---- Mountain_Lion_Habitat.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/landCover_reclassified.tif",
+     "tolerance": 0
+    },
+    "eval_script": "mountainLion3_eval.py",
+    "gold_program": "mountainLion3.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-54",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Integrate ruggedness, road distance, land cover, and protected status into a single cost surface. Assign weights to each criterion to create a comprehensive habitat suitability map. Save the composite cost surface as \"pred_results/mountainLionCorridor.png\".",
+   "domain_knowledge": "The Raster Calculator tool allows you to create and run map algebra expressions in a tool.  The map algebra expressions allow users to enter mathematical (addition, division, and so on) and logical (greater than, equal to, and so on) operators in the expression to operate on raster layers. The general structure of a map algebra statement is an assignment operator (=), which is used to separate the action to its right from the name of the output (a raster object) to its left. The input raster layers need to have same size (col, row). ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- MountainLionNew/\n|---- Elevation.tfw\n|---- Elevation.tif\n|---- Elevation.tif.ovr\n|---- Mountain_Lion_Habitat.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/mountainLionCorridor.png",
+     "tolerance": 0
+    },
+    "eval_script": "mountainLionCorridor_eval.py",
+    "gold_program": "mountainLionCorridor.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-55",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Use sea temperature and salinity data from the South Atlantic Ocean to calculate and plot a vertical temperature-salinity profile within a specified range of latitude, longitude, and depth. Save the figure as 'pred_results/ocean_profiles_vis.png'.",
+   "domain_knowledge": "iris.plot is a Iris-specific package extensions to matplotlib and for handling multi-dimensional data and associated metadata. Cubes can be pattern matched and filtered according to specific criteria. Constraints are the mechanism by which cubes can be pattern matched and filtered according to specific criteria. Once a constraint has been defined, it can be applied to cubes using the Constraint.extract() method. The iris.load() function automatically recognises the format of the given files and attempts to produce Iris multidimensional Cubes from their contents.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "docs/gallery_code/oceanography/plot_atlantic_profiles.py",
+    "data": "|-- ocean_profiles/\n|---- atlantic_profiles.nc",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/ocean_profiles_vis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_plot_ocean_profiles.py",
+    "gold_program": "plot_ocean_profiles.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-56",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Use 240 years of annual average surface temperature data from North America to calculate and plot the number of occurrences where the temperature exceeds 280K for five consecutive years. Save the figure as 'pred_results/temperature_statistic_vis.png'.",
+   "domain_knowledge": "iris.plot is a Iris-specific package extensions to matplotlib and for handling multi-dimensional data and associated metadata.  Cubes can be pattern matched and filtered according to specific criteria. Constraints are the mechanism by which cubes can be pattern matched and filtered according to specific criteria. Once a constraint has been defined, it can be applied to cubes using the Constraint.extract() method. The iris.load() function automatically recognises the format of the given files and attempts to produce Iris multidimensional Cubes from their contents. cube.collapsed () function can collapse one or more dimensions over the cube given the coordinate/s and an aggregation.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "docs/gallery_code/general/plot_custom_aggregation.py",
+    "data": "|-- temperature_statistic/\n|---- E1_north_america.nc",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/temperature_statistic_vis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_plot_temperature_statistic.py",
+    "gold_program": "plot_temperature_statistic.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-64",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Show a plot comparing the flowline of region 'RGI60-11.00001' in year 2010 and 2005 with OGGM. The plot should show the mass-balance (MB, in mm w.e. per year) against elevation (in m a.s.i). Use the MultipleFlowlineMassBalance model. Save the plot to 'pred_results/plotting_flowline_mb_elevation_pred.png'.",
+   "domain_knowledge": "The Open Global Glacier Model (OGGM) is an open source modelling framework for glaciers.  OGGM’s default model is a “flowline model”, which means that the glacier ice flow is assumed to happen along a representative “1.5D” flowline. A “mass balance model” is any python function that is able to provide annual surface mass balance information to the geometry evolution model for the duration of the run. oggm.core.massbalance.MultipleFlowlineMassBalance() handles mass balance at the glacier level instead of flowline level.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "notebooks/tutorials/plot_mass_balance.ipynb",
+    "data": "|-- ocean_glacier/\n|---- per_glacier/\n|------ RGI60-11/\n|-------- RGI60-11.00/\n|---------- RGI60-11.00001.tar.gz\n|------",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/plotting_flowline_mb_elevation_pred.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_oggm_plotting_flowline_mb_elevation.py",
+    "gold_program": "plotting_flowline_mb_elevation.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-65",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Show a time series plot for the mass-balance (MB) computed by OGGM for the region 'RGI60-11.00001' from 1960 to 2020. Use the MultipleFlowlineMassBalance model. Save the plot to 'pred_results/plotting_surface_mass_pred.png'.",
+   "domain_knowledge": "The Open Global Glacier Model (OGGM) is an open source modelling framework for glaciers.  OGGM’s default model is a “flowline model”, which means that the glacier ice flow is assumed to happen along a representative “1.5D” flowline. A “mass balance model” is any python function that is able to provide annual surface mass balance information to the geometry evolution model for the duration of the run. oggm.core.massbalance.MultipleFlowlineMassBalance() handles mass balance at the glacier level instead of flowline level. oggm.workflow.init_glacier_directories() extracts a subset of the input data by inputing a region name. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "notebooks/tutorials/distribute_flowline.ipynb",
+    "data": "|-- ocean_glacier/\n|---- per_glacier/\n|------ RGI60-11/\n|-------- RGI60-11.00/\n|---------- RGI60-11.00001.tar.gz\n|------",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/plotting_surface_mass_pred.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_oggm_plotting_surface_mass.py",
+    "gold_program": "plotting_surface_mass.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-74",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "I would like to simulate and display the change of glacier area and thickness for region 'RGI60-15.04847'. Use the OGGM library and perform a random simulation from year 2020 to year 2060. Use the data from year 1999 as your starting point and set halfsize to 5. Use 1.8 as the temperature bias. Show a comparison of distributed thickness from year 2020, 2040, and 2060 in three subplots. Set the maximum value of thickness to 300. Save the plot to 'pred_results/oggm_plotting_glacier_area_and_thickness_change_pred.png'.",
+   "domain_knowledge": "The Open Global Glacier Model (OGGM) is an open source modelling framework for glaciers.  oggm.core.massbalance.MultipleFlowlineMassBalance() handles mass balance at the glacier level instead of flowline level. oggm.workflow.init_glacier_directories() initializes the list of Glacier Directories for this run by inputing a region or a sub dataset name. oggm.tasks.run_random_climate() runs the random mass balance model for a given number of years. distribute_2d.distribute_thickness_from_simulation() is a method for redistributing glacier ice that has been simulated along the flowline after a glacier retreat simulation. \n",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- ocean_glacier/\n|---- per_glacier/\n|------ RGI60-11/\n|-------- RGI60-11.00/\n|---------- RGI60-11.00001.tar.gz\n|------",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/oggm_plotting_glacier_area_and_thickness_change_pred.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_oggm_plotting_glacier_area_and_thickness_change.py",
+    "gold_program": "plotting_glacier_area_and_thickness_change.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-76",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Perform a random forest prospectivity analysis for tin-tungsten deposits in Tasmania. The analysis should focus on training and evaluating a model using Python tools on some mineral ocurrence point data and geo-related evidence raster leayers. Your goal is to set up the environment, load and inspect the data, build a random forest classifier model to identify the probability proximal of the area. The final auc should be at least 0.9. Save the final predicted graph as \"pred_results/mineral_prospectivity.png\"",
+   "domain_knowledge": "sklearn.ensemble.RandomForestClassifier() is a function to build a random forest classifier. \"Buffer\" creates buffer polygons or zones around input geometry features to a specified distance. tasgrav_IR_1VD.tif tasmag_TMI.tif tasrad_Th_ppm.tif tasmag_TMI_1VD.tif tasrad_U_ppm.tif tasrad_K_pct.tif's data structure is similar to tasgrav_IR.tif.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "transform_2022_tute.ipynb",
+    "data": "|-- MineralProspectivity/\n|---- sn_w_minoccs.gpkg\n|---- tasgrav_IR.tif\n|---- tasgrav_IR_1VD.tif\n|---- tasmag_TMI.tif\n|--",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/mineral_prospectivity.png",
+     "tolerance": 0
+    },
+    "eval_script": "mineralProspectivityEval.py",
+    "gold_program": "mineral_prospectivity_pred.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-77",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Model water quality using spatial interpolation techniques in Python. The analysis should focus on understanding spatial patterns of water quality by using point sample data and interpolating these values across a broader area including unsampled locations. Your goal is to load the water quality sample data, and apply appropriate spatial interpolation methods, such as Kriging, to predict water quality across the region. The final output should be a map showing the interpolated water quality surface, saved as \"pred_results/interploated_water_quality.png\"",
+   "domain_knowledge": "Kriging is a common used spatial interpolation method in soil science and geology. It is based on statistical models that include autocorrelation. It involves fitting into a variogram and using weights derived from covariance to interpolate.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- WaterQuality/\n|---- DissolvedO2.geojson\n|---- Bay.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/interpolated_water_quality.png",
+     "tolerance": 0
+    },
+    "eval_script": "WaterQuality_eval.py",
+    "gold_program": "WaterQuality.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-83",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Your task is to analyze urban heat using Kriging interpolation techniques in Python. The analysis should focus on understanding spatial patterns of urban heat islands by using point temperature data and interpolating these values across a city. You also have to use a demographical layer to extract and enhance the data visualization on the elder group. Your goal is to load the temperature sample data, apply the Kriging method to predict temperature across the urban area, and generate a choropleth map showing the average interpolated temperature surface in each census block group. The final output should be saved as \"pred_results/interpolated_urban_heat.png\".",
+   "domain_knowledge": "Kriging is a common used spatial interpolation method in soil science and geology. It is based on statistical models that include autocorrelation. It involves fitting into a variogram and using weights derived from covariance to interpolate. A choropleth map is a thematic map that is used to represent statistical data using the color mapping symbology technique. It displays enumeration units, or divided geographical areas or regions that are colored, shaded or patterned in relation to a data variable. Attribute joins are accomplished using the pandas.merge() method. In general, it is recommended to use the merge() method called from the GeoDataFrame in the left argument.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- UrbanHeat/\n|---- Temperature.geojson\n|---- block.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/interpolated_urban_heat.png",
+     "tolerance": 0
+    },
+    "eval_script": "UrbanHeat_eval.py",
+    "gold_program": "UrbanHeat.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-84",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Assess burn scars using satellite imagery and perform spatial analysis to understand the impact of wildfires. The goal is to use the satellite imagery data from 2014 and 2015 on analyzing burn scars by determining the change in Normalized Burn Ratio, and generate a map that visualizes the spatial extent of the damage areas in vector data format (i.e., polygons). The final output should be a visual representation of the burn scars, saved as \"pred_results/burn_scar_analysis.png\".",
+   "domain_knowledge": "Normalized Burn Ratio (NBR) is used to identify burned areas and provide a measure of burn severity. It is calculated as a ratio between the NIR and SWIR values in traditional fashion. \nLandsat 8 satellite imageries have 9 bands: \nBand 1 Coastal Aerosol (0.43 - 0.45 µm) 30 m\nBand 2 Blue (0.450 - 0.51 µm) 30 m\nBand 3 Green (0.53 - 0.59 µm) 30 m\nBand 4 Red (0.64 - 0.67 µm) 30 m\nBand 5 Near-Infrared (0.85 - 0.88 µm) 30 m\nBand 6 SWIR 1(1.57 - 1.65 µm) 30 m\nBand 7 SWIR 2 (2.11 - 2.29 µm) 30 m\nBand 8 Panchromatic (PAN) (0.50 - 0.68 µm) 15 m\nBand 9 Cirrus (1.36 - 1.38 µm) 30 m\nIn Landsat 8-9, NBR = (Band 5 – Band 7) / (Band 5 + Band 7). ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "None",
+    "data": "|-- BurnScar/\n|---- G_2014.tfw\n|---- G_2014.tif.ovr\n|---- G_2014.tif\n|---- G_2014.tif.aux.xml\n|---- G_2015.tif\n|---- G_2",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/burn_scar_analysis.png",
+     "tolerance": 0
+    },
+    "eval_script": "BurnScar_eval.py",
+    "gold_program": "BurnScar.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-86",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Load Total Electron Content (TEC) data from a space weather NetCDF file and visualize it as a filled contour map with a geographical and coastline background. Save the figure as 'pred_results/TEC_vis.png'.",
+   "domain_knowledge": "matplotlib.pyplot.contour() draw contour lines while matplotlib.pyplot.contourf() draw filled contours. NetCDF (Network Common Data Form) files are commonly used to store multi-dimensional scientific data such as temperature, humidity, wind speed, etc. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "docs/gallery_code/meteorology/plot_TEC.py",
+    "data": "|-- total_electron_content/\n|---- space_weather.nc",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/TEC_vis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_plot_TEC.py",
+    "gold_program": "plot_TEC.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-87",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Load North America climate data in NetCDF file and extract temperature data along the time series, then perform a quadratic polynomial fit analysis on the temperature data, and output the fitting results by year in 'pred_results/polynomial_fit_pred.csv'.",
+   "domain_knowledge": "NetCDF (Network Common Data Form) files are commonly used to store multi-dimensional scientific data such as temperature, humidity, wind speed, etc.  numpy.polyfit() is a least squares polynomial fitting function. numpy.polyval() estimates polynomial Y values at specific input X values.",
+   "execution": {
+    "lang": "python",
+    "code_hint": "docs/gallery_code/general/plot_polynomial_fit.py",
+    "data": "|-- polynomial_fit/\n|---- A1B_north_america.nc",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/polynomial_fit_pred.csv",
+     "tolerance": 0
+    },
+    "eval_script": "eval_polynomial_fit.py",
+    "gold_program": "polynomial_fit.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "eval_holdout"
+  },
+  {
+   "id": "sab-88",
+   "source": "scienceagentbench",
+   "family": "GIS",
+   "question": "Use data on the locations and related information of fatal car crashes in New York City, along with the GeoJSON data of NYC administrative regions, plot the geographical distribution of fatal crashes in 2016 on a map. Save the figure as 'pred_results/collisions_map_vis.png'.",
+   "domain_knowledge": "geoplot is a high-level Python geospatial plotting library. It’s an extension to cartopy and matplotlib. The geoplot.pointplot() is a geospatial scatter plot function that plots each observation in your dataset as a single point on a map. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "examples/plot_nyc_collisions_map.py",
+    "data": "|-- nyc_collisions_map/\n|---- fatal_collisions.geojson\n|---- nyc_boroughs.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/collisions_map_vis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_plot_collisions_map.py",
+    "gold_program": "plot_collisions_map.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  },
+  {
+   "id": "sab-89",
+   "source": "scienceagentbench",
+   "family": "GIS-eco",
+   "question": "Use the GeoJSON data about San Francisco street trees and administrative regions, analyze the tree species NULL percentage in different regions, and visualize this analysis in a quadtree format map. Save the figure as 'pred_results/trees_count_vis.png'.",
+   "domain_knowledge": "geoplot.quadtree() plots a choropleth map with point aggregate by quadtree neighborhoods.\ngeodataframe.assign() function assigns new columns to a GeoDataFrame. A new column could be the data \"nullity\" percentage. geoplot.polyplot() plots a polygon data layer. The DataFrame.notnull() function in Pandas is used to detect non-missing values within a DataFrame. ",
+   "execution": {
+    "lang": "python",
+    "code_hint": "examples/plot_san_francisco_trees.py",
+    "data": "|-- sfo_trees_count/\n|---- street_trees_sample.geojson\n|---- sfo_boroughs.geojson",
+    "expected": {
+     "type": "file_artifact",
+     "value": "pred_results/trees_count_vis.png",
+     "tolerance": 0
+    },
+    "eval_script": "eval_plot_trees_count.py",
+    "gold_program": "plot_trees_count.py"
+   },
+   "verification": "execution_code",
+   "license": "cc-by-4.0",
+   "contamination_protected": true,
+   "split": "train"
+  }
+ ]
+}

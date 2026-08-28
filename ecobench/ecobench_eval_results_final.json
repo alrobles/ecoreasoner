@@ -1,0 +1,126 @@
+{
+ "meta": {
+  "name": "EcoBench-EVAL (prototipo)",
+  "version": "0.1.0",
+  "method": "DiDAL+gate (3 rondas) -> celda ejecucion-verif x dominio ecologico",
+  "license_sources": {
+   "own": "own",
+   "scienceagentbench": "cc-by-4.0"
+  },
+  "contamination_policy": "eval_holdout CONGELADO; nunca en training",
+  "seed": 42,
+  "counts": {
+   "total": 30,
+   "eval_holdout": 17,
+   "train": 13,
+   "core_own": 3,
+   "sab_gis": 27
+  }
+ },
+ "results": [
+  {
+   "id": "sab-4",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/Elk_Analysis.png",
+   "expected": "pred_results/Elk_Analysis.png"
+  },
+  {
+   "id": "sab-23",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/predictedRiskyArea.png",
+   "expected": "pred_results/predictedRiskyArea.png"
+  },
+  {
+   "id": "sab-32",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/CoralandSponge.png",
+   "expected": "pred_results/CoralandSponge.png"
+  },
+  {
+   "id": "sab-33",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/transit_access.png",
+   "expected": "pred_results/transit_access.png"
+  },
+  {
+   "id": "sab-46",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/ruggedness.png",
+   "expected": "pred_results/ruggedness.png"
+  },
+  {
+   "id": "sab-48",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmp167qdwq3.py\", line 3, in <module>\n    import xarray as xr\nModuleNotFoundError: No module named 'xarray'\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-49",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmp94t8dzrx.py\", line 11, in <module>\n    hgt_var = ds.variables['hgt']  # geopotential height\n              ~~~~~~~~~~~~^^^^^^^\nKeyError: 'hgt'\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-54",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/mountainLionCorridor.png",
+   "expected": "pred_results/mountainLionCorridor.png"
+  },
+  {
+   "id": "sab-64",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "2026-08-28 18:23:47: oggm.cfg: Reading default parameters from the OGGM `params.cfg` configuration file.\n2026-08-28 18:23:47: oggm.cfg: Multiprocessing switched OFF according to the parameter file.\n2026-08-28 18:23:47: oggm.cfg: Multiprocessing: using all available processors (N=22)\nTraceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmpqaysu20u.py\", line 85, in <module>\n    main()\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmpqaysu20u.py\", line 50, in main\n    gdir = GlacierDirectory('RGI60-11.00001')\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/oggm/utils/_workflow.py\", line 2758, in __init__\n    rgi_entity =",
+   "attempts": 3
+  },
+  {
+   "id": "sab-76",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/mineral_prospectivity.png",
+   "expected": "pred_results/mineral_prospectivity.png"
+  },
+  {
+   "id": "sab-77",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmpsnzmbdus.py\", line 46, in <module>\n    rbf = Rbf(coords[:, 0], coords[:, 1], values, function='linear')\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/scipy/interpolate/_rbf.py\", line 270, in __init__\n    self.nodes = linalg.solve(self.A, self.di)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/scipy/linalg/_basic.py\", line 262, in solve\n    _format_emit_errors_warnings(err_lst)\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/scipy/linalg/_basic.py\", line 42, in _format_emit_errors_warnings\n    r",
+   "attempts": 3
+  },
+  {
+   "id": "sab-84",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/burn_scar_analysis.png",
+   "expected": "pred_results/burn_scar_analysis.png"
+  },
+  {
+   "id": "sab-86",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmp5ro9vft5.py\", line 5, in <module>\n    import cartopy.crs as ccrs\nModuleNotFoundError: No module named 'cartopy'\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-87",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/polynomial_fit_pred.csv",
+   "expected": "pred_results/polynomial_fit_pred.csv"
+  }
+ ],
+ "pass@1": "9/14"
+}

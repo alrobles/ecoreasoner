@@ -1,0 +1,68 @@
+{
+ "meta": {
+  "name": "EcoBench-EVAL (prototipo)",
+  "version": "0.1.0",
+  "method": "DiDAL+gate (3 rondas) -> celda ejecucion-verif x dominio ecologico",
+  "license_sources": {
+   "own": "own",
+   "scienceagentbench": "cc-by-4.0"
+  },
+  "contamination_policy": "eval_holdout CONGELADO; nunca en training",
+  "seed": 42,
+  "counts": {
+   "total": 30,
+   "eval_holdout": 17,
+   "train": 13,
+   "core_own": 3,
+   "sab_gis": 27
+  }
+ },
+ "results": [
+  {
+   "id": "sab-48",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmp7ijdoz3h.py\", line 29, in <module>\n    raise ValueError(f\"Expected 2 spatial dimensions, found {len(spatial_dims)}: {spatial_dims}\")\nValueError: Expected 2 spatial dimensions, found 1: ['bound']\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-49",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmpmo6vo4qn.py\", line 152\n    gl = ax.gridlines(\n                     ^\nSyntaxError: '(' was never closed\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-64",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "fg: Reading default parameters from the OGGM `params.cfg` configuration file.\n2026-08-28 18:42:00: oggm.cfg: Multiprocessing switched OFF according to the parameter file.\n2026-08-28 18:42:00: oggm.cfg: Multiprocessing: using all available processors (N=22)\nTraceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmp_wo7_gf_.py\", line 49, in <module>\n    gdir = utils.GlacierDirectory(rgi_id, reset=False)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/oggm/utils/_workflow.py\", line 2758, in __init__\n    rgi_entity = self._read_shapefile_from_path(_shp)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3",
+   "attempts": 3
+  },
+  {
+   "id": "sab-77",
+   "family": "GIS",
+   "status": "fail",
+   "artifact": "/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/pred_results/interpolated_water_quality.png",
+   "expected": "pred_results/interpolated_water_quality.png"
+  },
+  {
+   "id": "sab-86",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/home/reumanlab/ecoseek/ecoseek-benchmark/ecobench_raw/sciagentbench/benchmark/tmpk1ye5ac7.py\", line 4\n    Let's examine the steps:\n       ^\nSyntaxError: unterminated string literal (detected at line 4)\n",
+   "attempts": 3
+  }
+ ],
+ "model": "nvidia/nemotron-3-super-120b-a12b:free",
+ "backend": "openrouter",
+ "caveats": [
+  "LLM-visual-judge skipped",
+  "gold_no_train",
+  "CWD=benchmark"
+ ]
+}
