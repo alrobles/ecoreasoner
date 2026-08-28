@@ -18,12 +18,15 @@
 # -> ataca la raíz del problema de grad (experts inactivos) además del probe.
 set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
+SIF="$BASE/pytorch-cuda.sif"
+OVL="$BASE/blackwell-torch.overlay"
+VENV="/bb/bwvenv"
 cd "$BASE"
 DATA="$BASE/data/train_ids_v4.npy"
 [ -f "$DATA" ] || { echo "FALTA train_ids_v4.npy"; exit 1; }
 
-srun --export=ALL -n 2 apptainer exec --nv pytorch-cuda.sif \
-  python3 scripts/train_mdlm_moe.py \
+srun --export=ALL -n 2 apptainer exec --nv --overlay "$OVL" "$SIF" \
+  "$VENV/bin/python" scripts/train_mdlm_moe.py \
   --data_cache "$DATA" \
   --data "$BASE/data/train_corpus_v4.jsonl" \
   --hidden 1024 --layers 16 --heads 16 --ff_mult 4 \
