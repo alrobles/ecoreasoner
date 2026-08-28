@@ -66,10 +66,12 @@ registro; la ruta puede cambiar si migramos de directorio, el código no.
 
 ### ETAPA 4 — EVAL / BENCHMARK
 
-|Código | Tipo | Archivo | desc |
+| Código | Tipo | Archivo | desc |
 |---|---|---|---|
 | `4_eval_sci` | sci eval | `sci_v2*.jsonl`, `sci_v1.jsonl` | prompts eval de razonamiento científico (tool-agnostic) |
 | `4_bench` | benc | `benchmarks/`, `outputs/*/activation_report.json` | resultados de benchmark de bloco |
+| `4_bench_afrisci` | bench exter | **`gimmy256/African-science`** (HF) | ⭐ cuestionario benchmark africano: ciencia en contexto africano (malaria, TB, HIV, biodiversidad Albertine Rift/Congo, clima Sahel/Lago Victoria, energía/recursos, instituciones Makerere/KEMRI/IITA, STEM educ). Instrucción-tuning web-grounded, generado gemini-2.5-flash, registrado para benchmark (user 2026-08-28) |
+| `4_bench_nemotron_sci2` | bench exter | **`nvidia/Nemotron-SFT-Science-v2`** (HF) | ⭐ cuestionario benchmark ciencia: 2.84M filas / 49GB, dominios Physics/Biology/Chemistry, formatos Synthetic-MCQ + RQA + Vendor + SO-MCQ, soluciones generadas con GPT-OSS/Kimi-K2/DeepSeek-V3.2/V4-Pro, CC BY-SA 4.0. Registrado para benchmark (user 2026-08-28) |
 
 ### T — PROMPTS de toolcall (no son trayectorias)
 
