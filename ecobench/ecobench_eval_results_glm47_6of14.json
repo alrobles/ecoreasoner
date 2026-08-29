@@ -1,0 +1,135 @@
+{
+ "meta": {
+  "name": "EcoBench-EVAL (prototipo)",
+  "version": "0.1.0",
+  "method": "DiDAL+gate (3 rondas) -> celda ejecucion-verif x dominio ecologico",
+  "license_sources": {
+   "own": "own",
+   "scienceagentbench": "cc-by-4.0"
+  },
+  "contamination_policy": "eval_holdout CONGELADO; nunca en training",
+  "seed": 42,
+  "counts": {
+   "total": 30,
+   "eval_holdout": 17,
+   "train": 13,
+   "core_own": 3,
+   "sab_gis": 27
+  }
+ },
+ "results": [
+  {
+   "id": "sab-4",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/tmpy4oq6pjd.py\", line 39, in <module>\n    points_gdf = gpd.GeoDataFrame(geometry=[gpd.points_from_xy([x for x, y in coords], [y for x, y in coords])], crs=gdf.crs)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/geopandas/geodataframe.py\", line 243, in __init__\n    self.set_geometry(geometry, inplace=True, crs=crs)\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/geopandas/geodataframe.py\", line 464, in set_geometry\n    level = _ensure_geometry(level, crs=crs)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  Fil",
+   "attempts": 3
+  },
+  {
+   "id": "sab-23",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/pred_results/predictedRiskyArea.png",
+   "expected": "pred_results/predictedRiskyArea.png"
+  },
+  {
+   "id": "sab-32",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/pred_results/CoralandSponge.png",
+   "expected": "pred_results/CoralandSponge.png"
+  },
+  {
+   "id": "sab-33",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/pred_results/transit_access.png",
+   "expected": "pred_results/transit_access.png"
+  },
+  {
+   "id": "sab-46",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "py\", line 94, in draw_wrapper\n    result = draw(artist, renderer, *args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/matplotlib/artist.py\", line 71, in draw_wrapper\n    return draw(artist, renderer)\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/matplotlib/figure.py\", line 3282, in draw\n    mimage._draw_list_compositing_images(\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/matplotlib/image.py\", line 133, in _draw_list_compositing_images\n    a.draw(renderer)\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/matplotlib/artist.py\", line 71, in draw_wrapper\n    return draw(artist, renderer)\n           ^^^^^^^^^^^^^^^^^",
+   "attempts": 3
+  },
+  {
+   "id": "sab-48",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/tmpan5wvhhe.py\", line 67, in <module>\n    eof1 = Vh[0, :].reshape(sst.latitude.shape, sst.longitude.shape)\n           ~~^^^^^^\nIndexError: index 0 is out of bounds for axis 0 with size 0\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-49",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/tmpvhykvsvj.py\", line 4\n    *   **Root Cause:** The variable name in the NetCDF file `hgt_djf.nc` is likely different from `hgt`. I need to inspect the file to find the correct variable name. Common names for geopotential height are `hgt`, `z`, `height`, `geopotential`, etc. Since the error says it doesn't have `hgt`, I must look for the actual variable name.\n                                                                                                                                                                                                                                                                                         ^\nSyntaxError: unterminated string literal (detected at line 4)\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-54",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/pred_results/mountainLionCorridor.png",
+   "expected": "pred_results/mountainLionCorridor.png"
+  },
+  {
+   "id": "sab-64",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/tmpsljy5h0o.py\", line 19\n    *   The indentation was likely incorrect (too many spaces or tabs) or the code block wasn't formatted as a valid Python script structure (e.g., inside a function without proper indentation).\n                                                                                             ^\nSyntaxError: unterminated string literal (detected at line 19)\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-76",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/tmp8864oxjp.py\", line 2\n    values = list(sample_gen(src, coords))\nIndentationError: unexpected indent\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-77",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/pandas/core/indexes/base.py\", line 3641, in get_loc\n    return self._engine.get_loc(casted_key)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"pandas/_libs/index.pyx\", line 168, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/index.pyx\", line 197, in pandas._libs.index.IndexEngine.get_loc\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7668, in pandas._libs.hashtable.PyObjectHashTable.get_item\n  File \"pandas/_libs/hashtable_class_helper.pxi\", line 7676, in pandas._libs.hashtable.PyObjectHashTable.get_item\nKeyError: 'dissolved_o2'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/reumanlab/ecose",
+   "attempts": 3
+  },
+  {
+   "id": "sab-84",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/pred_results/burn_scar_analysis.png",
+   "expected": "pred_results/burn_scar_analysis.png"
+  },
+  {
+   "id": "sab-86",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/pred_results/TEC_vis.png",
+   "expected": "pred_results/TEC_vis.png"
+  },
+  {
+   "id": "sab-87",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/xarray/namedarray/core.py\", line 710, in _get_axis_num\n    return self.dims.index(dim)  # type: ignore[no-any-return]\n           ^^^^^^^^^^^^^^^^^^^^\nValueError: tuple.index(x): x not in tuple\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/bench_runs/glm_or/ecobench_raw/sciagentbench/benchmark/tmpjw9afx93.py\", line 33, in <module>\n    data_mean = data.mean(dim=['lat', 'lon'])\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/reumanlab/ecobench_venv/lib/python3.12/site-packages/xarray/core/_aggregations.py\", line 3033, in mean\n    out = self.reduce(\n          ^^^^^^^^^^^^\n  File \"/home/reuma",
+   "attempts": 3
+  }
+ ],
+ "model": "z-ai/glm-4.7-flash",
+ "backend": "openrouter",
+ "caveats": [
+  "LLM-visual-judge skipped",
+  "gold_no_train",
+  "CWD=benchmark"
+ ]
+}
