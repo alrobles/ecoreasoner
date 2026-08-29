@@ -242,21 +242,39 @@ def _save_checkpoint(tag):
         {"step": g, "checkpoint": f"checkpoint-g{g}", "updated": time.time()}))
     (OUT/"progress.json").write_text(json.dumps(
         {"step": g, "loss": LAST_LOSS[0], "updated": time.time()}))
-    for f in sorted(OUT.glob("checkpoint-g*")):
-        if f.name != ckpt.name: shutil.rmtree(f, ignore_errors=True)
+    ckpts = sorted(OUT.glob("checkpoint-g*"), key=lambda d: int(d.name.split("-g")[1]))
+    for f in ckpts[:-2]:  # conserva 2: el actual + el de la ola previa (resume seguro)
+        shutil.rmtree(f, ignore_errors=True)
     log(f"  checkpoint g{g} guardado")
 
+def _newest_valid_checkpoint():
+    """Fallback robusto a olas: el checkpoint-g* más nuevo con model.pt/optimizer.pt
+    íntegros (la ola nueva puede arrancar antes de que la previa termine de escribir
+    el final, así que state.json puede apuntar a uno incompleto -> no fiarse solo de él)."""
+    valid = [d for d in OUT.glob("checkpoint-g*")
+             if (d/"model.pt").exists() and (d/"optimizer.pt").exists()]
+    if not valid: return None, 0
+    best = max(valid, key=lambda d: int(d.name.split("-g")[1]))
+    return best, int(best.name.split("-g")[1])
+
 def resume():
+    ck = None; step = 0
     sf = OUT/"state.json"
-    if not sf.exists(): return
-    try: state = json.loads(sf.read_text())
-    except Exception: return
-    ck = OUT/state.get("checkpoint","")
-    if ck.exists() and (ck/"model.pt").exists():
+    if sf.exists():
+        try:
+            st = json.loads(sf.read_text())
+            cand = OUT/st.get("checkpoint","")
+            if cand.exists() and (cand/"model.pt").exists() and (cand/"optimizer.pt").exists():
+                ck, step = cand, st.get("step",0)
+        except Exception:
+            pass
+    if ck is None:  # state.json ausente/incompleto -> ultimo checkpoint integro
+        ck, step = _newest_valid_checkpoint()
+    if ck is not None:
         glob_model.load_state_dict(torch.load(ck/"model.pt", map_location="cpu")["model"])
         glob_opt.load_state_dict(torch.load(ck/"optimizer.pt", map_location="cpu")["optimizer"])
-        STEPS_DONE[0] = state.get("step",0)
-        log(f"Resumed {state.get('checkpoint')} (step {STEPS_DONE[0]})")
+        STEPS_DONE[0] = step
+        log(f"Resumed {ck.name} (step {STEPS_DONE[0]})")
 
 def _handle_sig(sig, frm):
     log("SIGUSR1 — guardando ola y saliendo 42")
