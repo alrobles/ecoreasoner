@@ -65,6 +65,10 @@ current working directory, under `datasets/<name>/`). The program must:
 - be runnable with `python3 <file>` from the current working directory
 Output ONLY the Python code between ```python and ``` markers. No explanation."""
 
+# Fix reasoning-first: subir max_tokens para que el razonamiento no agote el
+# budget de salida y deje content vacío (deepseek-v4-flash, validado 2026-08-28)
+MAX_TOKENS = 8000
+
 def llm_generate(prompt, model, backend, retries=3):
     """Genera código con el LLM (ollama local o openrouter). Retorna (código, error).
     Retries internos ante rate-limit/timeout de OpenRouter (backoff)."""
@@ -76,7 +80,7 @@ def llm_generate(prompt, model, backend, retries=3):
                 payload = json.dumps({"model": model, "messages": [
                     {"role":"system","content":SYSTEM_PROMPT},
                     {"role":"user","content":prompt}],
-                    "temperature": 0.1, "max_tokens": 4000}).encode()
+                    "temperature": 0.1, "max_tokens": MAX_TOKENS}).encode()
                 req = urllib.request.Request(OLLAMA_URL, data=payload,
                                              headers={"Content-Type":"application/json"}, method="POST")
                 with urllib.request.urlopen(req, timeout=600) as r:
@@ -95,7 +99,7 @@ def llm_generate(prompt, model, backend, retries=3):
                 payload = json.dumps({"model": model, "messages": [
                     {"role":"system","content":SYSTEM_PROMPT},
                     {"role":"user","content":prompt}],
-                    "temperature": 0.1, "max_tokens": 4000}).encode()
+                    "temperature": 0.1, "max_tokens": MAX_TOKENS}).encode()
                 req = urllib.request.Request(OPENROUTER_URL, data=payload,
                                              headers={"Authorization":f"Bearer {key}",
                                                       "Content-Type":"application/json"}, method="POST")
@@ -105,7 +109,17 @@ def llm_generate(prompt, model, backend, retries=3):
                     # rate limit / error -> backoff y reintentar
                     last_err = f"openrouter sin choices: {str(res.get('error') or res)[:200]}"
                     _t.sleep(8*(attempt+1)); continue
-                text = res["choices"][0]["message"].get("content") or ""
+                msg = res["choices"][0].get("message") or {}
+                text = msg.get("content") or ""
+                # Fix reasoning-first (2026-08-28): deepseek-v4-flash emite el
+                # contenido en `reasoning`/`reasoning_details` y deja content vacío
+                # cuando el budget se agota razonando -> 7/14 empty_code sin esto.
+                if not text.strip():
+                    rz = msg.get("reasoning") or ""
+                    if not rz:
+                        rdd = msg.get("reasoning_details") or []
+                        rz = "\n".join(d.get("text", "") for d in rdd if isinstance(d, dict))
+                    text = rz or ""
             break
         except Exception as e:
             last_err = str(e)
