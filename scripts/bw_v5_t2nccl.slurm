@@ -21,7 +21,7 @@ OVL=$BASE/blackwell-torch.overlay
 VENV=/bb/bwvenv
 cd "$BASE"
 rm -rf outputs/bw_v5_t2n
-apptainer exec --nv --overlay "$OVL" "$SIF" env \
+apptainer exec --nv --overlay "$OVL":ro "$SIF" env \
   NCCL_CUMEM_HOST_ENABLE=0 NCCL_IB_DISABLE=1 NCCL_DEBUG=WARN \
   "$VENV/bin/python" -m torch.distributed.run \
   --nproc_per_node=2 --master_port=29512 \

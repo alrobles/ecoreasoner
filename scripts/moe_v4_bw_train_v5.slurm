@@ -77,7 +77,7 @@ trap handle_signal USR1
 trap 'echo SIGTERM; exit 1' TERM
 
 # ---- Verificación GPU -----------------------------------------------------
-apptainer exec --nv --overlay "$OVL" "$SIF" "$VENV/bin/python" -c "
+apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" -c "
 import torch
 print('GPUs:', torch.cuda.device_count())
 for i in range(torch.cuda.device_count()):
@@ -87,7 +87,7 @@ assert torch.cuda.device_count() >= 2
 
 # ---- Lanzar entrenamiento MoE v4 (2x pro6000, torchrun intra-nodo) ---------
 echo "=== Lanzando MoE v4 Blackwell v5 ($WAVE_ID -> $OUT, steps $TARGET_STEPS) $(date -u) ==="
-apptainer exec --nv --overlay "$OVL" "$SIF" \
+apptainer exec --nv --overlay "$OVL":ro "$SIF" \
     "$VENV/bin/python" -m torch.distributed.run \
     --nproc_per_node=2 --master_port=29512 \
     "$BASE/scripts/train_mdlm_moe.py" \

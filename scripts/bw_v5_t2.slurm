@@ -21,7 +21,7 @@ OVL=$BASE/blackwell-torch.overlay
 VENV=/bb/bwvenv
 cd "$BASE"
 rm -rf outputs/bw_v5_t2
-apptainer exec --nv --overlay "$OVL" "$SIF" \
+apptainer exec --nv --overlay "$OVL":ro "$SIF" \
     "$VENV/bin/python" -m torch.distributed.run \
     --nproc_per_node=2 --master_port=29512 \
     "$BASE/scripts/train_mdlm_moe.py" \
