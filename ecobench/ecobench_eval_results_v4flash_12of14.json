@@ -1,0 +1,129 @@
+{
+ "meta": {
+  "name": "EcoBench-EVAL (prototipo)",
+  "version": "0.1.0",
+  "method": "DiDAL+gate (3 rondas) -> celda ejecucion-verif x dominio ecologico",
+  "license_sources": {
+   "own": "own",
+   "scienceagentbench": "cc-by-4.0"
+  },
+  "contamination_policy": "eval_holdout CONGELADO; nunca en training",
+  "seed": 42,
+  "counts": {
+   "total": 30,
+   "eval_holdout": 17,
+   "train": 13,
+   "core_own": 3,
+   "sab_gis": 27
+  }
+ },
+ "results": [
+  {
+   "id": "sab-4",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/Elk_Analysis.png",
+   "expected": "pred_results/Elk_Analysis.png"
+  },
+  {
+   "id": "sab-23",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/predictedRiskyArea.png",
+   "expected": "pred_results/predictedRiskyArea.png"
+  },
+  {
+   "id": "sab-32",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/CoralandSponge.png",
+   "expected": "pred_results/CoralandSponge.png"
+  },
+  {
+   "id": "sab-33",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/transit_access.png",
+   "expected": "pred_results/transit_access.png"
+  },
+  {
+   "id": "sab-46",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/ruggedness.png",
+   "expected": "pred_results/ruggedness.png"
+  },
+  {
+   "id": "sab-48",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/sst_visualization_pred.png",
+   "expected": "pred_results/sst_visualization_pred.png"
+  },
+  {
+   "id": "sab-49",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/EOF_standard.png",
+   "expected": "pred_results/EOF_standard.png"
+  },
+  {
+   "id": "sab-54",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/mountainLionCorridor.png",
+   "expected": "pred_results/mountainLionCorridor.png"
+  },
+  {
+   "id": "sab-64",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "Traceback (most recent call last):\n  File \"/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/tmp5w6fvu3w.py\", line 28, in <module>\n    raise RuntimeError(\"Could not find glacier directory with glacier.json in the tar archive.\")\nRuntimeError: Could not find glacier directory with glacier.json in the tar archive.\n",
+   "attempts": 3
+  },
+  {
+   "id": "sab-76",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/mineral_prospectivity.png",
+   "expected": "pred_results/mineral_prospectivity.png"
+  },
+  {
+   "id": "sab-84",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/burn_scar_analysis.png",
+   "expected": "pred_results/burn_scar_analysis.png"
+  },
+  {
+   "id": "sab-86",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/tmpe8eexs31.py\", line 3\n    We can try to use `ax.pcolormesh` with `transform=ccrs.PlateCarree()` which handles NaN better. But the task explicitly says \"filled contour map\". However, we can still use contourf but we need to ensure the data is finite. We can interpolate NaN values using scipy or fill with nearest. Or we can use `ax.contourf` with `extend='both'` and set `nan` to a value outside range? Actually, contourf ignores NaN but cartopy's projection might still fail. The error is from projecting the contour paths, which might include empty geometries due to NaN. A known workaround is to use `ax.contourf` with `transform=ccrs.PlateCarree()` but ensure the data is not masked. We can fill NaN wit",
+   "attempts": 3
+  },
+  {
+   "id": "sab-87",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/polynomial_fit_pred.csv",
+   "expected": "pred_results/polynomial_fit_pred.csv"
+  },
+  {
+   "id": "sab-77",
+   "family": "GIS",
+   "status": "pass",
+   "artifact": "/home/reumanlab/ecoseek/bench_runs/v4flash_or/ecobench_raw/sciagentbench/benchmark/pred_results/interploated_water_quality.png",
+   "expected": "pred_results/interpolated_water_quality.png"
+  }
+ ],
+ "model": "deepseek/deepseek-v4-flash-0731",
+ "backend": "openrouter",
+ "caveats": [
+  "LLM-visual-judge skipped",
+  "gold_no_train",
+  "CWD=benchmark"
+ ]
+}
