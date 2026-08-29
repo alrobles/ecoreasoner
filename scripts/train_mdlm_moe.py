@@ -245,10 +245,12 @@ def _save_checkpoint(tag):
     sd = glob_model.state_dict()
     if isinstance(glob_model, torch.nn.parallel.DistributedDataParallel):
         sd = glob_model.module.state_dict()
-    # ESCRITURA ATOMICA (2026-08-29): el SIGUSR1 llega a los DOS ranks y ambos
-    # guardan al mismo dir; torch.save directo intercalaba archivos -> model.pt
-    # corrupto -> la ola siguiente moria en resume(). Escribir a .tmp + rename.
-    tmp_m = ckpt/"model.pt.tmp"; tmp_o = ckpt/"optimizer.pt.tmp"
+    # ESCRITURA ATOMICA (2026-08-29): el SIGUSR1 llega a los DOS ranks; con
+    # torch.save directo al mismo path el archivo quedaba intercalado (corrupto).
+    # tmp con PID unico (cada rank escribe su tmp; el rename es atomico) y
+    # SOLO rank 0 guarda en SIGUSR1 (_handle_sig) -> un solo escritor por dir.
+    pid = os.getpid()
+    tmp_m = ckpt/f"model.pt.tmp.{pid}"; tmp_o = ckpt/f"optimizer.pt.tmp.{pid}"
     torch.save({"model": sd}, tmp_m)
     torch.save({"optimizer": glob_opt.state_dict()}, tmp_o)
     os.replace(tmp_m, ckpt/"model.pt")
@@ -306,7 +308,12 @@ def resume():
 
 def _handle_sig(sig, frm):
     log("SIGUSR1 — guardando ola y saliendo 42")
-    _save_checkpoint("sigusr1")
+    # SOLO rank 0 guarda (world>1): si los 2 ranks escribieran al mismo dir,
+    # race de escritura -> checkpoint corrupto o FileNotFoundError (2026-08-29).
+    r = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", "0")))
+    w = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS", "1")))
+    if w <= 1 or r == 0:
+        _save_checkpoint("sigusr1")
     raise SystemExit(42)
 
 signal.signal(signal.SIGUSR1, _handle_sig)
