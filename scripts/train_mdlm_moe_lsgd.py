@@ -263,9 +263,13 @@ signal.signal(signal.SIGUSR1, _handle_sig)
 # ---------------- train ----------------
 def main():
     global glob_model, glob_opt, DEVICE
-    rank = int(os.environ.get("SLURM_PROCID", os.environ.get("RANK", "0")))
-    local_rank = int(os.environ.get("SLURM_LOCALID", os.environ.get("LOCAL_RANK", "0")))
-    world = int(os.environ.get("SLURM_NTASKS", os.environ.get("WORLD_SIZE", "1")))
+    # FIX multi-nodo torchrun (2026-08-29): con srun + torchrun los workers heredan
+    # SLURM_PROCID del srun task (0,1 por nodo) PERO RANK de torchrun es el GLOBAL
+    # (0..world-1). RANK debe ganar SIEMPRE que torchrun lo defina; SLURM_PROCID solo
+    # aplica en el modo vanilla (srun directo sin torchrun, donde RANK no existe).
+    rank = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", "0")))
+    local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("SLURM_LOCALID", "0")))
+    world = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS", "1")))
     world_size = world
     ddp = world_size > 1
     if ddp:
