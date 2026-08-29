@@ -277,7 +277,23 @@ def main():
     if ddp:
         import socket
         # ensure rendezvous env (srun/apptainer may not forward these)
-        os.environ.setdefault("MASTER_ADDR", socket.gethostname())
+        # MULTI-NODO: el master es el nodo del rank 0 (SLURM_JOB_NODELIST), NO
+        # socket.gethostname() de cada rank (eso solo funciona single-nodo y
+        # cuelga en multi-nodo -> TCPStore timeout). SLURM puede darnos el primer
+        # hostname; si no, usamos el propio (single-nodo).
+        master_addr = socket.gethostname()
+        try:
+            nodelist = os.environ.get("SLURM_JOB_NODELIST", "")
+            if nodelist:
+                import subprocess
+                first = subprocess.run(
+                    ["scontrol", "show", "hostname", nodelist],
+                    capture_output=True, text=True, timeout=10).stdout.splitlines()[0].strip()
+                if first:
+                    master_addr = first
+        except Exception:
+            pass
+        os.environ.setdefault("MASTER_ADDR", master_addr)
         os.environ.setdefault("MASTER_PORT", "29512")
         os.environ.setdefault("RANK", str(rank))
         os.environ.setdefault("LOCAL_RANK", str(local_rank))
