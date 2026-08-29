@@ -27,7 +27,7 @@
 #SBATCH --ntasks-per-node=2
 #SBATCH --gres=gpu:v100:2
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=160G
+#SBATCH --mem=120G
 #SBATCH --time=05:50:00
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/moe_v4_v100_%j.err
 set -euo pipefail
