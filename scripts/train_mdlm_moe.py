@@ -245,8 +245,14 @@ def _save_checkpoint(tag):
     sd = glob_model.state_dict()
     if isinstance(glob_model, torch.nn.parallel.DistributedDataParallel):
         sd = glob_model.module.state_dict()
-    torch.save({"model": sd}, ckpt/"model.pt")
-    torch.save({"optimizer": glob_opt.state_dict()}, ckpt/"optimizer.pt")
+    # ESCRITURA ATOMICA (2026-08-29): el SIGUSR1 llega a los DOS ranks y ambos
+    # guardan al mismo dir; torch.save directo intercalaba archivos -> model.pt
+    # corrupto -> la ola siguiente moria en resume(). Escribir a .tmp + rename.
+    tmp_m = ckpt/"model.pt.tmp"; tmp_o = ckpt/"optimizer.pt.tmp"
+    torch.save({"model": sd}, tmp_m)
+    torch.save({"optimizer": glob_opt.state_dict()}, tmp_o)
+    os.replace(tmp_m, ckpt/"model.pt")
+    os.replace(tmp_o, ckpt/"optimizer.pt")
     (OUT/"state.json").write_text(json.dumps(
         {"step": g, "checkpoint": f"checkpoint-g{g}", "updated": time.time()}))
     (OUT/"progress.json").write_text(json.dumps(
@@ -256,34 +262,47 @@ def _save_checkpoint(tag):
         shutil.rmtree(f, ignore_errors=True)
     log(f"  checkpoint g{g} guardado")
 
-def _newest_valid_checkpoint():
-    """Fallback robusto a olas: el checkpoint-g* más nuevo con model.pt/optimizer.pt
-    íntegros (la ola nueva puede arrancar antes de que la previa termine de escribir
-    el final, así que state.json puede apuntar a uno incompleto -> no fiarse solo de él)."""
-    valid = [d for d in OUT.glob("checkpoint-g*")
-             if (d/"model.pt").exists() and (d/"optimizer.pt").exists()]
-    if not valid: return None, 0
-    best = max(valid, key=lambda d: int(d.name.split("-g")[1]))
-    return best, int(best.name.split("-g")[1])
-
-def resume():
-    ck = None; step = 0
-    sf = OUT/"state.json"
-    if sf.exists():
-        try:
-            st = json.loads(sf.read_text())
-            cand = OUT/st.get("checkpoint","")
-            if cand.exists() and (cand/"model.pt").exists() and (cand/"optimizer.pt").exists():
-                ck, step = cand, st.get("step",0)
-        except Exception:
-            pass
-    if ck is None:  # state.json ausente/incompleto -> ultimo checkpoint integro
-        ck, step = _newest_valid_checkpoint()
-    if ck is not None:
+def _try_load(ck, step):
+    """Carga un checkpoint; devuelve True si OK. El checkpoint puede estar
+    CORRUPTO (race SIGUSR1 de 2 ranks guardando al mismo dir, 2026-08-29):
+    torch.load lanza -> saltar al siguiente integro."""
+    try:
         glob_model.load_state_dict(torch.load(ck/"model.pt", map_location="cpu")["model"])
         glob_opt.load_state_dict(torch.load(ck/"optimizer.pt", map_location="cpu")["optimizer"])
         STEPS_DONE[0] = step
         log(f"Resumed {ck.name} (step {STEPS_DONE[0]})")
+        return True
+    except Exception as e:
+        log(f"  checkpoint {ck.name} corrupto/incompleto ({type(e).__name__}) -> intentar previo")
+        return False
+
+def resume():
+    """Prueba candidatos de MAS NUEVO a MAS ANTIGUO: primero el de state.json,
+    luego el resto de checkpoint-g* por step desc. Salta los corruptos."""
+    sf = OUT/"state.json"
+    cands = []  # (ckpt_dir, step)
+    st_cand = None; st_step = 0
+    if sf.exists():
+        try:
+            st = json.loads(sf.read_text())
+            c = OUT/st.get("checkpoint","")
+            if c.exists() and (c/"model.pt").exists() and (c/"optimizer.pt").exists():
+                st_cand, st_step = c, st.get("step",0)
+        except Exception:
+            pass
+    for d in sorted(OUT.glob("checkpoint-g*"),
+                    key=lambda x: int(x.name.split("-g")[1]), reverse=True):
+        if (d/"model.pt").exists() and (d/"optimizer.pt").exists():
+            cands.append((d, int(d.name.split("-g")[1])))
+    if st_cand is not None:
+        # estado.json primero (mas fiable); el loop cubre el resto
+        if _try_load(st_cand, st_step):
+            return
+    for ck, step in cands:
+        if st_cand is not None and ck == st_cand:
+            continue  # ya probado
+        if _try_load(ck, step):
+            return
 
 def _handle_sig(sig, frm):
     log("SIGUSR1 — guardando ola y saliendo 42")
