@@ -64,6 +64,12 @@ finalize() {
     if [ -f "$FLAG" ]; then
         echo "training complete; flag=$FLAG"; cat "$FLAG"; exit 0
     fi
+    # MULTI-NODO: SOLO el rank 0 (master) hace el resubmit; los otros nodos
+    # salen 42 sin sbatch (evita lanzar 2 jobs duplicados).
+    if [ -n "${SLURM_PROCID:-}" ] && [ "$SLURM_PROCID" != "0" ]; then
+        echo "rank $SLURM_PROCID: no-resubmit (solo master resubmitea)"
+        exit 42
+    fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "resubmiting ola ($WAVE_ID) target=$TARGET_STEPS..."
         sbatch --export="AUTO_RESUBMIT=1,TARGET_STEPS=$TARGET_STEPS,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,SYNC_EVERY=$SYNC_EVERY,CLIP=$CLIP" \
@@ -102,7 +108,9 @@ echo "=== Lanzando MoE v4 4xBlackwell ($WAVE_ID -> $OUT, steps $TARGET_STEPS) ma
 srun --export=ALL --ntasks=2 --ntasks-per-node=1 \
   apptainer exec --nv --overlay "$OVL" "$SIF" \
     "$VENV/bin/python" -m torch.distributed.run \
-    --nproc_per_node=2 --rdzv_endpoint="$MASTER_ADDR:$MASTER_PORT" \
+    --nnodes=2 --nproc_per_node=2 --rdzv_backend=c10d \
+    --rdzv_endpoint="$MASTER_ADDR:$MASTER_PORT" \
+    --rdzv_id="bw4-$WAVE_ID" \
     "$BASE/scripts/train_mdlm_moe_lsgd.py" \
     --data_cache "$BASE/data/train_ids_v5.npy" \
     --data "$BASE/data/train_corpus_v5.jsonl" \
