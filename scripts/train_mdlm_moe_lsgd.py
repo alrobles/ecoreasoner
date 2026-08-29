@@ -182,6 +182,16 @@ def build_batches():
         t0 = time.time()
         arr = np.load(ARGS.data_cache)
         tok = _load_tokenizer()
+        # GUARDIA 2026-08-29: corpus v5 tenia 2 tokens 126082 (fuera de rango,
+        # Embedding solo aguanta 0..vocab). Out-of-bounds en el Embedding -> CUDA
+        # illegal memory access en el primer forward. Clip defensivo aqui.
+        # OJO: usar tok.vocab_size (NO ARGS.vocab, que es 32000 default y aqui
+        # todavia no se actualiza a 126080 -> clampearia 128M tokens validos).
+        VB = tok.vocab_size
+        if int(arr.max()) >= VB:
+            nbad = int((arr >= VB).sum())
+            log(f"GUARDIA: {nbad} tokens >= vocab({VB}) -> clamp a 0")
+            arr = np.where(arr >= VB, 0, arr)
         all_ids = torch.from_numpy(arr.astype(np.int64))
         log(f"cache: cargado {arr.size/1e9:.2f}B tokens desde {ARGS.data_cache} "
             f"({time.time()-t0:.1f}s). tokenizer vocab={tok.vocab_size}")

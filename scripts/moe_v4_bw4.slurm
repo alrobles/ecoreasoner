@@ -96,7 +96,7 @@ trap handle_signal USR1
 trap 'echo SIGTERM; exit 1' TERM
 
 # verificar 2 GPUs por nodo
-apptainer exec --nv --overlay "$OVL" "$SIF" "$VENV/bin/python" -c "
+apptainer exec --nv --overlay "$OVL":ro "$SIF" env PYTHONDONTWRITEBYTECODE=1 "$VENV/bin/python" -c "
 import torch
 print('GPUs:', torch.cuda.device_count())
 for i in range(torch.cuda.device_count()):
@@ -105,14 +105,18 @@ assert torch.cuda.device_count() >= 2
 " || { echo 'GPU detect FAIL'; exit 1; }
 
 echo "=== Lanzando MoE v4 4xBlackwell ($WAVE_ID -> $OUT, steps $TARGET_STEPS) master=$MASTER_ADDR $(date -u) ==="
+# MULTI-NODO: overlay montado SOLO-lectura (:ro) -> lock COMPARTIDO entre nodos.
+# Con escritura (rw), ambos nodos montan el MISMO archivo -> apptainer toma lock
+# EXCLUSIVO -> el 2o nodo muere (exit 255, "in use by another process"). El venv
+# /bb/bwvenv solo se lee (torch ya compilado); checkpoints/logs van a $OUT en /beegfs.
 srun --export=ALL --ntasks=2 --ntasks-per-node=1 \
-  apptainer exec --nv --overlay "$OVL" "$SIF" \
-    "$VENV/bin/python" -m torch.distributed.run \
+  apptainer exec --nv --overlay "$OVL":ro "$SIF" \
+    env PYTHONDONTWRITEBYTECODE=1 "$VENV/bin/python" -m torch.distributed.run \
     --nnodes=2 --nproc_per_node=2 --rdzv_backend=c10d \
     --rdzv_endpoint="$MASTER_ADDR:$MASTER_PORT" \
     --rdzv_id="bw4-$WAVE_ID" \
     "$BASE/scripts/train_mdlm_moe_lsgd.py" \
-    --data_cache "$BASE/data/train_ids_v5.npy" \
+    --data_cache "$BASE/data/train_ids_v5_clean.npy" \
     --data "$BASE/data/train_corpus_v5.jsonl" \
     --hidden 1024 --layers 16 --heads 16 --ff_mult 4 \
     --n_experts 8 --expert_k 2 --seq_len 768 \
