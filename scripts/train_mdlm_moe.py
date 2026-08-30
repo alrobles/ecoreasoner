@@ -9,7 +9,7 @@ corpus, using the EcoReasoner wave pattern:
   - write progress.json / state.json for the swarm watchdog
 Run via apptainer SIF (ROCm), 1-2 GPUs. Single-GPU friendly for PoC.
 """
-import argparse, json, os, signal, sys, time, shutil
+import argparse, json, os, signal, sys, time, shutil, contextlib
 from pathlib import Path
 
 import torch
@@ -415,8 +415,13 @@ def main():
         # -> evita params 'unused' en DDP (deadlock). Solo si n_experts>1.
         raw = glob_model.module if ddp else glob_model
         aux = sum(b.mlp.balance_loss(0.01) for b in raw.blocks)
-        (loss/ARGS.grad_accum + aux).backward()
-        if (step+1) % ARGS.grad_accum == 0:
+        # no_sync (2026-08-30): all-reduce SOLO en el ultimo micro del grad_accum
+        # (mismo resultado matematico, ~4x menos comunicacion en DDP world=2).
+        sync = (not ddp) or ((step+1) % ARGS.grad_accum == 0)
+        cm = glob_model.no_sync() if (ddp and not sync) else contextlib.nullcontext()
+        with cm:
+            (loss/ARGS.grad_accum + aux).backward()
+        if sync:
             glob_opt.step(); glob_opt.zero_grad(set_to_none=True)
         LAST_LOSS[0] = loss.item(); STEPS_DONE[0] = step+1
         if ddp: torch.distributed.barrier()
