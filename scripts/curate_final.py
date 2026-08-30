@@ -49,54 +49,72 @@ def main():
     ap.add_argument("--dup-cos", type=float, default=0.95)
     ap.add_argument("--frac", type=float, default=0.5)
     ap.add_argument("--batch", type=int, default=1024)
+    ap.add_argument("--only-embed", action="store_true",
+                    help="solo embeddear y guardar vectors (primera fase, GPU)")
+    ap.add_argument("--from-vecs", action="store_true",
+                    help="cargar vectors guardados y hacer kNN+dedup+seleccion (segunda fase, CPU)")
     a = ap.parse_args()
 
     t0 = time.time()
-    docs = list(gen_docs(a.v6, a.phys))
-    print(f"[curate] docs totales: {len(docs)} [{time.time()-t0:.0f}s]", flush=True)
-    print("dominios:", dict(Counter(d["domain"] for d in docs)), flush=True)
 
-    # 1) embeddings en GPU
-    os.environ.setdefault("HF_HOME", "/beegfs/a474r867/hf-cache")
-    from sentence_transformers import SentenceTransformer
-    t1 = time.time()
-    model = SentenceTransformer("BAAI/bge-small-en-v1.5", device="cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu")
-    texts = [d["text"] for d in docs]
-    vecs = model.encode(texts, batch_size=a.batch, normalize_embeddings=True,
-                        show_progress_bar=False, convert_to_numpy=True).astype(np.float32)
-    print(f"[curate] embeddings {vecs.shape} [{time.time()-t1:.0f}s] -> {a.vecs}", flush=True)
-    np.save(a.vecs, vecs)
+    if a.from_vecs:
+        # FASE 2: leer vectors precomputados + docs (solo metadata/text corto)
+        if not os.path.exists(a.vecs):
+            sys.exit(f"ERROR: no existe {a.vecs} (corre primero la fase de embed)")
+        vecs = np.load(a.vecs).astype(np.float32)
+        docs = list(gen_docs(a.v6, a.phys))
+        print(f"[curate] fase2: cargo {len(docs)} docs + vectors {vecs.shape} [{time.time()-t0:.0f}s]", flush=True)
+    else:
+        # FASE 1: embeddear
+        docs = list(gen_docs(a.v6, a.phys))
+        print(f"[curate] docs totales: {len(docs)} [{time.time()-t0:.0f}s]", flush=True)
+        print("dominios:", dict(Counter(d["domain"] for d in docs)), flush=True)
+        os.environ.setdefault("HF_HOME", "/beegfs/a474r867/hf-cache")
+        from sentence_transformers import SentenceTransformer
+        t1 = time.time()
+        model = SentenceTransformer("BAAI/bge-small-en-v1.5",
+                                    device="cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu")
+        texts = [d["text"] for d in docs]
+        vecs = model.encode(texts, batch_size=a.batch, normalize_embeddings=True,
+                            show_progress_bar=False, convert_to_numpy=True).astype(np.float32)
+        print(f"[curate] embeddings {vecs.shape} [{time.time()-t1:.0f}s] -> {a.vecs}", flush=True)
+        os.makedirs(os.path.dirname(a.vecs) or ".", exist_ok=True)
+        np.save(a.vecs, vecs)
+        print(f"[curate] vectors guardados OK ({os.path.getsize(a.vecs)/1e9:.1f}GB)", flush=True)
+        if a.only_embed:
+            print("FASE1_DONE", flush=True)
+            return
 
-    # 2) kNN + conectividad
+    # 2) kNN + conectividad (faiss HNSW aproximado: O(n^2) de sklearn es inviable
+    # para 2.2M docs — matado 2026-08-29 tras 30 min solo en el fit)
     t2 = time.time()
-    from sklearn.neighbors import NearestNeighbors
+    import faiss
+    d = vecs.shape[1]
+    index = faiss.IndexHNSWFlat(d, 32)          # vecs normalizados: IP = coseno
+    index.hnsw.efConstruction = 200
+    index.add(vecs)
     kk = min(a.k + 1, len(vecs))
-    nn = NearestNeighbors(n_neighbors=kk, metric="cosine", n_jobs=-1).fit(vecs)
-    dist, idx = nn.kneighbors(vecs, return_distance=True)
-    sim = 1.0 - dist
+    sim, idx = index.search(vecs, kk)            # sim = coseno (normalizados)
     con = sim[:, 1:].mean(axis=1) if kk > 1 else np.zeros(len(vecs))
-    print(f"[curate] kNN k={a.k} conectividad media={con.mean():.3f} [{time.time()-t2:.0f}s]", flush=True)
+    print(f"[curate] kNN HNSW k={a.k} conectividad media={con.mean():.3f} "
+          f"[{time.time()-t2:.0f}s]", flush=True)
 
-    # 3) dedup semantico (solo hacia atras, cos>dup_cos)
+    # 3) dedup semantico (cos>dup_cos) — recorrer vecinos cercanos de cada doc
     t3 = time.time()
     keep = np.ones(len(vecs), bool)
-    seen = set()
-    # por dominio para no cruzar dominios al dedup (mas rapido y correcto)
-    by_dom = defaultdict(list)
-    for i, d in enumerate(docs):
-        by_dom[d["domain"]].append(i)
     n_dup = 0
-    for dom, ids in by_dom.items():
-        if len(ids) < 2: continue
-        sub = vecs[ids]
-        s_nn = NearestNeighbors(n_neighbors=min(11, len(ids)), metric="cosine", n_jobs=-1).fit(sub)
-        s_dist, s_idx = s_nn.kneighbors(sub, return_distance=True)
-        for r, ids_r in enumerate(ids):
-            for c in range(1, min(11, len(ids))):
-                if 1.0 - s_dist[r, c] > a.dup_cos and keep[ids_r] and keep[s_idx[r, c]]:
-                    keep[s_idx[r, c]] = False  # descarta el segundo
-                    n_dup += 1
-    print(f"[curate] dedup semantico cos>{a.dup_cos}: {n_dup} duplicados [{time.time()-t3:.0f}s]", flush=True)
+    for i in range(len(vecs)):
+        if not keep[i]:
+            continue
+        for j in range(1, kk):
+            jj = int(idx[i, j])
+            if jj == i or not keep[jj]:
+                continue
+            if sim[i, j] > a.dup_cos:
+                keep[jj] = False          # descarta el que aparece como vecino
+                n_dup += 1
+    print(f"[curate] dedup semantico cos>{a.dup_cos}: {n_dup} duplicados "
+          f"[{time.time()-t3:.0f}s]", flush=True)
 
     # 4) seleccion top-frac% por dominio (conectividad)
     t4 = time.time()
