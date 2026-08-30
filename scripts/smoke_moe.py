@@ -19,8 +19,7 @@ import torch
 import torch.nn.functional as F
 
 BASE = "/beegfs/a474r867/ecoreasoner"
-SNAP = (BASE + "/hf-cache/hub/models--inclusionAI--LLaDA-MoE-7B-A1B-Instruct/"
-        "snapshots/783d3467f108d28ac0a78d3e41af16ab05cabd8d")
+SNAP = BASE + "/models/LLaDA-MoE-7B-A1B-Instruct"
 MASK_ID = 156895
 KNOWN_FNS = {"gbif_occurrence", "bioclim_download", "maxent_train", "ecocode"}
 
@@ -48,27 +47,39 @@ def get_num_transfer_tokens(mask_index, steps):
 
 
 @torch.no_grad()
-def generate(model, prompt_ids, gen_length=180, steps=128, temperature=0.0,
-             device="cuda"):
+def generate(model, prompt_ids, gen_length=160, steps=125, temperature=0.0,
+             block_length=32, device="cuda"):
+    """Generacion LLaDA OFICIAL block-wise (README inclusionAI), verbatim:
+    gen se divide en bloques; cada bloque se desenmascara en steps//num_blocks
+    rondas transfiriendo num_transfer_tokens[i] posiciones por round. Evita el
+    enclavamiento en EOS del bloque-unico con transfer lento (2026-08-30)."""
+    if hasattr(prompt_ids, "input_ids"):      # BatchEncoding -> tensor
+        prompt_ids = prompt_ids["input_ids"]
+    if prompt_ids.dim() == 1:
+        prompt_ids = prompt_ids.unsqueeze(0)
     L = prompt_ids.shape[1]
-    x = torch.full((1, L + gen_length), MASK_ID, dtype=torch.long,
-                   device=device)
+    x = torch.full((1, L + gen_length), MASK_ID, dtype=torch.long, device=device)
     x[:, :L] = prompt_ids
-    block_mask = (x == MASK_ID)
-    ntr = get_num_transfer_tokens(block_mask, steps)
-    for i in range(steps):
-        mask_index = (x == MASK_ID)
-        logits = model(x).logits
-        x0 = torch.argmax(add_gumbel_noise(logits, temperature), dim=-1)
-        p = F.softmax(logits, dim=-1)
-        x0_p = torch.gather(p, -1, x0.unsqueeze(-1)).squeeze(-1)
-        x0_p[:, :L] = -float("inf")      # nunca destapar el prompt
-        x0 = torch.where(mask_index, x0, x)
-        confidence = torch.where(mask_index, x0_p, -float("inf"))
-        _, sel = torch.topk(confidence, k=int(ntr[0, i]))
-        x[0, sel] = x0[0, sel]
-        if int((x == MASK_ID).sum()) == 0:
-            break
+    assert gen_length % block_length == 0
+    num_blocks = gen_length // block_length
+    assert steps % num_blocks == 0
+    steps = steps // num_blocks
+    for num_block in range(num_blocks):
+        block_mask_index = (
+            x[:, L + num_block * block_length: L + (num_block + 1) * block_length] == MASK_ID
+        )
+        ntr = get_num_transfer_tokens(block_mask_index, steps)
+        for i in range(steps):
+            mask_index = (x == MASK_ID)
+            logits = model(x).logits
+            x0 = torch.argmax(add_gumbel_noise(logits, temperature), dim=-1)
+            p = F.softmax(logits.float(), dim=-1)
+            x0_p = torch.gather(p, -1, x0.unsqueeze(-1)).squeeze(-1)
+            x0_p[:, L + (num_block + 1) * block_length:] = -float("inf")
+            x0 = torch.where(mask_index, x0, x)
+            confidence = torch.where(mask_index, x0_p, -float("inf"))
+            _, sel = torch.topk(confidence, k=int(ntr[0, i]))
+            x[0, sel] = x0[0, sel]
     return x[0, L:]
 
 
@@ -116,8 +127,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", default=os.path.join(BASE, "data/l1/train_corpus_l1.jsonl"))
     ap.add_argument("--n", type=int, default=40)
-    ap.add_argument("--gen-length", type=int, default=180)
-    ap.add_argument("--steps", type=int, default=128)
+    ap.add_argument("--gen-length", type=int, default=160)
+    ap.add_argument("--steps", type=int, default=125)
     ap.add_argument("--out", default=os.path.join(BASE, "data/l1/smoke_moe_baseline.json"))
     a = ap.parse_args()
 
@@ -171,8 +182,10 @@ def main():
                     msgs = [{"role": "user", "content": ptext}]
                     s = tok.apply_chat_template(msgs, tokenize=True,
                                                 add_generation_prompt=True,
-                                                return_tensors="pt").to(device)
-                    ids = s
+                                                return_tensors="pt")
+                    if hasattr(s, "input_ids"):
+                        s = s["input_ids"]
+                    ids = s.to(device)
                 gen_ids = generate(model, ids, gen_length=a.gen_length,
                                    steps=a.steps, temperature=temp, device=device)
                 out = tok.decode(gen_ids, skip_special_tokens=True)

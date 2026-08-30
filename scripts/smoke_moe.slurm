@@ -18,8 +18,11 @@ BASE=/beegfs/a474r867/ecoreasoner
 cd "$BASE"
 OVL="$BASE/blackwell-torch.overlay"
 SIF="$BASE/pytorch-cuda.sif"
+# transformers 5.x importa box_iou (torchvision::nms) -> el torchvision del venv
+# es cu121 y NO registra ops bajo torch cu128. Aqui usamos el cu128 (venv-extra).
+export PYTHONPATH="$BASE/venv-extra:${PYTHONPATH:-}"
 apptainer exec --nv --overlay "$OVL":ro "$SIF" /bb/bwvenv/bin/python \
   "$BASE/scripts/smoke_moe.py" \
-  --n 40 --gen-length 180 --steps 128 \
+  --n 40 --gen-length 160 --steps 125 \
   --out "$BASE/data/l1/smoke_moe_baseline.json"
 echo "smoke-moe done rc=$?"
