@@ -24,18 +24,25 @@ if not os.environ.get("SLURM_JOB_ID"):
 CTX = 1400  # chars de texto para embedder (como validate)
 
 def gen_docs(v6, phys):
-    """Streaming: yield {text, domain, src}."""
+    """Streaming: yield {text (truncado CTX), full_len, domain, src, line}.
+    line = indice DENTRO del archivo (el enumerate reinicia por archivo);
+    src distingue archivo. Bug 2026-08-29: usar un indice global plano en la
+    escritura hacia colisionar los indices de phys con las primeras lineas de
+    v6 (corpus mezclado)."""
     for path, src in ((v6, "v6"), (phys, "phys")):
         if not os.path.exists(path): continue
         with open(path, encoding="utf-8", errors="ignore") as f:
-            for ln in f:
+            for i, ln in enumerate(f):
                 ln = ln.strip()
                 if not ln: continue
                 try: d = json.loads(ln)
                 except Exception: continue
-                txt = (d.get("text") or "")[:CTX]
+                raw = d.get("text") or ""
+                txt = raw[:CTX]
                 if len(txt) < 200: continue
-                yield {"text": txt, "domain": d.get("domain") or "?", "src": src,
+                yield {"text": txt, "full_len": len(raw),
+                       "domain": d.get("domain") or "?", "src": src,
+                       "line": i,
                        "pmid": d.get("pmid") or d.get("arxiv_id") or d.get("pmcid") or ""}
 
 def main():
@@ -116,7 +123,10 @@ def main():
     print(f"[curate] dedup semantico cos>{a.dup_cos}: {n_dup} duplicados "
           f"[{time.time()-t3:.0f}s]", flush=True)
 
-    # 4) seleccion top-frac% por dominio (conectividad)
+    # 4) seleccion por MASA DE TOKENS (no por docs): ordenar por conectividad
+    #    desc dentro de cada dominio y acumular hasta frac% de los TOKENS del
+    #    dominio. 2026-08-29: top-50% de docs retenia 94% de tokens (los docs
+    #    conectados son los largos) — no reducia el corpus.
     t4 = time.time()
     n_tot = 0; n_keep_tot = 0; tok_keep = 0; tok_tot = 0
     sel_idx = []
@@ -127,34 +137,65 @@ def main():
     dom_stats = {}
     for dom, ids in per_dom.items():
         ids.sort(key=lambda i: -con[i])
-        n_keep = max(1, int(len(ids) * a.frac))
-        sel = ids[:n_keep]
+        tot_tok_dom = sum(docs[i]["full_len"] // 4 for i in ids)
+        acc = 0
+        sel = []
+        for i in ids:
+            acc += docs[i]["full_len"] // 4
+            sel.append(i)
+            if acc >= tot_tok_dom * a.frac:
+                break
+        if not sel:
+            sel = [ids[0]]
         sel_idx.extend(sel)
-        dom_stats[dom] = {"total": len(ids), "kept": len(sel), "frac": round(len(sel)/max(1,len(ids)),3)}
+        dom_stats[dom] = {"total": len(ids), "kept": len(sel),
+                          "frac_docs": round(len(sel) / max(1, len(ids)), 3),
+                          "frac_tokens": round(acc / max(1, tot_tok_dom), 3)}
         n_tot += len(ids); n_keep_tot += len(sel)
-        tok_tot += sum(len(docs[i]["text"])//4 for i in ids)
-        tok_keep += sum(len(docs[i]["text"])//4 for i in sel)
-    print(f"[curate] seleccion: {n_keep_tot}/{n_tot} docs ({n_keep_tot/max(1,n_tot):.0%}), "
-          f"tokens {tok_keep/1e6:.0f}M de {tok_tot/1e6:.0f}M [{time.time()-t4:.0f}s]", flush=True)
-    print("por dominio:", dict(dom_stats)[:300] if len(str(dom_stats))<300 else "…", flush=True)
+        tok_tot += tot_tok_dom
+        tok_keep += acc
+    # guardar conectividad para iteraciones futuras (evita re-kNN)
+    np.save(os.path.join(os.path.dirname(a.vecs) or ".", "con_full.npy"), con)
+    print(f"[curate] seleccion por tokens: {n_keep_tot}/{n_tot} docs, "
+          f"tokens {tok_keep/1e9:.2f}B de {tok_tot/1e9:.2f}B [{time.time()-t4:.0f}s]", flush=True)
 
-    # 5) escribir corpus curado
+    # 5) escribir corpus curado — STREAMING desde los jsonl ORIGINALES (texto
+    #    COMPLETO, no el truncado a CTX del embedder — bug 2026-08-29: el corpus
+    #    quedo con 1400 chars/doc y solo 369M tok en vez de ~2B)
     t5 = time.time()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    rng = random.Random(42)
-    rng.shuffle(sel_idx)
+    # sets de lineas por archivo (src): los indices de gen_docs son GLOBALES
+    # (posicion en docs), pero las lineas del jsonl reinician por archivo.
+    sel_by_src = {"v6": set(), "phys": set()}
+    for i in sel_idx:
+        sel_by_src.setdefault(docs[i]["src"], set()).add(docs[i]["line"])
+    tok_keep_real = 0
+    n_out = 0
     with open(a.out, "w", encoding="utf-8") as f:
-        for i in sel_idx:
-            d = docs[i]
-            rec = {"text": d["text"], "domain": d["domain"], "source": d["src"],
-                   "pmid": d["pmid"]}
-            # preservar todos los campos originales posibles si el doc vino completo
-            f.write(json.dumps({**rec}, ensure_ascii=False) + "\n")
+        for path, src in ((a.v6, "v6"), (a.phys, "phys")):
+            if not os.path.exists(path):
+                continue
+            want = sel_by_src.get(src, set())
+            if not want:
+                continue
+            with open(path, encoding="utf-8", errors="ignore") as g:
+                for i, ln in enumerate(g):
+                    if i not in want:
+                        continue
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    f.write(ln + "\n")
+                    tok_keep_real += len(ln) // 4
+                    n_out += 1
+    print(f"[curate] escrito: {n_out} docs completos, ~{tok_keep_real/1e6:.0f}M tok "
+          f"[{time.time()-t5:.0f}s]", flush=True)
     report = {"n_total": len(docs), "n_kept": n_keep_tot, "frac": a.frac,
               "k": a.k, "dup_cos": a.dup_cos, "n_dup_sem": n_dup,
               "tok_total": tok_tot, "tok_kept": tok_keep,
+              "tok_kept_real": tok_keep_real, "n_out": n_out,
               "domains": dom_stats, "vecs": a.vecs,
-              "elapsed_s": round(time.time()-t0,1)}
+              "elapsed_s": round(time.time()-t0, 1)}
     with open(a.report, "w") as f:
         json.dump(report, f, indent=2)
     print(f"[curate] DONE {n_keep_tot} docs -> {a.out} [{time.time()-t0:.0f}s]", flush=True)
