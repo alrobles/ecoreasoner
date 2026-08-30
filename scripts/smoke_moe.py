@@ -105,7 +105,12 @@ def extract_json(s):
 def valid_toolcall(obj):
     if not isinstance(obj, dict):
         return False
-    fn = obj.get("function")
+    # Formato OpenAI (con capa "function") o bare (name directo). El corpus L1
+    # usa bare {"name":..., "arguments":...}; inclusionAI/standards usan function.
+    if "function" in obj:
+        fn = obj["function"]
+    else:
+        fn = obj
     if not isinstance(fn, dict):
         return False
     name = fn.get("name")
@@ -121,6 +126,15 @@ def valid_toolcall(obj):
         except Exception:
             return False
     return False
+
+
+def toolcall_name(obj):
+    """Nombre de la funcion de un tool call (cualquiera de los 2 formatos)."""
+    if isinstance(obj, dict) and "function" in obj and isinstance(obj["function"], dict):
+        return obj["function"].get("name")
+    if isinstance(obj, dict):
+        return obj.get("name")
+    return None
 
 
 def main():
@@ -197,7 +211,7 @@ def main():
                 if ok_fn and kind != "gen":
                     n_repair += 1
                 samples.append({"kind": kind, "ok_json": ok_json, "ok_fn": ok_fn,
-                                "fn": (obj.get("function", {}).get("name") if ok_json else None),
+                                "fn": (toolcall_name(obj) if ok_json else None),
                                 "gen": out[:200]})
                 if (i + 1) % 10 == 0:
                     print(f"[{mode} t{temp}] {i+1}/{len(prompts)} fn={n_fn} "
