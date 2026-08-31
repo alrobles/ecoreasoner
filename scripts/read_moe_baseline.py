@@ -10,4 +10,4 @@ for k, v in {**d.get("modes", {}), **d.get("chat", {})}.items():
     print(f"\n=== {k}: {nf}/{n} fn_valid ({100*v.get('fn_rate',0):.0f}%) json={v.get('n_json')} repair={v.get('repair_fn')} ===")
     for s in v.get("samples", []):
         print(f"  [{s.get('kind')}] ok_fn={s.get('ok_fn')} fn={s.get('fn')}")
-        print(f"    GEN: {repr(s.get('gen','')[:200])}")
+        print(f"    GEN: {repr(s.get('gen','')[:240])}")

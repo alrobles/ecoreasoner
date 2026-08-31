@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 BASE = "/beegfs/a474r867/ecoreasoner"
 MODEL_DIR = os.path.join(BASE, "models/LLaDA-MoE-7B-A1B-Instruct")
-LORA_FINAL = os.path.join(BASE, "outputs/sft_moe/lora-final/lora.pt")
+LORA_FINAL = os.path.join(BASE, "outputs/sft_moe_v2/lora-final/lora.pt")
 MASK_ID = 156895
 KNOWN_FNS = {"gbif_occurrence", "bioclim_download", "maxent_train", "ecocode"}
 
@@ -158,7 +158,7 @@ def main():
     ap.add_argument("--gen-length", type=int, default=160)
     ap.add_argument("--steps", type=int, default=125)
     ap.add_argument("--lora", default=LORA_FINAL)
-    ap.add_argument("--out", default=os.path.join(BASE, "data/l1/smoke_moe_lora.json"))
+    ap.add_argument("--out", default=os.path.join(BASE, "data/l1/smoke_moe_lora_v2.json"))
     a = ap.parse_args()
 
     from transformers import AutoModel, AutoTokenizer
