@@ -128,17 +128,22 @@ def build_batches(items, tokenizer, max_len=1536, batch_size=8, seed=0):
         d = items[i]
         resp = tokenizer(d["response"])["input_ids"]
         ptxt = d["prompt"] + "\n" + d["response"]
-        ids = tokenizer(ptxt)["input_ids"][:max_len]
+        # FIX 2026-08-31 (mismo bug que sft_lladamoe): truncar sobre ids sin
+        # recortar; si no, pares con response > max_len dejan rl > T y el
+        # masking escribe fuera del tensor (assert OOB en IndexKernel).
+        ids_all = tokenizer(ptxt)["input_ids"]
+        if len(ids_all) > max_len:
+            keep = max_len - (len(ids_all) - len(resp))
+            if keep < 16:
+                continue
+            resp = resp[:keep]
+        ids = ids_all[:max_len]
         rs = len(ids) - len(resp)
         if rs < 0:
             rs = 0
-        if len(ids) > max_len:
-            keep = max_len - (len(ids) - len(resp))
-            if keep < 16:
-                continue
-            ids = ids[:max_len]
-            resp = resp[:keep]
-            rs = len(ids) - len(resp)
+            resp = resp[:max_len - rs]
+        if len(resp) < 1:
+            continue
         if cur and cur_len + len(ids) > max_len:
             batches.append(cur); cur, cur_len = [], 0
         cur.append((ids, rs, len(resp)))
@@ -151,6 +156,17 @@ def build_batches(items, tokenizer, max_len=1536, batch_size=8, seed=0):
 
 
 # ---------------- step con loss solo en response ----------------
+_CKPT = {"on": False}
+
+
+def forward_logits(model, xm):
+    """Forward con gradient checkpointing manual (no-reentrant) si esta activo."""
+    if _CKPT["on"]:
+        import torch.utils.checkpoint as cp
+        return cp.checkpoint(lambda x: model(x).logits, xm, use_reentrant=False)
+    return model(xm).logits
+
+
 def sft_step(model, batch_tokens, device):
     ids, rstart, rlen = batch_tokens
     ids = ids.to(device)
@@ -169,7 +185,7 @@ def sft_step(model, batch_tokens, device):
         # batch sin mascaras (rl=0 o t->0): forward con loss dummy QUE REQUIERE
         # grad (anclada a un param LoRA para no romper el backward/ddp)
         xm = ids.clone()
-        out = model(xm).logits
+        out = forward_logits(model, xm)
         lg = out[:, 0]
         tg = ids[:, 0].clone()
         ce = F.cross_entropy(lg, tg)
@@ -181,7 +197,7 @@ def sft_step(model, batch_tokens, device):
         return ce, 0
     xm = ids.clone()
     xm[mask] = MASK_ID
-    out = model(xm).logits
+    out = forward_logits(model, xm)
     return F.cross_entropy(out[mask], ids[mask]), mask.sum().item()
 
 
@@ -218,13 +234,15 @@ def main():
     model = AutoModel.from_pretrained(a.model_dir, trust_remote_code=True,
                                       dtype=torch.bfloat16, local_files_only=True).to(device)
     add_lora(model, r=a.rank)
-    if a.checkpointing and hasattr(model, "gradient_checkpointing_enable"):
-        # use_reentrant=False es OBLIGATORIO aqui: con reentrant=True (default
-        # de transformers 4.56) y inputs enteros sin requires_grad, checkpoint
-        # cortocircuita el grafo ("None of the inputs have requires_grad=True")
-        # y el loss sale sin grad_fn -> RuntimeError en backward.
-        model.gradient_checkpointing_enable(use_reentrant=False)
-        log("gradient checkpointing ON (no-reentrant)")
+    if a.checkpointing:
+        # El modeling LLaDA-MoE NO acepta use_reentrant en
+        # gradient_checkpointing_enable() (TypeError), y con el reentrant
+        # default + inputs int sin requires_grad el checkpoint cortocircuita
+        # el grafo ("loss does not require grad"). Solucion portable: NO tocar
+        # el API del modelo; envolver el forward del step con
+        # torch.utils.checkpoint.checkpoint(use_reentrant=False) (ver sft_step).
+        log("gradient checkpointing ON (manual no-reentrant en sft_step)")
+        _CKPT["on"] = True
     model.train()
     # NO DDP: el LoRA manual sobre mod.forward no expone params al hook de DDP.
     # Sincronizamos los gradientes de los LoRA con all_reduce manual (mismo

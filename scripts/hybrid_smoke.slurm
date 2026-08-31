@@ -11,11 +11,15 @@
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/hybrid_smoke_%j.err
 # SMOKE del trainer heterogeneo: 2 ranks Q6000, dataset MINI (4 pairs = 1 batch)
 # para validar el fix use_reentrant=False (loss con grad_fn + backward ok).
+# ENTORNO: overlay+bwvenv (torch 2.7.1) + venv-extra — el SIF base (torch 2.4.1)
+# ya no sirve: venv-extra trae torchvision 0.22.1+cu128 (para el SFT) que es
+# incompatible con torch 2.4.1 ("operator torchvision::nms does not exist").
 set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
 export PYTHONPATH="$BASE/venv-extra:${PYTHONPATH:-}"
-apptainer exec --nv "$BASE/pytorch-cuda.sif" env PYTHONPATH="$BASE/scripts:$BASE/venv-extra:${PYTHONPATH:-}" \
-  python3 -m torch.distributed.run --nproc_per_node=2 --master_port=29516 \
+apptainer exec --nv --overlay "$BASE/blackwell-torch.overlay":ro "$BASE/pytorch-cuda.sif" \
+  env PYTHONPATH="$BASE/venv-extra:$BASE/scripts:${PYTHONPATH:-}" \
+  /bb/bwvenv/bin/python -m torch.distributed.run --nproc_per_node=2 --master_port=29516 \
   "$BASE/scripts/train_hybrid.py" \
   --pairs "$BASE/data/l1/sft_v3_smoke.jsonl" \
   --epochs 1 --global-batch 96 --checkpointing --max-len 1024 \

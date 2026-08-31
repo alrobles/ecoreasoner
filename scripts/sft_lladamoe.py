@@ -93,20 +93,25 @@ def build_batches(items, tokenizer, max_len=1536, batch_size=2, seed=0):
     cur_len = 0
     for i in order:
         d = items[i]
-        ptxt = d["prompt"] + "\n" + d["response"]
-        ids = tokenizer(ptxt)["input_ids"][:max_len]
         resp = tokenizer(d["response"])["input_ids"]
+        ptxt = d["prompt"] + "\n" + d["response"]
+        # FIX 2026-08-31: truncar sobre ids SIN recortar (el check previo
+        # evaluaba len(ids) tras el [:max_len] -> siempre False -> pares con
+        # response > max_len dejaban rs=0 y rl=len(resp) > T -> el masking
+        # escribia fuera del tensor ("index out of bounds" en IndexKernel).
+        ids_all = tokenizer(ptxt)["input_ids"]
+        if len(ids_all) > max_len:
+            keep = max_len - (len(ids_all) - len(resp))
+            if keep < 16:
+                continue
+            resp = resp[:keep]
+        ids = ids_all[:max_len]
         resp_start = len(ids) - len(resp)
         if resp_start < 0:
             resp_start = 0
-        if len(ids) > max_len:
-            # recortar respuesta si excede
-            keep = max_len - (len(ids) - len(resp))
-            if keep < 16:
-                continue
-            ids = ids[:max_len]
-            resp = resp[:keep]
-            resp_start = len(ids) - len(resp)
+            resp = resp[:max_len - resp_start]
+        if len(resp) < 1:
+            continue
         if cur and cur_len + len(ids) > max_len:
             batches.append(cur); cur = []; cur_len = 0
         cur.append((ids, resp_start, len(resp)))
