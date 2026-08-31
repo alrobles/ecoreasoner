@@ -13,7 +13,7 @@ Salida: data/l1/sft_moe_pairs.jsonl (+ conteo por kind)
 import json, sys
 
 SRC = "/beegfs/a474r867/ecoreasoner/data/l1/train_corpus_l1.jsonl"
-DST = "/beegfs/a474r867/ecoreasoner/data/l1/sft_moe_pairs.jsonl"
+DST = "/beegfs/a474r867/ecoreasoner/data/l1/sft_moe_pairs_v2.jsonl"
 
 def split_gen(text):
     """prompt hasta [ACCION] (sin incluir), response = [ACCION] + json."""
@@ -42,10 +42,10 @@ def main():
                 continue
             kind = d.get("kind", "")
             text = d.get("text", "")
+            # SFT V2 (2026-08-30): SOLO kinds JSON (gen + repairs), excluir "final"
+            # (codigo R/python) — el "final" contamina hacia modo codigo.
             if kind in ("gen", "repair-M1", "repair-M2", "repair-M3", "repair-M4", "repair-M5"):
                 p, r = split_gen(text)
-            elif kind == "final":
-                p, r = split_final(text)
             else:
                 continue
             if not p or not r:
