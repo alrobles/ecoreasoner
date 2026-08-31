@@ -1,0 +1,126 @@
+{
+ "meta": {
+  "name": "EcoBench-EVAL (prototipo)",
+  "version": "0.1.0",
+  "method": "DiDAL+gate (3 rondas) -> celda ejecucion-verif x dominio ecologico",
+  "license_sources": {
+   "own": "own",
+   "scienceagentbench": "cc-by-4.0"
+  },
+  "contamination_policy": "eval_holdout CONGELADO; nunca en training",
+  "seed": 42,
+  "counts": {
+   "total": 30,
+   "eval_holdout": 17,
+   "train": 13,
+   "core_own": 3,
+   "sab_gis": 27
+  }
+ },
+ "results": [
+  {
+   "id": "sab-4",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmp1r6xo86i_eco.py\", line 2\n    \": as\": \"# Load required packages library(raster) library(sf) library(ggplot2) library(terra) # Simulate Elk movement data (replace with actual data)) set.seed(42) n_elk <- 10 # Number of elk individuals n_days <- 100 # Number of days # Simulate movement data (x, y) for each <- <- <- list.frame( id = for (kk in 1:n_elk) { x <- if (kk_days, 0, 100) y <- sample (kk:n, 0, 100) ) paste(\"kkk,kk,kk), x = = sampleif(n_days, 0, 100), y = sampleif(n_days, 0, 100) ) # Convert a list of to a"
+  },
+  {
+   "id": "sab-23",
+   "family": "GIS-eco",
+   "status": "pass",
+   "artifact": "/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/pred_results/predictedRiskyArea.png",
+   "expected": "pred_results/predictedRiskyArea.png"
+  },
+  {
+   "id": "sab-32",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmpi9l2px4m_eco.py\", line 2\n    \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \" \"\nIndentationError: unexpected indent\n"
+  },
+  {
+   "id": "sab-33",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmp_1x872vl_eco.py\", line 1\n    \", \"solution\": \" \"Load required packages library(sf) library(dplyr) library(sf) library(ggplot)) # Simulate Hamilton for demonstration (set.seed(1)) # <- ://://0.0.0.0:80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "id": "sab-46",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmpwz292ly2_eco.py\", line 1\n    asterio.transform import from_bounds raster raster.w from rasterio.transform import from_bounds raster raster.w from rasterio.transform import from_bounds raster raster.w from rasterio.transform import from_bounds raster raster.w from rasterio.transform import from_bounds raster raster.w from rasterio.transform import from_bounds raster raster.w from rasterio.transform import from_bounds raster raster.w from rasterio.transform import from_bounds raster raster.w from rasterio.trans"
+  },
+  {
+   "id": "sab-48",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmp068qlybl_eco.py\", line 1\n    ort numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as np import numpy as\n    ^\nIndentationError: unexpected indent\n"
+  },
+  {
+   "id": "sab-49",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmp1j5vizr2_eco.py\", line 2\n    np as np as np as as np as np as np as np as np as np as np as np as np as np as np as np as np as np as np as as np as as np as np as np as as np as np as as np as np as np as np as np as np as as as as as as np as np as np as as as as as np as np as np as np as np\n                      ^^^^^\nSyntaxError: invalid syntax\n"
+  },
+  {
+   "id": "sab-54",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmp3p4qn6aq_eco.py\", line 1\n    \", \"\":\": \"import numpy as np import pandas as pd import rasterio import matplotlib.pyplot import plt from rasterio from rasterio import transform from rasterio.transform import import from from rasterio.transform import import from rasterio.transform import import from rasterio.transform import import from rasterio.transform import transform from rasterio.transform import transform from rasterio.transform import transform from rasterio.transform import transform from rasterio.tran"
+  },
+  {
+   "id": "sab-64",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmp2fldjzfw_eco.py\", line 1\n    \", thecode\": \" pandas numpy as matplotlib.pyplot as plt from pandas as as import numpy as as numpy as np from pandas as as import pandas as as plt import as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as as a"
+  },
+  {
+   "id": "sab-76",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmproib0ptx_eco.py\", line 1\n    m from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from from fro"
+  },
+  {
+   "id": "sab-77",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmpdlay4uak_eco.py\", line 1\n    rasterio.transform import from from raster\nIndentationError: unexpected indent\n"
+  },
+  {
+   "id": "sab-84",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmpzwh0axs2_eco.py\", line 2\n    ```python\n    ^\nSyntaxError: invalid syntax\n"
+  },
+  {
+   "id": "sab-86",
+   "family": "GIS",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmp6q63222e_eco.py\", line 3\n    ```python\n    ^\nSyntaxError: invalid syntax\n"
+  },
+  {
+   "id": "sab-87",
+   "family": "GIS-eco",
+   "status": "exec_fail",
+   "rc": 1,
+   "stderr": "  File \"/beegfs/a474r867/ecoreasoner/ecobench/ecobench_raw/sciagentbench/benchmark/tmpxf4xuu87_eco.py\", line 1\n    The\nIndentationError: unexpected indent\n"
+  }
+ ],
+ "model": "LLaDA-MoE-7B-A1B+LoRA-SFT-v2",
+ "backend": "local",
+ "caveats": [
+  "LLM-visual-judge skipped",
+  "CWD=benchmark"
+ ]
+}

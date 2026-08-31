@@ -5,7 +5,7 @@ Hybrid AR-diffusion language model for scientific agents — ecology, species di
 ## Architecture
 
 ```
-EcoReasoner-Hibrido
+EcoReasoner-Hybrid
 ├── AR Core (causal reasoning, tool-calling)    → Qwen3.5-35B-A3B / GLM-4.7-Flash
 ├── dLLM Core (fast draft, summarization)        → LLaDA-8B / LLaDA-MoE-7B
 ├── Router (task-based dispatch)                  → heuristic + scoring
@@ -24,7 +24,7 @@ EcoReasoner-Hibrido
 - [Feasibility: Hybrid dLLM architecture](docs/feasibility-hybrid-dllm.md)
 - [LLaDA-8B strategy (server + fine-tune, no from-scratch)](docs/llada-8b-strategy.md)
 - [dLLM-MoE PoC (0.5B masked-diffusion MoE)](docs/dllm-moe-poc.md)
-- [dLLM feasibility on KUHPC (qué modelo, cuánto)](docs/dllm-feasibility-kuhpc.md)
+- [dLLM feasibility on KUHPC (model choice, cost)](docs/dllm-feasibility-kuhpc.md)
 - [dLLM literature map (v3, 34 refs)](docs/dllm-literature-map.md)
 - [dLLM experimental protocol (RQ1-RQ4, gates go/no-go)](docs/dllm-experimental-protocol.md)
 - [EcoReasoner design doc](docs/ecoreasoner-DESIGN.md) (from HPC)

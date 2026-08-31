@@ -1,119 +1,119 @@
-# ROADMAP — Ingesta masiva PMC OA → Parquet → DuckDB → RAG
+# ROADMAP — Massive PMC OA ingest → Parquet → DuckDB → RAG
 
 > ReumanLab · EcoReasoner · 2026-08-26
-> Objetivo: bajar el **Open Access Subset de PMC**, filtrar por tiempo/dominio,
-> almacenar en **Parquet (columnar, consultas rápidas)**, y servir como **RAG** del agente
-> científico. Decisión de diseño: usar el enfoque **heurístico C** (calibrar PMCID↔año)
-> para el filtro "últimos 10 años" con volumen medible ANTES de descargar en bulto.
+> Goal: download the **PMC Open Access Subset**, filter by time/domain,
+> store in **Parquet (columnar, fast queries)**, and serve as the scientific agent's
+> **RAG**. Design decision: use the **heuristic C approach** (calibrate PMCID↔year)
+> for the "last 10 years" filter with measurable volume BEFORE bulk download.
 
 ---
 
-## 0. Decisión técnica clave (algoritmo C — PMCID↔año)
+## 0. Key technical decision (algorithm C — PMCID↔year)
 
-**Por qué:** los PMCIDs no son contiguos y el bucket se ordena por clave `PMCID.ver/`. PMC
-se publica cronológicamente → PMCID alto ≈ artículo reciente (monotónico). Para filtrar
-"últimos 10 años" sin bajar ~8M objetos completos, calibramos PMCID→año usando el **S3
-Inventory oficial** (CSV diario de todos los `metadata/*.json`):
+**Why:** PMCIDs are not contiguous and the bucket is keyed by `PMCID.ver/`. PMC
+is published chronologically → high PMCID ≈ recent article (monotonic). To filter
+"last 10 years" without downloading ~8M full objects, we calibrate PMCID→year using
+the official **S3 Inventory** (daily CSV of all `metadata/*.json`):
 
-1. Bajar el inventory (`s3://pmc-oa-opendata/inventory-reports/.../metadata/`).
-2. Los `metadata/PMCID.ver.json` traen **citation (año), license_code, title, doi,
-   is_pmc_openaccess, is_manuscript, is_retracted** — el filtro se hace sobre esto, no el texto.
-3. Ajustar la curva PMCID→año (o año directo desde citation) y estimar volumen/tamaño de
-   los últimos 10 años (≥2016) antes de descargar texto.
-4. Enriquecer con el token Entrez de NCBI si hace falta cruzar PMID→año.
+1. Download the inventory (`s3://pmc-oa-opendata/inventory-reports/.../metadata/`).
+2. The `metadata/PMCID.ver.json` files carry **citation (year), license_code, title, doi,
+   is_pmc_openaccess, is_manuscript, is_retracted** — filtering happens here, not on the text.
+3. Fit the PMCID→year curve (or use year directly from citation) and estimate the volume/size of
+   the last 10 years (≥2016) before downloading text.
+4. Enrich with the NCBI Entrez token if a PMID→year crosswalk is needed.
 
-`scripts/pmc/calibrar_pmcid_anio.py` implementa el muestreo base.
-**Dato oficial (pmcaws, 2026):** ~**8M PMC article versions**; el JSON tiene `license_code`
-(CC BY / CC BY-NC / `TDM` para author manuscripts con full-text reusable).
+`scripts/pmc/calibrar_pmcid_anio.py` implements the base sampling.
+**Official datum (pmcaws, 2026):** ~**8M PMC article versions**; the JSON has `license_code`
+(CC BY / CC BY-NC / `TDM` for author manuscripts with reusable full-text).
 
-## 1. Tecnologías (investigadas y confirmadas)
+## 1. Technologies (researched and confirmed)
 
-| Capa | Tecnología | Por qué | Estado verificado |
+| Layer | Technology | Why | Verified status |
 |---|---|---|---|
-| Fuente OA | PMC S3 `pmc-oa-opendata` (world-readable, sin auth) | 1.5–5M artículos OA (CC/reuso) | ✅ listable (ListBucketResult), .json+ .txt por PMCID |
-| Fuente metadata | S3 inventory reports (oficial, `inventory-reports/`) | filtra por fecha/licencia/PMCID | ✅ documentado (pmcaws) |
-| Almacen. columnar | **Parquet** (pyarrow 21/24) | columnar, comprimido, footer metadata rápido | ✅ kuhpc pyarrow 21, local 24 |
-| Consultas | **DuckDB** (1.4.4) | SQL sobre Parquet, vectorizado, zero-copy con Arrow | ✅ kuhpc duckdb 1.4.4 |
-| Streaming (opcional) | Apache NiFi/MiNiFi + Kafka | para ingesta masiva en tiempo real (exactamente tu idea) | referenciado (ADR/Arrow, ~1M filas/s) |
-| RAG futuro | DuckDB/Parquet → vector (retrieval) | papers completos consultables por el agente | diseño |
+| OA source | PMC S3 `pmc-oa-opendata` (world-readable, no auth) | 1.5–5M OA articles (CC/reuse) | ✅ listable (ListBucketResult), .json+ .txt per PMCID |
+| Metadata source | S3 inventory reports (official, `inventory-reports/`) | filter by date/license/PMCID | ✅ documented (pmcaws) |
+| Columnar storage | **Parquet** (pyarrow 21/24) | columnar, compressed, fast footer metadata | ✅ kuhpc pyarrow 21, local 24 |
+| Queries | **DuckDB** (1.4.4) | SQL over Parquet, vectorized, zero-copy Arrow | ✅ kuhpc duckdb 1.4.4 |
+| Streaming (optional) | Apache NiFi/MiNiFi + Kafka | for massive real-time ingest (exactly your idea) | referenced (ADR/Arrow, ~1M rows/s) |
+| Future RAG | DuckDB/Parquet → vector (retrieval) | full papers queryable by the agent | design |
 
-**Por qué DuckDB+Arrow (no solo Spark):** hay integración Arrow zero-copy, query directa sobre
-Parquet en S3, merge de millones de filas/s en un solo nodo; suficiente para nuestro
-volumen (GB a TB). NiFi/Kafka solo si necesitamos streaming en producción (batch basta).
+**Why DuckDB+Arrow (not Spark alone):** zero-copy Arrow integration, direct
+Parquet-in-S3 queries, millions of rows/s merged on a single node; sufficient for our
+volume (GB to TB). NiFi/Kafka only if we need production streaming (batch is enough).
 
-## 2. Arquitectura propuesta
+## 2. Proposed architecture
 
 ```
 PMC S3 (pmc-oa-opendata)
-   │  [ingestor: descarga .txt por PMCID ± .json fecha/licencia]
+   │  [ingestor: downloads .txt per PMCID ± .json date/license]
    ▼
 staging/ raw jsonl (pmcid, ver, text, year, license)
-   │  [procesador: filtra año≥corte, licencia CC, dedup, tokeniza]
+   │  [processor: filters year≥cutoff, CC license, dedup, tokenize]
    ▼
-Parquet columnar  (particionado por año; filtro 10 años / dominio)
+Parquet columnar  (partitioned by year; 10-year/domain filter)
    │                 (pyarrow / DuckDB COPY)
-   ├──► dLLM corpus (entrenamiento)        ← mina actual
-   └──► RAG index (futuro agente)  ← DuckDB query / retrieval
+   ├──► dLLM corpus (training)            ← current mine
+   └──► RAG index (future agent)  ← DuckDB query / retrieval
 
-Pipeline "industrial" : S3 → ingest shards (slurm multi-proc) → staging → parquet → duckdb.
-Opcional NiFi/Kafka si se quiere streaming continuo (no requerido para batch).
+"Industrial" pipeline: S3 → ingest shards (slurm multi-proc) → staging → parquet → duckdb.
+Optional NiFi/Kafka for continuous streaming (not required for batch).
 ```
 
-## 3. Milestones (medibles)
+## 3. Milestones (measurable)
 
-### M1 — Calibración PMCID↔año (estimación de volumen) — ✅ COMPLETADO
-- [x] `calibrar_pmcid_anio.py` / `m1_inventory_calibrar.py` corre en kuhpc con S3 Inventory real.
-- [x] S3 Inventory descargado: **~3M metadata/artículos** en el PMC OA subset.
-- [x] Muestra aleatoria uniforme de 400 metadata → **98.8% ≥2016** (últimos 10 años ≈ todo el subset).
-- [x] Rango de años cubierto y curva PMCID→año ajustada (rango 1000-2026 en muestras).
-- [x] Licencias: CC BY (mayoría), CC BY-NC/ND, TDM, CC0 → filtrable.
-- **Criterio cumplido (medible):** ~3.0M artículos ≥2016, estimación **~150-170 GB de texto** (a ~54k chars/doc) → `scripts/pmc/m1_resultado.json`.
+### M1 — PMCID↔year calibration (volume estimation) — ✅ COMPLETED
+- [x] `calibrar_pmcid_anio.py` / `m1_inventory_calibrar.py` runs on kuhpc with real S3 Inventory.
+- [x] S3 Inventory downloaded: **~3M metadata/articles** in the PMC OA subset.
+- [x] Uniform random sample of 400 metadata → **98.8% ≥2016** (last 10 years ≈ entire subset).
+- [x] Year range covered and PMCID→year curve fitted (range 1000-2026 in samples).
+- [x] Licenses: CC BY (majority), CC BY-NC/ND, TDM, CC0 → filterable.
+- **Criterion met (measurable):** ~3.0M articles ≥2016, estimated **~150-170 GB of text** (at ~54k chars/doc) → `scripts/pmc/m1_resultado.json`.
 
-### M2 — Ingestor S3→Parquet (shard demo) — ✅ COMPLETADO
-- [x] `m2_ingest_demo.py` descarga metadata+texto y escribe Parquet.
-- [x] Shard demo **200 PMCIDs** → `pmc_demo.parquet` en **125s**, validado `DuckDB COUNT(*)=200`, columnas (year, license, text) presentes.
-- [x] Licencias del demo: CC BY (186), CC0 (8), TDM (5), None (1) → CC BY dominante.
-- **Criterio cumplido:** Parquet consultable por DuckDB; **~1.6s/artículo** (grosso = descarga texto) ⇒ 3M artículos ≈ **~58 días en 1 hilo** → NO viable secuencial, exige paralelizar por shards (slurm).
+### M2 — S3→Parquet ingestor (demo shard) — ✅ COMPLETED
+- [x] `m2_ingest_demo.py` downloads metadata+text and writes Parquet.
+- [x] Demo shard **200 PMCIDs** → `pmc_demo.parquet` in **125s**, validated `DuckDB COUNT(*)=200`, columns (year, license, text) present.
+- [x] Demo licenses: CC BY (186), CC0 (8), TDM (5), None (1) → CC BY dominant.
+- **Criterion met:** DuckDB-queryable Parquet; **~1.6s/article** (gross ≈ text download) ⇒ 3M articles ≈ **~58 days on 1 thread** → NOT viable sequential, requires shard parallelization (slurm).
 
-Nota de alcance: se espera ingesta de **últimos 5 años primero** (más barato; ~99% del subset es ≥2021) y luego ampliar.
+Scope note: ingest of the **last 5 years first** is expected (cheaper; ~99% of the subset is ≥2021), then expand.
 
-### F3 — Ingesta completa 2024-2026 (primer chunk real) — EN PROGRESO
-- [x] Probe validado: rango num 11M-13M = **1,802,253 PMCIDs** del inventory (proxy 2024-2026).
-- [x] Probe 500 PMCIDs → **469 filas válidas 2024** (94% densidad), ~0.6s/artículo, Parquet OK DuckDB COUNT=469.
-- [x] Worker con flush incremental cada 5000 (tolerante a cortes).
-- [ ] Slurm array **~55 shards** (~33K artículos/cada ≈ ~5.5h) → **~6h turnaround** para 1.8M artículos (~160MB-1GB por shard ≈ ~50-90GB total).
-- [ ] Filtrar por año≥2024 y licencia (CC BY/CC0/TDM/NC); dominio ecológico opcional post-hoc.
-- **Criterio:** ~1.5-1.8M papers completos en Parquet en beegfs, validable con DuckDB COUNT.
-Nota de alcance: si se alcanza buen techo en pocos días, se detiene (el usuario lo autorizó).
+### F3 — Full 2024-2026 ingest (first real chunk) — IN PROGRESS
+- [x] Validated probe: numeric range 11M-13M = **1,802,253 PMCIDs** from inventory (proxy 2024-2026).
+- [x] 500-PMCID probe → **469 valid 2024 rows** (94% density), ~0.6s/article, Parquet OK DuckDB COUNT=469.
+- [x] Worker with incremental flush every 5000 (crash-tolerant).
+- [ ] Slurm array **~55 shards** (~33K articles each ≈ ~5.5h) → **~6h turnaround** for 1.8M articles (~160MB-1GB per shard ≈ ~50-90GB total).
+- [ ] Filter by year≥2024 and license (CC BY/CC0/TDM/NC); optional ecological domain post-hoc.
+- **Criterion:** ~1.5-1.8M full papers in Parquet on beegfs, verifiable with DuckDB COUNT.
+Scope note: if a good ceiling is reached in a few days, stop (user authorized).
 
 ### M4 — DuckDB lake / query service — [ ]
-- [ ] Catálogo Parquet registrado en DuckDB (tabla virtual `PMC` con año, texto, licencia).
-- **Criterio:** query de ejemplo `SELECT * FROM PMC WHERE year>=2016 AND text ILIKE '%species%' LIMIT 10` responde <1s.
+- [ ] Parquet catalog registered in DuckDB (virtual `PMC` table with year, text, license).
+- **Criterion:** example query `SELECT * FROM PMC WHERE year>=2016 AND text ILIKE '%species%' LIMIT 10` answers <1s.
 
-### F5 — RAG prototipo (opcional, futuro) — [ ]
-- [ ] Extensión: embeddings sobre Parquet → retrieval (DuckDB FTS o vector).
-- **Criterio:** consulta de paper completo relevante al concepto retorna el doc >100 tokens.
+### F5 — RAG prototype (optional, future) — [ ]
+- [ ] Extension: embeddings over Parquet → retrieval (DuckDB FTS or vector).
+- **Criterion:** a full-paper query relevant to a concept returns the doc >100 tokens.
 
-### F6 — Integración dLLM — [ ]
-- [ ] El corpus Parquet (10 años, ecológico opcional) se convierte a JSONL para el training dLLM v4.
-- **Criterio:** v4 incorpora los papers completos nuevos; medida de tokens/volumen superior al v3 (97k PMC).
+### F6 — dLLM integration — [ ]
+- [ ] The Parquet corpus (10 years, optionally ecological) becomes JSONL for the dLLM v4 training.
+- **Criterion:** v4 incorporates the new full papers; token/volume measure higher than v3 (97k PMC).
 
-## 4. Dependencias / recursos
+## 4. Dependencies / resources
 
-- kuhpc: pyarrow 21, duckdb 1.4.4 ✓. S3 acceso HTTP (sin auth) ✓.
-- Almacenamiento: /beegfs (~860TB libre) — cabe (decenas–cientos GB de text real).
-- Inodes: usar archivos Parquet grandes (no 1m mini) para no quemar inodes.
+- kuhpc: pyarrow 21, duckdb 1.4.4 ✓. HTTP S3 access (no auth) ✓.
+- Storage: /beegfs (~860TB free) — fits (tens–hundreds of GB of real text).
+- Inodes: use large Parquet files (not 1M mini) to avoid burning inodes.
 
-## 5. Riesgos / mitigaciones
+## 5. Risks / mitigations
 
-| Riesgo | Mitigación |
+| Risk | Mitigation |
 |---|---|
-| PMCID↔año del modelo: no es exacto | algoritmo heurístico + reportar estimación con margen; el corte real se valida con muestra |
-| Volumen subestimado | filtrar por fecha con S3 inventory (oficial) antes que bulk |
-| licencias | respetar (CC-BY/CC0/commercial vs NC), filtro por `license` |
-| DuckDB/ram en nodos | parquet por shard, no abrir todo en memoria; consulta columnar parcial |
-| Coste ITRM | gratuito (S3 world-readable); solo traffic del cluster |
+| PMCID↔year model: not exact | heuristic algorithm + report estimate with margin; the real cutoff is validated with a sample |
+| Underestimated volume | filter by date with S3 inventory (official) before bulk |
+| licenses | respect them (CC-BY/CC0/commercial vs NC), filter by `license` |
+| DuckDB/ram on nodes | parquet per shard, don't open everything in memory; partial columnar query |
+| ITRM cost | free (world-readable S3); only cluster traffic |
 
 ---
 
-_Redactado como parte de la documentación del montaje. Siguiente paso: ejecutar M1 (calibración) en el cluster._
+_Written as part of the build documentation. Next step: run M1 (calibration) on the cluster._
