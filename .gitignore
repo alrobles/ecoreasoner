@@ -33,3 +33,7 @@ outputs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Internal / handoff (not public)
+HANDOFF-*.md
+docs/devin-*.md
