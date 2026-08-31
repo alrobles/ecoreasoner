@@ -11,7 +11,7 @@ rank 64, alpha 128, dropout 0.1; el resto del modelo congelado en bf16.
 
 Modo: DDP world=2 (2x pro6000). Tokenizacion previa a npz para no re-tokenizar.
 """
-import argparse, json, math, os, sys, time
+import argparse, glob, json, math, os, re, signal, sys, time
 import numpy as np
 import torch
 import torch.nn as nn
@@ -144,6 +144,60 @@ def sft_step(model, batch_tokens, device):
     return loss, mask.sum().item()
 
 
+# ---------------- resume semi-caliente + olas SIGUSR1 (2026-08-31) ----------------
+# El resume carga SOLO adaptadores LoRA (sin estado de AdamW): tras una ola el
+# loss continua desde los pesos restaurados con un leve bump transitorio del
+# optimizador (aceptable; mucho mejor que partir de 0).
+_WAVE = {"flag": False}
+
+
+def _on_sigusr1(signum, frame):
+    _WAVE["flag"] = True
+    print("[sft] SIGUSR1 -> checkpoint y salida limpia al terminar el step", flush=True)
+
+
+def find_last_ckpt(out):
+    steps = []
+    for d in glob.glob(os.path.join(out, "lora-g*")):
+        m = re.search(r"lora-g(\d+)$", d)
+        if m:
+            steps.append(int(m.group(1)))
+    return max(steps) if steps else None
+
+
+def load_adapters(model, ckpt_dir):
+    sd = torch.load(os.path.join(ckpt_dir, "lora.pt"), map_location="cpu")["adapters"]
+    loaded = 0
+    with torch.no_grad():
+        for name, mod in model.named_modules():
+            lora = getattr(mod, "lora", None)
+            if lora is None:
+                continue
+            ka, kb = name + ".lora_A", name + ".lora_B"
+            if ka in sd and kb in sd:
+                lora.lora_A.copy_(torch.as_tensor(sd[ka]).to(
+                    dtype=lora.lora_A.dtype, device=lora.lora_A.device))
+                lora.lora_B.copy_(torch.as_tensor(sd[kb]).to(
+                    dtype=lora.lora_B.dtype, device=lora.lora_B.device))
+                loaded += 1
+    return loaded
+
+
+def save_ckpt(model, out, step):
+    ckpt = os.path.join(out, f"lora-g{step}")
+    os.makedirs(ckpt, exist_ok=True)
+    sd = {}
+    for name, mod in model.named_modules():
+        lora = getattr(mod, "lora", None)
+        if lora is not None:
+            sd[name + ".lora_A"] = lora.lora_A.detach().float().cpu()
+            sd[name + ".lora_B"] = lora.lora_B.detach().float().cpu()
+    tmp = ckpt + ".tmp"
+    torch.save({"adapters": sd, "base": MODEL_DIR, "step": step}, tmp)
+    os.replace(tmp, os.path.join(ckpt, "lora.pt"))
+    print(f"[sft] ckpt lora-g{step} guardado", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pairs", default=os.path.join(BASE, "data/l1/sft_moe_pairs.jsonl"))
@@ -156,9 +210,12 @@ def main():
     ap.add_argument("--rank", type=int, default=64)
     ap.add_argument("--out", default=os.path.join(BASE, "outputs/sft_moe"))
     ap.add_argument("--max-steps", type=int, default=0)  # 0 = todas
+    ap.add_argument("--no-resume", action="store_true",
+                    help="ignorar checkpoints lora-g* previos y partir de 0")
     a = ap.parse_args()
 
     os.makedirs(a.out, exist_ok=True)
+    signal.signal(signal.SIGUSR1, _on_sigusr1)
     from transformers import AutoModel, AutoTokenizer
     t0 = time.time()
     tok = AutoTokenizer.from_pretrained(MODEL_DIR, trust_remote_code=True, local_files_only=True)
@@ -170,6 +227,16 @@ def main():
     model.train()
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[sft] modelo cargado ({time.time()-t0:.0f}s), entrenables={n_train}", flush=True)
+
+    # resume semi-caliente desde el ultimo lora-g* (si existe)
+    resume_step = 0
+    last = find_last_ckpt(a.out)
+    if last is not None and not a.no_resume:
+        n = load_adapters(model, os.path.join(a.out, f"lora-g{last}"))
+        if n > 0:
+            resume_step = last
+            print(f"[sft] RESUMED lora-g{last} ({n} adaptadores) -> continua en step {resume_step}",
+                  flush=True)
 
     items = tokenize_pairs(a.pairs, tok, a.max_len)
     batches = build_batches(items, tok, a.max_len, a.batch)
@@ -189,10 +256,15 @@ def main():
             return a.lr * (1 - (frac - 0.9) / 0.1)
         return a.lr
 
-    step = 0
-    logf = open(os.path.join(a.out, "train.log"), "w")
-    for epoch in range(a.epochs):
+    step = resume_step
+    logf = open(os.path.join(a.out, "train.log"), "a" if resume_step else "w")
+    first_epoch = True
+    for epoch in range(resume_step // len(batches), a.epochs):
+        start_bi = (resume_step % len(batches)) if first_epoch else 0
+        first_epoch = False
         for bi, b in enumerate(batches):
+            if bi < start_bi:
+                continue
             if a.max_steps and step >= a.max_steps:
                 break
             B = len(b)
@@ -215,18 +287,16 @@ def main():
                 print(f"[sft] {msg}", flush=True)
                 logf.write(msg + "\n"); logf.flush()
             if step % 200 == 0:
-                ckpt = os.path.join(a.out, f"lora-g{step}")
-                os.makedirs(ckpt, exist_ok=True)
-                # guardar solo adaptadores + modelo base path
-                sd = {}
-                for name, mod in model.named_modules():
-                    lora = getattr(mod, "lora", None)
-                    if lora is not None:
-                        sd[name + ".lora_A"] = lora.lora_A.detach().float().cpu()
-                        sd[name + ".lora_B"] = lora.lora_B.detach().float().cpu()
-                torch.save({"adapters": sd, "base": MODEL_DIR, "step": step},
-                           os.path.join(ckpt, "lora.pt"))
+                save_ckpt(model, a.out, step)
+            if _WAVE["flag"]:
+                save_ckpt(model, a.out, step)
+                logf.close()
+                print(f"[sft] WAVE: ckpt lora-g{step} guardado, saliendo "
+                      f"(resume automatico en la ola) [{time.time()-t0:.0f}s]", flush=True)
+                sys.exit(42)
     logf.close()
+    with open(os.path.join(a.out, "training_complete.flag"), "w") as f:
+        f.write(f"COMPLETE {step} steps\n")
     # checkpoint final
     ckpt = os.path.join(a.out, "lora-final")
     os.makedirs(ckpt, exist_ok=True)
