@@ -41,6 +41,14 @@ mkdir -p "$OUT"
 # ---- Slurm trap (ola: SIGUSR1 300s antes del fin de walltime) --------------
 SIGNAL_RECEIVED=0
 FINALIZED=0
+
+# NCCL en Blackwell 2-GPU (2026-09-01): con DDP REAL activo (fix de env vars),
+# NCCL 2.26.2 daba "illegal memor access" en el all-reduce. se actualizó el
+# .s de nvidia-nccl a 2.26.5 en el overlay; ademas workarunds documentados:
+# CUMEM_HOST_ENABLE=0 (desbloquea path IMA/OGM) + P2P_DISABLE=1 (evita hang
+# P2P en Blackwell; con 2 GPUs intra-nodo la perdida de rendimiento es minima).
+export NCCL_CUMEM_HOST_ENABLE=0
+export NCCL_P2P_DISABLE=1
 finalize() {
     if [ "$FINALIZED" = "1" ]; then
         echo "=== finalize ya ejecutado, skip (evita doble resubmit) ==="

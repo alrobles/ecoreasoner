@@ -238,6 +238,20 @@ STEPS_DONE = [0]
 LAST_LOSS = [0.0]
 
 def _save_checkpoint(tag):
+    # LOCK de guardado (2026-09-01): serializa los saves entre ranks aunque el
+    # filtro rank==0 fallara; evita que la limpieza de retencion-2 borre un dir
+    # que otro rank esta escribiendo. Wrapper: el cuerpo queda intacto.
+    import fcntl
+    _lf = open(OUT / ".save.lock", "w")
+    fcntl.flock(_lf, fcntl.LOCK_EX)
+    try:
+        _save_checkpoint_locked(tag)
+    finally:
+        fcntl.flock(_lf, fcntl.LOCK_UN)
+        _lf.close()
+
+
+def _save_checkpoint_locked(tag):
     g = STEPS_DONE[0]
     ckpt = OUT / f"checkpoint-g{g}"
     ckpt.mkdir(parents=True, exist_ok=True)
@@ -322,9 +336,15 @@ signal.signal(signal.SIGUSR1, _handle_sig)
 def main():
     global glob_model, glob_opt, DEVICE
     # ---- DDP init (multi-GPU via slurm) ----
-    rank = int(os.environ.get("SLURM_PROCID", os.environ.get("RANK", "0")))
-    local_rank = int(os.environ.get("SLURM_LOCALID", os.environ.get("LOCAL_RANK", "0")))
-    world = int(os.environ.get("SLURM_NTASKS", os.environ.get("WORLD_SIZE", "1")))
+    # ORDEN CRITICO 2026-09-01 (bug DDP roto): con torchrun dentro de slurm
+    # --ntasks=1, los hijos HEREDAN SLURM_PROCID=0/SLURM_NTASKS=1; torchrun setea
+    # RANK/LOCAL_RANK/WORLD_SIZE. Si SLURM_* gana -> todos los ranks ven rank=0,
+    # world=1, el DDP jamas se activa, 2 copias independientes entrenan y ambos
+    # ranks escriben el MISMO ckpt dir (race: FileNotFoundError en os.replace,
+    # crash exit 1 sin auto-resubmit -> bw3 muerto). RANK/WORLD_SIZE primero.
+    rank = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", "0")))
+    local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("SLURM_LOCALID", "0")))
+    world = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS", "1")))
     world_size = world
     ddp = world_size > 1
     if ddp:
