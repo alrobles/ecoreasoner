@@ -1,0 +1,39 @@
+# run.yaml — spec declarativa de un micro-run (Fase 3, F0).
+# run_micro.py la valida, arma el job slurm 1-GPU, lo ejecuta y recolecta report.json.
+
+job:
+  name: f0-smoke
+  partition: sixhour
+  gres: gpu:pro6000:1
+  cpus: 16
+  mem: 60G
+  time: "05:50:00"
+  overlay: /beegfs/a474r867/ecoreasoner/overlay
+  venv: /bb/bwvenv/bin/python
+  output: /beegfs/a474r867/ecoreasoner/runs/%x-%j.out
+
+model:
+  vocab: 126080
+  hidden: 512
+  layers: 8
+  heads: 8
+  ff_mult: 4
+  seq_len: 1024
+  n_experts: 1
+  k: 1
+
+train: {}  # el harness NUNCA toca el trainer vivo
+
+eval:
+  mask_p: 0.15
+  n_pairs: 64
+  temp: 1.0
+  steps: 8
+  max_new: 128
+  batch: 8
+
+out:
+  dir: /beegfs/a474r867/ecoreasoner/runs
+  tag: f0-smoke
+
+seed: 7331
