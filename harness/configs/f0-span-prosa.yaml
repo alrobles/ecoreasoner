@@ -1,0 +1,45 @@
+# run.yaml — micro-run F0 (Fase 3 -new). TAG: f0-span-prosa
+# Entrenamiento parametrizado por env en moe_v4_micro.slurm (MASK_TYPE/MASK_P/DATA_CACHE).
+# Esta config la usa suite_smoke.py (modelo/eval) + report.py (metadatos).
+
+job:
+  name: f0-span-prosa
+  partition: sixhour
+  gres: gpu:pro6000:1
+  cpus: 16
+  mem: 80G
+  time: "05:50:00"
+  overlay: /beegfs/a474r867/ecoreasoner/blackwell-torch.overlay
+  venv: /bb/bwvenv/bin/python
+  output: /beegfs/a474r867/ecoreasoner/runs/f0-span-prosa/job-%j.out
+
+model:
+  vocab: 126080
+  hidden: 512
+  layers: 8
+  heads: 8
+  ff_mult: 4
+  seq_len: 768
+  n_experts: 1
+  k: 1
+
+train: {
+  mask_type: span
+  mask_p: 0.15
+  span_len: 64
+  data_cache: /beegfs/a474r867/ecoreasoner/data/train_ids_v7_clean.npy
+}
+
+eval:
+  mask_p: 0.15
+  n_pairs: 256
+  temp: 1.0
+  steps: 8
+  max_new: 128
+  batch: 8
+
+out:
+  dir: /beegfs/a474r867/ecoreasoner/runs
+  tag: f0-span-prosa
+
+seed: 7331
