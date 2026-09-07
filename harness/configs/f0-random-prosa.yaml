@@ -23,12 +23,11 @@ model:
   n_experts: 1
   k: 1
 
-train: {
+train:
   mask_type: random
   mask_p: 0.15
   span_len: 64
   data_cache: /beegfs/a474r867/ecoreasoner/data/train_ids_v7_clean.npy
-}
 
 eval:
   mask_p: 0.15
