@@ -32,6 +32,13 @@ def parse():
     p.add_argument("--warmup", type=int, default=200)
     p.add_argument("--max_steps", type=int, default=1000)
     p.add_argument("--mask_p", type=float, default=0.15)
+    p.add_argument("--mask_type", default="random", choices=["random", "span"],
+                   help="random: tokens aislados al azar (historico, default). "
+                        "span: bloques contiguos largos (2026-09-02, diagnostico "
+                        "smoke_cont_bw3: la mascara dispersa premia autocorrelacion "
+                        "local; spans fuerzan coherencia estructural).")
+    p.add_argument("--span_len", type=int, default=64,
+                   help="longitud (tokens) de cada span contiguo con --mask_type=span")
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="+", required=True)
     p.add_argument("--data_cache", default=None,
@@ -237,6 +244,35 @@ glob_opt = None
 STEPS_DONE = [0]
 LAST_LOSS = [0.0]
 
+def build_span_mask(T, n_target, span_len, device="cpu"):
+    """Mascara de SPANS CONTIGUOS largos (2026-09-02).
+
+    Enmascara ~n_target tokens repartidos en spans contiguos de ~span_len
+    tokens (M = max(1, n_target // span_len) spans), con inicios aleatorios y
+    sin solapamiento. A diferencia del random disperso -- que premia copiar el
+    vecino inmediato (autocorrelacion local, nunca sintaxis) y es la causa del
+    colapso observado en smoke_cont_bw3 (rep4 0.41 con contexto vs 0.15 en
+    texto real) -- aqui el modelo debe reconstruir REGIONES completas desde
+    contexto lejano: fuerza coherencia estructural. El numero real de
+    posiciones puede desviarse ligeramente de n_target (clamp a [1, T]).
+    """
+    T = int(T)
+    span_len = max(1, min(int(span_len), T))
+    n_spans = max(1, int(n_target) // span_len)
+    masked = torch.zeros(T, dtype=torch.bool, device=device)
+    for _ in range(n_spans * 6):
+        if int(masked.sum()) >= n_target or masked.all():
+            break
+        start = int(torch.randint(0, max(1, T - span_len + 1), (1,), device=device))
+        masked[start:start + span_len] = True
+    # si los spans dejaron deficit, cerrarlo con tokens aislados
+    while int(masked.sum()) < n_target and not masked.all():
+        free = (~masked).nonzero(as_tuple=False).squeeze(-1)
+        j = int(torch.randint(0, free.numel(), (1,), device=device))
+        masked[int(free[j])] = True
+    return masked.nonzero(as_tuple=False).squeeze(-1)
+
+
 def _save_checkpoint(tag):
     # LOCK de guardado (2026-09-01): serializa los saves entre ranks aunque el
     # filtro rank==0 fallara; evita que la limpieza de retencion-2 borre un dir
@@ -425,7 +461,8 @@ def main():
     for step in range(STEPS_DONE[0], ARGS.max_steps):
         xb = batches[it % nb].to(DEVICE); it += 1
         xm = xb.clone(); head = xb.size(1)//2
-        mp = torch.randperm(xb.size(1))[:n_masked]
+        mp = torch.randperm(xb.size(1))[:n_masked] if ARGS.mask_type == "random" else \
+              build_span_mask(xb.size(1), n_masked, ARGS.span_len, device=xb.device)
         # mask in second half (like diffusion delete region) — simplest: mask per half
         xm[:, mp] = ARGS.vocab
         out = glob_model(xm)
