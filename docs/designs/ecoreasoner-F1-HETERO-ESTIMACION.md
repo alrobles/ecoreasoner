@@ -13,9 +13,11 @@ y el trainer híbrido (grad_accum adaptativo + autosize por VRAM + all-reduce
 manual), se estima **~25B tok/día pico teórico, ~10.6B realista, ~0.9B con el
 pool de HOY (solo 4× L40 medidos a 2,560 tok/s)**. El criterio GO del F1
 (~4.3B tok ≈ 1 epoch v7_clean) se alcanzaría en **~4h de pool pico, ~10h
-realista, o ~4.9 días con solo L40**. Lección clave de la medición: el tok/s
-del micro dense NO escala con FLOPs teóricos (L40 = 2.5K vs pro6000 = 12.5K,
-4.9× no 0.7×) — el pool hay que MEDIRLO, no proyectarlo.
+realista, o ~4.9 días con solo L40**. Mediciones REALES (micro dense 50-100M,
+2026-09-07, misma traza de train_mdlm_moe.py):
+A100=14.1K tok/s, pro6000=12.5K, L40=2.56K (Q6000 por medir, ~2.5K est).
+El F1-HETERO ya tiene trainer (train_mdlm_moe_hetero.py, autosize+SCALE_I)
+VALIDADO en DDP multi-GPU real (smoke L40×4, 100 steps, micro=25/rank).
 
 ---
 
@@ -39,10 +41,15 @@ en lugar de arriba):
 
 | Familia | VRAM | tok/s MEDIDO micro |
 |---|---|---|
-| pro6000 (Blackwell) | 96GB | **12,500** (medido) |
-| L40 | 48GB | **2,560** (medido AHORA) |
-| A100 | 80GB | ~¿? (por medir; esperar más cerca de pro6000 por FLOPs) |
-| Q6000 | 48GB | ~¿? (por medir; esperar ~1× L40) |
+| **A100** | 80GB | **14,128** (medido 07-09, smoke 28860086) |
+| pro6000 (Blackwell) | 96GB | **12,512** (medido) |
+| L40 | 48GB | **2,560** (medido) |
+| Q6000 | 48GB | ~2,500 (est. ~L40, por medir) |
+
+**El A100 es el más rápido del pool para el micro dense** (14.1K tok/s > pro6000
+12.5K) a pesar de ser cu121 — el cuello es compute del head (vocab 126080), no
+torch version. La tabla ya no puede ordenarse por VRAM ni por generación:
+orden REAL por tok/s = A100 > pro6000 > L40 ≈ Q6000.
 
 Pitfall apuntado: con un modelo de 50M y batch 8, casi cualquier GPU moderna
 queda subutilizada por COMPUTE, no por VRAM — la ganancia de pro6000 sobre L40
