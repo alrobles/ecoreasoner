@@ -82,12 +82,17 @@ del corpus → subentrenado, el criterio era "transitorio". **Ganador: span-esqu
 
 ## 3. CÓMPUTO — pool NVIDIA real y tok/s medidos
 
-| Familia | GPUs | tok/s (micro dense, medido) |
+| Familia | GPUs | tok/s (micro dense, solo entreno, 08-09) |
 |---|---|---|
-| A100 (cu121) | ~18 | **14,128** |
-| pro6000 Blackwell | 5 | **12,512** |
-| L40 (cu121) | 4 | **2,560** |
-| Q6000 (cu121) | ~29 | ~2,500 (por medir) |
+| **A100** (cu121) | ~18 | **~22,026** |
+| pro6000 Blackwell | 5 | **~12,553** |
+| L40 (cu121) | 4 | **~11,443** |
+| Q6000 (cu121) | ~29 | **~7,941** |
+
+- **PITFALL medición**: walltime del job incluye la carga del cache (~50s) →
+  subestima 2-5×. Cronometrar del log (step 0 → step 190 × 6144 tok/step).
+  1 epoch esqueleto (129.5M tok) ≈ 8 min pool realista / 15-22 min solo
+  L40+Q6000 → **el F1 completo ya es viable con el pool de HOY** (ver §5).
 
 - El pool real **fluctúa por minuto** (A100 se ocupan/liberan todo el tiempo).
   Sinfo miente: usar scontrol (AllocTRES vs Gres).
@@ -122,10 +127,13 @@ del corpus → subentrenado, el criterio era "transitorio". **Ganador: span-esqu
 2. `cat outputs/bw5_spanhi/training_complete.flag` → ¿bw5 completó? (smoke de continuación
    pendiente: smoke_cont sobre bw5_spanhi, criterio rep4→0.15 Y word→0.435).
 3. Comprobar cola: `squeue -u a474r867 | grep -vE 'quercus|split'`.
-4. Si quiero el F1 ya con solo L40: lanzar f1_hetero con NJOBS=1 (L40×4) TARGET
-   largo — vale ~2.56K tok/s/GPU (0.9B tok/día, ~129M tok de 1 epoch esqueleto =
-   ~3.6h de 4×L40). Con A100+Q6000, mucho menos.
-5. Medir Q6000 (smoke_throughput --gres=q6000) cuando haya 1 suelta.
+4. Si quiero F1 YA (sin esperar A100): con L40+Q6000 libres es ~15-22 min por
+   epoch esqueleto. Lanzar `f1_hetero` multi-job (0=A100/L40, 1=Q6000...) con
+   TARGET_STEPS = 1 epoch (129.5M tok / micro tokens), receta span-esqueleto.
+   Medir la curva con `eval_curve` (eval_curve.py + eval_curve.slurm, hecho
+   08-09: recorre checkpoints y evalúa pairwise_acc). A100 es opcional.
+5. ~~Medir Q6000~~ ✅ HECHO (08-09): ~7,941 tok/s (smoke 28879250). Milestone
+   del pool: A100 22K, pro6000 12.6K, L40 11.4K, Q6000 7.9K.
 
 ---
 

@@ -8,16 +8,14 @@ Estado: ESTIMACIÓN V1 — pendiente medir Q6000/A100 (L40 midiéndose AHORA)
 
 ## 0. Resumen en una frase
 
-Con el pool NVIDIA MÁXIMO disponible (pro6000/Q6000/L40/A100 = 52 GPUs teóricas)
-y el trainer híbrido (grad_accum adaptativo + autosize por VRAM + all-reduce
-manual), se estima **~25B tok/día pico teórico, ~10.6B realista, ~0.9B con el
-pool de HOY (solo 4× L40 medidos a 2,560 tok/s)**. El criterio GO del F1
-(~4.3B tok ≈ 1 epoch v7_clean) se alcanzaría en **~4h de pool pico, ~10h
-realista, o ~4.9 días con solo L40**. Mediciones REALES (micro dense 50-100M,
-2026-09-07, misma traza de train_mdlm_moe.py):
-A100=14.1K tok/s, pro6000=12.5K, L40=2.56K (Q6000 por medir, ~2.5K est).
-El F1-HETERO ya tiene trainer (train_mdlm_moe_hetero.py, autosize+SCALE_I)
-VALIDADO en DDP multi-GPU real (smoke L40×4, 100 steps, micro=25/rank).
+Con el pool NVIDIA disponible (pro6000/Q6000/L40/A100) y el trainer híbrido
+(grad_accum adaptativo + autosize por VRAM + all-reduce manual), y con las
+mediciones corregidas (ver §1 — método: solo entrenamiento, sin cache), el
+**1 epoch del corpus de esqueletos (129.5M tok, la unidad del criterio GO F1)
+cuesta**: ~3 min con el pool MÁXIMO, ~8 min con el pool realista (24 GPUs),
+~47 min con solo el pool de HOY (4× L40). Los tok/s medidos (micro dense
+154.8M, batch 8×768, torch cu121/cu128): **A100 ≈22.0K > pro6000 ≈12.6K >
+L40 ≈11.4K > Q6000 ≈7.9K**.
 
 ---
 
@@ -39,17 +37,24 @@ compute-bound domina. Lección: NO proyectar tok/s por FLOPs para un micro
 dense con batch fijo — hay que medir. Tabla CORREGIDA (proyección L40 abajo
 en lugar de arriba):
 
-| Familia | VRAM | tok/s MEDIDO micro |
+| Familia | VRAM | tok/s micro (método: solo tiempo de entrenamiento, 200 steps) |
 |---|---|---|
-| **A100** | 80GB | **14,128** (medido 07-09, smoke 28860086) |
-| pro6000 (Blackwell) | 96GB | **12,512** (medido) |
-| L40 | 48GB | **2,560** (medido) |
-| Q6000 | 48GB | ~2,500 (est. ~L40, por medir) |
+| **A100** | 80GB | **~22,026** (medido 08-09, smoke 28860086) |
+| pro6000 (Blackwell) | 102GB | **~12,553** (medido 08-09, smoke 28881059) |
+| L40 | 48GB | **~11,443** (medido, smoke 28843577) |
+| Q6000 | 48GB | **~7,941** (medido, smoke 28879250) |
 
-**El A100 es el más rápido del pool para el micro dense** (14.1K tok/s > pro6000
-12.5K) a pesar de ser cu121 — el cuello es compute del head (vocab 126080), no
-torch version. La tabla ya no puede ordenarse por VRAM ni por generación:
-orden REAL por tok/s = A100 > pro6000 > L40 ≈ Q6000.
+**CORRECCIÓN DE MÉTODO (2026-09-08)**: la versión anterior de esta tabla
+subestimaba A100/L40 (14.1K/2.56K) porque dividía por el walltime INCLUDIENDO
+la carga del cache (~56s y ~35s de overhead). El método correcto cronometra
+SOLO el entrenamiento (step 0 → step 190 del log). Los números de arriba son
+los válidos. Orden REAL por tok/s: A100 > pro6000 > L40 > Q6000 (el A100 es
+~1.8× el Blackwell para el micro dense — el cuello es el head Linear→vocab
+126080, y el A100 cu121 lo hace más rápido aquí).
+
+Pitfall: medir throughput de un micro dense con walltime del job es FALSO —
+siempre cronometrar del log (step 0 → step N), excluyendo carga de cache y
+checkpoints.
 
 Pitfall apuntado: con un modelo de 50M y batch 8, casi cualquier GPU moderna
 queda subutilizada por COMPUTE, no por VRAM — la ganancia de pro6000 sobre L40
@@ -102,47 +107,55 @@ registrada.
 
 ---
 
-## 4. Escenarios de tokens/día y días para el GO
+## 4. Escenarios: tiempo para 1 epoch del corpus de ESQUELETOS (129.5M tok)
 
-### Escenario A — pool MÁXIMO (los 52 de todos los tipos, ideal)
+**Objetivo F1 (receta ganadora span-esqueleto)**: 1 epoch sobre el corpus de
+esqueletos = 129.5M tok (NO 4.3B — ese era v7 prosa; el esqueleto es mucho más
+chico y es sobre lo que se decide el GO). Con tok/s medidos §1.
 
-| Familia | GPUs | tok/s c/u | subtotal tok/día |
+### Escenario A — pool MÁXIMO (56 GPUs, ideal)
+
+| Familia | GPUs | tok/s c/u | subtotal tok/s |
 |---|---|---|---|
-| pro6000 | 5 | 12,500 | 5.4B |
-| A100 | 18 | ~8,000* | 12.4B |
-| Q6000 | 29 | ~2,500** | 6.3B |
-| L40 | 4 | 2,560 | 0.9B |
-| **TOTAL** | **56** | — | **25.0B** |
+| A100 | 18 | 22,026 | 396K |
+| pro6000 | 5 | 12,553 | 63K |
+| L40 | 4 | 11,443 | 46K |
+| Q6000 | 29 | 7,941 | 230K |
+| **TOTAL** | **56** | ~13K medio | **735K tok/s** |
 
-→ 1 epoch v7 (4.3B tok) en **~4h**. (*A100 sin medir; **Q6000 sin medir — un
-L40+ medido da 2.5K, así que Q6000 no puede dar 9.4K)
+→ 1 epoch esqueleto (129.5M) en **~3 min**. (Obviamente irreal: cluster compartido.)
 
-### Escenario B — pool REALISTA (nuestros nodos, compartidos pero asignables)
+### Escenario B — pool REALISTA (24 GPUs asignables)
 
-| Familia | GPUs reales | tok/s | subtotal tok/día |
+| Familia | GPUs | tok/s | subtotal tok/s |
 |---|---|---|---|
-| pro6000 | 4 (de 5; bw5 ocupa 1) | 12,500 | 4.3B |
-| Q6000 | 12 (de 29 asignables) | 2,500 | 2.6B |
-| L40 | 4 (todas) | 2,560 | 0.9B |
-| A100 | ~4 (de 18) | 8,000 | 2.8B |
-| **TOTAL** | **24** | ~5.6K medio | **10.6B** |
+| A100 | 4 | 22,026 | 88K |
+| pro6000 | 4 | 12,553 | 50K |
+| L40 | 4 | 11,443 | 46K |
+| Q6000 | 12 | 7,941 | 95K |
+| **TOTAL** | **24** | ~11.6K medio | **279K tok/s** |
 
-→ 1 epoch en **~9.7h**; criterio GO (4.3B) en **<1 día de pool**.
+→ 1 epoch esqueleto en **~8 min**. El criterio GO (más de 1 epoch si hace
+falta) en menos de 1 hora de pool.
 
-### Escenario C — pool HOY (medido 2026-09-07 17:30)
+### Escenario C — pool HOY (medido 2026-09-08 00:30, scontrol)
 
-| Familia | GPUs LIBRES de verdad (scontrol) | tok/s | subtotal |
+| Familia | GPUs LIBRES | tok/s | subtotal tok/s |
 |---|---|---|---|
-| L40 | 4 | 2,560 (medido) | 0.9B |
-| pro6000 | 0 (bw5 + 3 micros) | — | — |
-| Q6000/A100 | 0 (otros usuarios) | — | — |
-| **TOTAL** | **4** | ~2.6K | **0.9B tok/día** |
+| L40 | 4 | 11,443 | 46K |
+| Q6000 | ~7-12 (r22* 3/3 + parciales) | 7,941 | 56-95K |
+| A100 | 0 (otros usuarios) | — | — |
+| pro6000 | 1-3 libres (cu128, F1 no puede mezclar) | — | — |
+| **TOTAL (cu121)** | **~11-16** | ~9K medio | **~100-140K tok/s** |
 
-→ 1 epoch en **~4.9 días** con solo L40.
+→ 1 epoch esqueleto en **~15-22 min** con lo que hay HOY mismo, solo con L40+Q6000.
 
 **Lee los tres**: el diseño -new ya lo avisaba (§2, §12): "pool teórico ≠ pool
-real". El valor del hito paper-1 está en que el harness mide Y ENTREGA el pool
-que de verdad esté libre, no el que promete sinfo.
+real". La corrección clave de esta revisión: el objetivo F1 (esqueleto) es
+**dos órdenes de magnitud más barato** que 1 epoch de prosa v7 (129.5M vs
+4.3B tok), así que el F1 completo cabe en <1h de pool incluso con pocas GPU.
+El valor del hito paper-1 está en que el harness mide Y ENTREGA el pool que
+de verdad esté libre, no el que promete sinfo.
 
 ---
 
