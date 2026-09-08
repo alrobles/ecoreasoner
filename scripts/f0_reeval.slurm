@@ -22,26 +22,27 @@ set -uo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
 SIF=$BASE/pytorch-cuda.sif
 OVL=$BASE/blackwell-torch.overlay
-VENV=/bb/bwvenv/bin/python
+VENV=/bb/bwvenv
+PY=$VENV/bin/python
 RUNS=$BASE/runs
 PAIRS=$RUNS/pairs.jsonl
-TAGS="${TAGS:-f0-random-prosa f0-span-prosa f0-spanhi-prosa}"
+TAGS="${TAGS:-f0-random-prosa,f0-span-prosa,f0-spanhi-prosa}"
 
-for TAG in $TAGS; do
+for TAG in $(echo "$TAGS" | tr ',' ' '); do
     OUT=$RUNS/$TAG
     CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -t g -k2 -n | tail -1 || true)
     [ -z "$CKPT_DIR" ] && { echo "[$TAG] sin checkpoints"; continue; }
     CKPT="$CKPT_DIR/model.pt"
     CFG=$BASE/harness/configs/$TAG.yaml
     echo "=== [$TAG] eval $CKPT (pairs=$PAIRS) ==="
-    apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" \
+    apptainer exec --nv --overlay "$OVL":ro "$SIF" "$PY" \
         "$BASE/harness/suite_smoke.py" \
         --ckpt "$CKPT" --config "$CFG" --pairs "$PAIRS" \
         --out "$OUT/report.suite.json" --device cuda
     rc=$?
     echo "[$TAG] suite exit $rc"
     if [ $rc -eq 0 ]; then
-        apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" \
+        apptainer exec --nv --overlay "$OVL":ro "$SIF" "$PY" \
             "$BASE/harness/report.py" \
             --config "$CFG" --suite "$OUT/report.suite.json" \
             --out "$OUT/report.json" --job-id "$SLURM_JOB_ID" || echo "[$TAG] report FAILED"

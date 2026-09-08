@@ -88,7 +88,8 @@ def denoise_loss(model, seq, mask_p, rng, mask_id):
 
 def generate(model, prompt_ids, max_new, steps, temp, rng, mask_id, mask_p):
     """denoising iterativo: en cada paso se remascara una fracción y se re-muestrea."""
-    ids = torch.tensor(prompt_ids + [mask_id] * max_new, dtype=torch.long)
+    dev = next(model.parameters()).device   # el modelo puede estar en cuda
+    ids = torch.tensor(prompt_ids + [mask_id] * max_new, dtype=torch.long, device=dev)
     n = len(ids)
     with torch.no_grad():
         for _ in range(steps):
