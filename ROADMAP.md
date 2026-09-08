@@ -128,23 +128,32 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 08-09 14:22 CDT — cierre de sesión)
+## 4. ESTADO VIVO (HPC, al 08-09 17:10 CDT — actualización pre-auditoría)
 
-- **f2-spanes EN CURSO** (job 28962112 `f0-micro`, RUNNING 1:28, step ~11,300/50,000,
-  loss ~6.9). Receta micro ganador ×5 steps (12,288 tok/update, span64@15, esqueleto).
-  ETA ~23:25. **Watch curva**: job 28962213 `eval-curve-watch-f2` (evalúa cada ckpt
-  nuevo ≥500;escribe runs/f2-spanes/eval_curve.jsonl;al flag COMPLETE hace eval final
-  y termina). Curva hasta 10,151: 0.469→0.5352 (7,551) → 0.52-0.535 con mean_delta
-  POSITIVO (+0.016 a +0.024) — en F1 el delta fue negativo todo el run.
+- **f2-spanes EN CURSO** (job 28962112 `f0-micro`, RUNNING 4:12, step ~32,200/50,000,
+  loss oscilando 6.9-7.4). Receta micro ganador ×5 steps (12,288 tok/update, span64@15,
+  esqueleto). ETA fin ~19:22 CDT. **Watch curva**: job 28980351 `eval-curve-watch-f2`
+  (relanzado con ventana 4:30h tras TIMEOUT del original 28962213; retoma desde el MARK
+  `runs/f2-spanes/.eval_curve_last_step`; evalúa cada ckpt nuevo ≥500; escribe
+  runs/f2-spanes/eval_curve.jsonl; al flag COMPLETE hace eval final y termina).
+  **Curva CRUZÓ EL GO**: pico 0.5664 (28,351), último 0.5586 (30,951), asentada ≥0.55
+  desde ~25,800; mean_delta POSITIVO y creciente (+0.056) — en F1 el delta fue
+  negativo todo el run. Veredicto probable HIT (≥0.55) si aguanta hasta el final.
+- **Waiter local** (proc_d1b8bd7a038d, `~/.hermes/scripts/f2_waiter.sh`): al flag
+  COMPLETE corre `verdict_f2.py` automáticamente; muere si se cierra la terminal
+  (el watch slurm cubre la curva igual).
 - **Al retomar**: leer `runs/f2-spanes/eval_curve.jsonl` (dedupe por step, ignorar
   filas error) + `runs/f2-spanes/report.json` (suite.discrimination final) + correr
   `python scripts/verdict_f2.py --run-dir runs/f2-spanes` → seguir el VERDICT
   (HIT≥0.60 archivar positivo / EXTEND>0.535 con slope+ → relanzar a 100K /
   FALSIFY≤0.55 o NO-GO → archivar línea y pasar a controller/verificator).
-  Si el watch ya terminó: `sacct -u a474r867 --starttime 2026-09-08 | grep f0-micro`.
 - **GAP**: `train_mdlm_moe_hetero.py` NO escribe `training_complete.flag` (solo
   loguea COMPLETE) — watchdogs/herederos: detectar fin por `state.json step==TARGET`
   o `sacct COMPLETED`, NO por el flagfile. (El micro trainer SÍ escribe el flag.)
+- **Auditoría Devin (2026-09-08 17:10)**: repo listo (tree limpio, main sync).
+  REGLA para el prompt: auditoría SOLO-LECTURA — f2 entrenando en HPC; NO editar
+  ficheros de `scripts/` ni `runs/` (los .slurm de la ola siguiente se leen fresh al
+  resubmit); NO lanzar jobs; NO tocar el estado del run vivo.
 
 
 
