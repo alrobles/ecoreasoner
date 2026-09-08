@@ -26,9 +26,10 @@ VENV=/bb/bwvenv
 PY=$VENV/bin/python
 RUNS=$BASE/runs
 PAIRS=$RUNS/pairs.jsonl
-TAGS="${TAGS:-f0-random-prosa,f0-span-prosa,f0-spanhi-prosa}"
+TAGS="${TAGS:-f0-random-prosa;f0-span-prosa;f0-spanhi-prosa}"
 
-for TAG in $(echo "$TAGS" | tr ',' ' '); do
+IFS=';' read -ra TAGLIST <<< "$TAGS"
+for TAG in "${TAGLIST[@]}"; do
     OUT=$RUNS/$TAG
     CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -t g -k2 -n | tail -1 || true)
     [ -z "$CKPT_DIR" ] && { echo "[$TAG] sin checkpoints"; continue; }
