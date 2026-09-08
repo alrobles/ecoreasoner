@@ -268,7 +268,7 @@ def autosize_vram(device, min_batch=2, max_batch=512):
     # extrapolacion: peak = fixed + b*per_sample  => per_sample = (peak-fixed0)/b
     # fixed (modelo+opt) lo restamos con margen doble por gradientes acumulados
     nparam = m.n_params()
-    fixed = nparam * 2 + nparam * 8
+    fixed = nparam * 4 + nparam * 8
     per_sample = max((peak - fixed) / b0, 1)
     m.zero_grad(set_to_none=True)
     del m, out, loss; torch.cuda.empty_cache()
@@ -405,6 +405,10 @@ def resume():
 
 def _handle_sig(sig, frm):
     log("SIGUSR1 — guardando ola y saliendo 42")
+    if 'glob_model' not in globals() or glob_model is None or \
+       'glob_opt' not in globals() or glob_opt is None:
+        log("WARN: SIGUSR1 antes de inicializar modelo/optimizador — sin checkpoint, saliendo 42")
+        raise SystemExit(42)
     # SOLO rank 0 guarda (world>1): si los 2 ranks escribieran al mismo dir,
     # race de escritura -> checkpoint corrupto o FileNotFoundError (2026-08-29).
     r = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", "0")))
@@ -531,15 +535,13 @@ def main():
         glob_model = torch.nn.parallel.DistributedDataParallel(
             glob_model, device_ids=[dev_idx], find_unused_parameters=False)
     glob_model.zero_grad(set_to_none=True)
-    MASK = ARGS.vocab
     n_masked = max(1, int((ARGS.seq_len//2) * ARGS.mask_p))
     nb = len(batches); it = 0
     for step in range(STEPS_DONE[0], ARGS.max_steps):
         xb = batches[it % nb].to(DEVICE); it += 1
-        xm = xb.clone(); head = xb.size(1)//2
+        xm = xb.clone()
         mp = torch.randperm(xb.size(1))[:n_masked] if ARGS.mask_type == "random" else \
               build_span_mask(xb.size(1), n_masked, ARGS.span_len, device=xb.device)
-        # mask in second half (like diffusion delete region) — simplest: mask per half
         xm[:, mp] = ARGS.vocab
         out = glob_model(xm)
         loss = F.cross_entropy(out[:, mp].reshape(-1, ARGS.vocab),
