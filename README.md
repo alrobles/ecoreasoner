@@ -2,6 +2,20 @@
 
 Hybrid AR-diffusion language model for scientific agents — ecology, species distribution modeling, and computational biology.
 
+## Status (2026-09-07) — Fase 3 `-new`: excavar un dLLM científico
+
+El proyecto pivoteó: de "dLLM que genera tool-calls" (FALSADO: L1 0/40 JSON, bw3/bw4_span
+colapsaron) a **excavar desde cero un dLLM <1B cuyo razonamiento se mide por
+discriminación inferencial**, con LLaDA solo como techo de medición.
+
+- **Plan maestro / ROADMAP vivo:** [`ROADMAP.md`](ROADMAP.md)
+- **Micro-sweep F0 6/6 evaluado** (ganador: span-esqueleto, acc 0.535):
+  [`docs/results/MICRO-SWEEP-F0-RESULTADOS.md`](docs/results/MICRO-SWEEP-F0-RESULTADOS.md)
+- **Trainer heterogéneo multi-GPU VALIDADO** (autosize + gradiente exacto por tokens):
+  `scripts/train_mdlm_moe_hetero.py` + `scripts/f1_hetero.slurm`
+- Diseno Fase 3: [`docs/designs/ecoreasoner-Fase3-DESIGN-new.md`](docs/designs/ecoreasoner-Fase3-DESIGN-new.md)
+- Estimacion pool heterogeneo: [`docs/designs/ecoreasoner-F1-HETERO-ESTIMACION.md`](docs/designs/ecoreasoner-F1-HETERO-ESTIMACION.md)
+
 ## Architecture
 
 ```

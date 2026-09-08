@@ -1,119 +1,160 @@
-# ROADMAP — Massive PMC OA ingest → Parquet → DuckDB → RAG
+# ROADMAP — EcoReasoner Fase 3 (refundación `-new`): excavar un dLLM científico
 
-> ReumanLab · EcoReasoner · 2026-08-26
-> Goal: download the **PMC Open Access Subset**, filter by time/domain,
-> store in **Parquet (columnar, fast queries)**, and serve as the scientific agent's
-> **RAG**. Design decision: use the **heuristic C approach** (calibrate PMCID↔year)
-> for the "last 10 years" filter with measurable volume BEFORE bulk download.
+> ReumanLab · EcoReasoner · 2026-09-07 (última actualización)
+> Este es el PLAN MAESTRO. El código vive en `scripts/` + `harness/`; los diseños
+> en `docs/designs/`. Para el estado MÁS reciente de jobs/watchdogs: ver
+> `docs/results/` + skill `ecoreasoner-swarm` (referencias f0-micro-sweep-* y f1-hetero-*).
 
 ---
 
-## 0. Key technical decision (algorithm C — PMCID↔year)
+## 0. OBJETIVO (declarado por Angel — la refundación)
 
-**Why:** PMCIDs are not contiguous and the bucket is keyed by `PMCID.ver/`. PMC
-is published chronologically → high PMCID ≈ recent article (monotonic). To filter
-"last 10 years" without downloading ~8M full objects, we calibrate PMCID→year using
-the official **S3 Inventory** (daily CSV of all `metadata/*.json`):
+Generar **agentes con capacidad de razonamiento científico**. La tesis excavada:
+¿puede un **dLLM desde cero**, entrenado para denoising de *estructura de
+argumento científico* (no prosa cruda), aprender a **discriminar la continuación
+inferencialmente correcta** de un razonamiento frente a alternativas plausibles
+pero incorrectas?
 
-1. Download the inventory (`s3://pmc-oa-opendata/inventory-reports/.../metadata/`).
-2. The `metadata/PMCID.ver.json` files carry **citation (year), license_code, title, doi,
-   is_pmc_openaccess, is_manuscript, is_retracted** — filtering happens here, not on the text.
-3. Fit the PMCID→year curve (or use year directly from citation) and estimate the volume/size of
-   the last 10 years (≥2016) before downloading text.
-4. Enrich with the NCBI Entrez token if a PMID→year crosswalk is needed.
+**Falsación pre-registrada (no exige victoria, exige respuesta con evidencia):**
+> si tras N tokens el modelo no discrimina ≥55% pairwise (transitorio) NI
+> completa esqueletos coherentemente → la tesis queda falsada a nuestra escala.
+> Un negativo limpio con ablaciones (random/span/span-alto × prosa/esqueleto)
+> es un resultado publicable.
 
-`scripts/pmc/calibrar_pmcid_anio.py` implements the base sampling.
-**Official datum (pmcaws, 2026):** ~**8M PMC article versions**; the JSON has `license_code`
-(CC BY / CC BY-NC / `TDM` for author manuscripts with reusable full-text).
+**Fuera de la mesa:** LLaDA-MoE-7B como pieza (solo techo de medición), SFT como
+vía productiva, horizonte corto. Ver `docs/designs/ecoreasoner-Fase3-DESIGN-new.md` §0.
 
-## 1. Technologies (researched and confirmed)
+---
 
-| Layer | Technology | Why | Verified status |
+## 1. HITOS (medidos por decisión, no por calendario)
+
+### F0 — Harness F0 + eval nueva de discriminación — ✅ COMPLETO (07-09)
+- `harness/`: run_micro.py (slurm 1-GPU declarativo), report.py (report.json + index.jsonl),
+  compare.py, suite_smoke.py (discriminación pairwise + completación + fluidez),
+  validate_configs.py (previene YAML roto), build_pairs.py (pares reales del corpus).
+- `scripts/moe_v4_micro.slurm` — micro-run 1 GPU pro6000 (10K steps, dense 50-100M,
+  olas SIGUSR1, eval+report al completar).
+- **Micro-sweep 6/6 completado y evaluado** → ver §2.
+
+### F0b — Extractor de esqueletos + corpus — ✅ COMPLETO (07-09)
+- `scripts/build_skeleton.py` (IMRaD + abstracts estructurados + frases-faro, 0 GPU)
+  → `data/skeleton/train_skeleton.jsonl` (**315,299 docs** con ≥3 etapas, 675MB)
+  → `data/train_ids_skeleton.npy` (129.5M tok, OOB_OK).
+- `scripts/skel_full.slurm` + `skel_pairs.slurm` + `pre_tokenize_skeleton.slurm`.
+- Cobertura REAL: 51.6% ge2, 21.6% ge3 (el 70% era del mini-corpus sintético;
+  el real es heterogéneo y el activo de 315K docs basta).
+
+### F1 — Entrenamiento objetivo con el pool heterogéneo — EN PROGRESO 🔶
+- **Trainer heterogéneo VALIDADO**: `scripts/train_mdlm_moe_hetero.py`
+  (`--autosize` por VRAM medido con fwd+bwd real + `SCALE_I` gradiente exacto por
+  tokens + grad_accum global; smoke L40×4 world=4 micro=25 COMPLETE).
+- **Lanzador multi-familia**: `scripts/f1_hetero.slurm` (torchrun rendezvous TCP,
+  cada job = 1 familia; NCCL_IB_DISABLE para el muro IB/noib).
+- **Pendiente**: validación multi-familia A100+L40 (watchdog `f1-multifam-validate`
+  lanza cuando se liberen los A100) → luego F1 completo: receta ganador
+  (span-esqueleto), TARGET_STEPS ~1 epoch, evaluar pairwise_acc cada checkpoint.
+- Estimación: `docs/designs/ecoreasoner-F1-HETERO-ESTIMACION.md`.
+
+### F2 — Agente (loop + tools encima del modelo) — [ ]
+### Paper 1 (systems: entrenamiento heterogéneo + harness) — en paralelo
+### Paper 2 (tesis desde-cero, positiva o negativa limpia) — [ ]
+
+---
+
+## 2. RESULTADO del micro-sweep F0 (fuente de verdad: runs/index.jsonl + docs/results/MICRO-SWEEP-F0-RESULTADOS.md)
+
+| Run | mask × datos | pairwise_acc | mean_delta |
 |---|---|---|---|
-| OA source | PMC S3 `pmc-oa-opendata` (world-readable, no auth) | 1.5–5M OA articles (CC/reuse) | ✅ listable (ListBucketResult), .json+ .txt per PMCID |
-| Metadata source | S3 inventory reports (official, `inventory-reports/`) | filter by date/license/PMCID | ✅ documented (pmcaws) |
-| Columnar storage | **Parquet** (pyarrow 21/24) | columnar, compressed, fast footer metadata | ✅ kuhpc pyarrow 21, local 24 |
-| Queries | **DuckDB** (1.4.4) | SQL over Parquet, vectorized, zero-copy Arrow | ✅ kuhpc duckdb 1.4.4 |
-| Streaming (optional) | Apache NiFi/MiNiFi + Kafka | for massive real-time ingest (exactly your idea) | referenced (ADR/Arrow, ~1M rows/s) |
-| Future RAG | DuckDB/Parquet → vector (retrieval) | full papers queryable by the agent | design |
+| f0-random-prosa | random 15% × v7 | 0.5117 | -0.032 |
+| f0-span-prosa | span64×15% × v7 | 0.4492 | -0.064 |
+| f0-spanhi-prosa | span64×60% × v7 | 0.4766 | -0.052 |
+| f0-random-esqueleto | random × skeleton | 0.5078 | +0.011 |
+| **f0-span-esqueleto** | span64×15% × skeleton | **0.5352** | +0.015 |
+| f0-spanhi-esqueleto | span64×60% × skeleton | 0.5312 | +0.030 |
 
-**Why DuckDB+Arrow (not Spark alone):** zero-copy Arrow integration, direct
-Parquet-in-S3 queries, millions of rows/s merged on a single node; sufficient for our
-volume (GB to TB). NiFi/Kafka only if we need production streaming (batch is enough).
-
-## 2. Proposed architecture
-
-```
-PMC S3 (pmc-oa-opendata)
-   │  [ingestor: downloads .txt per PMCID ± .json date/license]
-   ▼
-staging/ raw jsonl (pmcid, ver, text, year, license)
-   │  [processor: filters year≥cutoff, CC license, dedup, tokenize]
-   ▼
-Parquet columnar  (partitioned by year; 10-year/domain filter)
-   │                 (pyarrow / DuckDB COPY)
-   ├──► dLLM corpus (training)            ← current mine
-   └──► RAG index (future agent)  ← DuckDB query / retrieval
-
-"Industrial" pipeline: S3 → ingest shards (slurm multi-proc) → staging → parquet → duckdb.
-Optional NiFi/Kafka for continuous streaming (not required for batch).
-```
-
-## 3. Milestones (measurable)
-
-### M1 — PMCID↔year calibration (volume estimation) — ✅ COMPLETED
-- [x] `calibrar_pmcid_anio.py` / `m1_inventory_calibrar.py` runs on kuhpc with real S3 Inventory.
-- [x] S3 Inventory downloaded: **~3M metadata/articles** in the PMC OA subset.
-- [x] Uniform random sample of 400 metadata → **98.8% ≥2016** (last 10 years ≈ entire subset).
-- [x] Year range covered and PMCID→year curve fitted (range 1000-2026 in samples).
-- [x] Licenses: CC BY (majority), CC BY-NC/ND, TDM, CC0 → filterable.
-- **Criterion met (measurable):** ~3.0M articles ≥2016, estimated **~150-170 GB of text** (at ~54k chars/doc) → `scripts/pmc/m1_resultado.json`.
-
-### M2 — S3→Parquet ingestor (demo shard) — ✅ COMPLETED
-- [x] `m2_ingest_demo.py` downloads metadata+text and writes Parquet.
-- [x] Demo shard **200 PMCIDs** → `pmc_demo.parquet` in **125s**, validated `DuckDB COUNT(*)=200`, columns (year, license, text) present.
-- [x] Demo licenses: CC BY (186), CC0 (8), TDM (5), None (1) → CC BY dominant.
-- **Criterion met:** DuckDB-queryable Parquet; **~1.6s/article** (gross ≈ text download) ⇒ 3M articles ≈ **~58 days on 1 thread** → NOT viable sequential, requires shard parallelization (slurm).
-
-Scope note: ingest of the **last 5 years first** is expected (cheaper; ~99% of the subset is ≥2021), then expand.
-
-### F3 — Full 2024-2026 ingest (first real chunk) — IN PROGRESS
-- [x] Validated probe: numeric range 11M-13M = **1,802,253 PMCIDs** from inventory (proxy 2024-2026).
-- [x] 500-PMCID probe → **469 valid 2024 rows** (94% density), ~0.6s/article, Parquet OK DuckDB COUNT=469.
-- [x] Worker with incremental flush every 5000 (crash-tolerant).
-- [ ] Slurm array **~55 shards** (~33K articles each ≈ ~5.5h) → **~6h turnaround** for 1.8M articles (~160MB-1GB per shard ≈ ~50-90GB total).
-- [ ] Filter by year≥2024 and license (CC BY/CC0/TDM/NC); optional ecological domain post-hoc.
-- **Criterion:** ~1.5-1.8M full papers in Parquet on beegfs, verifiable with DuckDB COUNT.
-Scope note: if a good ceiling is reached in a few days, stop (user authorized).
-
-### M4 — DuckDB lake / query service — [ ]
-- [ ] Parquet catalog registered in DuckDB (virtual `PMC` table with year, text, license).
-- **Criterion:** example query `SELECT * FROM PMC WHERE year>=2016 AND text ILIKE '%species%' LIMIT 10` answers <1s.
-
-### F5 — RAG prototype (optional, future) — [ ]
-- [ ] Extension: embeddings over Parquet → retrieval (DuckDB FTS or vector).
-- **Criterion:** a full-paper query relevant to a concept returns the doc >100 tokens.
-
-### F6 — dLLM integration — [ ]
-- [ ] The Parquet corpus (10 years, optionally ecological) becomes JSONL for the dLLM v4 training.
-- **Criterion:** v4 incorporates the new full papers; token/volume measure higher than v3 (97k PMC).
-
-## 4. Dependencies / resources
-
-- kuhpc: pyarrow 21, duckdb 1.4.4 ✓. HTTP S3 access (no auth) ✓.
-- Storage: /beegfs (~860TB free) — fits (tens–hundreds of GB of real text).
-- Inodes: use large Parquet files (not 1M mini) to avoid burning inodes.
-
-## 5. Risks / mitigations
-
-| Risk | Mitigation |
-|---|---|
-| PMCID↔year model: not exact | heuristic algorithm + report estimate with margin; the real cutoff is validated with a sample |
-| Underestimated volume | filter by date with S3 inventory (official) before bulk |
-| licenses | respect them (CC-BY/CC0/commercial vs NC), filter by `license` |
-| DuckDB/ram on nodes | parquet per shard, don't open everything in memory; partial columnar query |
-| ITRM cost | free (world-readable S3); only cluster traffic |
+**Veredicto:** GO pre-registrado (≥0.55) NO alcanzado por ninguno (mejor 0.535,
+mejor esqueleto 0.535/0.531 vs prosa 0.45-0.51 con delta NEGATIVO). **Tesis
+reforzada en dirección**: estructura de argumento mueve la discriminación
+(esqueleto > prosa; span > random en esqueleto); 10K steps = 245K tok = 0.006%
+del corpus → subentrenado, el criterio era "transitorio". **Ganador: span-esqueleto.**
 
 ---
 
-_Written as part of the build documentation. Next step: run M1 (calibration) on the cluster._
+## 3. CÓMPUTO — pool NVIDIA real y tok/s medidos
+
+| Familia | GPUs | tok/s (micro dense, medido) |
+|---|---|---|
+| A100 (cu121) | ~18 | **14,128** |
+| pro6000 Blackwell | 5 | **12,512** |
+| L40 (cu121) | 4 | **2,560** |
+| Q6000 (cu121) | ~29 | ~2,500 (por medir) |
+
+- El pool real **fluctúa por minuto** (A100 se ocupan/liberan todo el tiempo).
+  Sinfo miente: usar scontrol (AllocTRES vs Gres).
+- pro6000 (cu128) NO se mezclan en DDP con cu121 (muro HITO 3) — familias
+  homogéneas por partición + rendezvous TCP entre nodos.
+- **Muro NCCL IB/noib documentado**: L40 r32r25n01 es noib, A100 son ib → el L40
+  fallaba `NCCLUtils.hpp:275`. Fix: NCCL_IB_DISABLE=1 + NCCL_SOCKET_IFNAME.
+
+---
+
+## 4. ESTADO VIVO (HPC, al 07-09 22:5x CDT)
+
+- **bw5_spanhi** (job 28826427→28858877, olas): step ~27,300/38,000, loss ~5.5,
+  sin flag COMPLETE aún. Tercer punto de la curva de ablación (span hi 60%).
+  NO bloquea F1 (usa pro6000 cu128; F1 usa cu121).
+- **Watchdogs activos** (crons):
+  - `d7d8067a09d5` ecoreasoner-f0-sweep-watchdog (cada 10m, agent) — vigila bw5 + f0-*/skel-*;
+    conoce el veredicto del sweep, no lo repite.
+  - `5fa09d642d89` f1-multifam-validate (cada 15m, no_agent bash) — espera A100
+    libres y lanza la validación NCCL multi-familia solo; reporta VALIDADO/FAILED una vez.
+  - Oleada de watchdogs viejos del swarm (bw0/bw1, ollama-governors) activos.
+- **Pool ahora**: L40 4/4 libres, A100 ocupados (r31* 0/3), Q6000 1-2 sueltos,
+  pro6000 1-2 libres (cu128).
+
+---
+
+## 5. PARA RETOMAR RÁPIDO (checklist)
+
+1. `hermes cron history 5fa09d642d89` → ¿la validación multi-familia se lanzó/salió?
+   - Si VALIDADO OK → lanzo F1 completo (span-esqueleto, pool cu121 completo).
+   - Si FAILED → leer el tail y arreglar el NCCL antes de F1.
+2. `cat outputs/bw5_spanhi/training_complete.flag` → ¿bw5 completó? (smoke de continuación
+   pendiente: smoke_cont sobre bw5_spanhi, criterio rep4→0.15 Y word→0.435).
+3. Comprobar cola: `squeue -u a474r867 | grep -vE 'quercus|split'`.
+4. Si quiero el F1 ya con solo L40: lanzar f1_hetero con NJOBS=1 (L40×4) TARGET
+   largo — vale ~2.56K tok/s/GPU (0.9B tok/día, ~129M tok de 1 epoch esqueleto =
+   ~3.6h de 4×L40). Con A100+Q6000, mucho menos.
+5. Medir Q6000 (smoke_throughput --gres=q6000) cuando haya 1 suelta.
+
+---
+
+## 6. ARCHIVOS CLAVE
+
+| Qué | Dónde |
+|---|---|
+| Diseño Fase 3 -new (autoridad) | `docs/designs/ecoreasoner-Fase3-DESIGN-new.md` |
+| Diseño v0.2 (histórico) | `docs/designs/ecoreasoner-Fase3-DESIGN.md` |
+| Estimación F1 heterogénea | `docs/designs/ecoreasoner-F1-HETERO-ESTIMACION.md` |
+| Resultados micro-sweep | `docs/results/MICRO-SWEEP-F0-RESULTADOS.md` |
+| Trainer heterogéneo | `scripts/train_mdlm_moe_hetero.py` |
+| Lanzador pool multiplicidad | `scripts/f1_hetero.slurm` |
+| Extractor esqueletos | `scripts/build_skeleton.py` |
+| Harness (eval + report) | `harness/` |
+| Fuente de verdad runs | `/beegfs/a474r867/ecoreasoner/runs/index.jsonl` |
+| Corpus esqueletos | `/beegfs/a474r867/ecoreasoner/data/skeleton/train_skeleton.jsonl` |
+
+---
+
+## 7. REGLAS QUE NO SE ROMPEN (aprendidas con sangre)
+
+1. **Loss NO es proxy de lenguaje** — siempre smoke/eval de discriminación.
+2. **test-and-drop**: hipótesis validable en <4h GPU ANTES de escalar.
+3. **Pool teórico ≠ pool real** — medir con scontrol; lanzar todo el pool a la vez.
+4. **No tocar trainer vivo** — copiar (train_mdlm_moe_hetero.py), nunca editar
+   el que corre (bw5_spanhi usa train_mdlm_moe.py).
+5. **sync a repo SIEMPRE** después de tocar scripts en HPC (scp + commit) — el
+   repo es la fuente de verdad.
+6. **YAML válido + sbatch --export sin comas** (usar `;`) — validar con
+   validate_configs.py antes de lanzar.
+7. **Checkpoints atómicos + resume tolerante** — ya integrados, no revertir.
