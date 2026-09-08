@@ -128,33 +128,23 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-##4. ESTADO VIVO(HPC,al 08-09 09:50+ CDT)
+## 4. ESTADO VIVO (HPC, al 08-09 14:22 CDT — cierre de sesión)
 
-- **F1-hetero COMPLETO — NO-GO** (1000/1000 steps,jobs COMPLETED 03:02;curva
-  completa en `runs/f1-hetero/eval_curve.jsonl`;acc max 0.508 — veredicto + lección
-  en docs/results/F1-HETERO-RESULTADO.md。
-
-
-- **GAP**: `train_mdlm_moe_hetero.py` NO escribe `training_complete.flag`(solo
+- **f2-spanes EN CURSO** (job 28962112 `f0-micro`, RUNNING 1:28, step ~11,300/50,000,
+  loss ~6.9). Receta micro ganador ×5 steps (12,288 tok/update, span64@15, esqueleto).
+  ETA ~23:25. **Watch curva**: job 28962213 `eval-curve-watch-f2` (evalúa cada ckpt
+  nuevo ≥500;escribe runs/f2-spanes/eval_curve.jsonl;al flag COMPLETE hace eval final
+  y termina). Curva hasta 10,151: 0.469→0.5352 (7,551) → 0.52-0.535 con mean_delta
+  POSITIVO (+0.016 a +0.024) — en F1 el delta fue negativo todo el run.
+- **Al retomar**: leer `runs/f2-spanes/eval_curve.jsonl` (dedupe por step, ignorar
+  filas error) + `runs/f2-spanes/report.json` (suite.discrimination final) + correr
+  `python scripts/verdict_f2.py --run-dir runs/f2-spanes` → seguir el VERDICT
+  (HIT≥0.60 archivar positivo / EXTEND>0.535 con slope+ → relanzar a 100K /
+  FALSIFY≤0.55 o NO-GO → archivar línea y pasar a controller/verificator).
+  Si el watch ya terminó: `sacct -u a474r867 --starttime 2026-09-08 | grep f0-micro`.
+- **GAP**: `train_mdlm_moe_hetero.py` NO escribe `training_complete.flag` (solo
   loguea COMPLETE) — watchdogs/herederos: detectar fin por `state.json step==TARGET`
-  o `sacct COMPLETED`,NO por el flagfile。
-
-
-- **bw5_spanhi** COMPLETE(38,000 steps,flag COMPLETE;curva de ablación cerrada:
-random/span/spanhi — veredicto: la ratio de mascara no era el ingrediente;losDatos
-  estructurados sí. F0+SWEEP cerrado.Watchdog `ecoreasoner-f0-sweep-watchdog`
-  (`d7d8067a09d5`) ya en no-op(F0 cerró;considerar pausar.
-
-
-- **Watchdogs**: `5fa09d642d89` f1-multifam-validate — ya NO es prerequisito( el
-  F1 completo corrió por la vía L40+Q6000 sin A100;verificar su estado;si sigue esperando
-  A100, pausarlo(ya no hará falta. Otros watchdogs del swarm(bw0/bw1,
-  ollama-governors) activos.
-
-
-
-- **Pool**:17 ranks del F1 liberados;L40/Q6000 vuelven al pool; pro6000 idle(
-  r23r09n01/r30r08n01/r30r24n01,5 GPUs cu128 libres);A100 status variable。
+  o `sacct COMPLETED`, NO por el flagfile. (El micro trainer SÍ escribe el flag.)
 
 
 
