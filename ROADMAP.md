@@ -175,9 +175,15 @@ TARGET_STEPS=50000,PAIRS=/beegfs/a474r867/ecoreasoner/runs/pairs.jsonl,
    (1 GPU pro6000 cu128;batch8+accum2=12,288 tok/update;lr 2e-4 warmup 200;
    olas AUTO_RESUBMIT ya integradas; 10K steps≈2:07h → 50K≈10.6h,100K≈21h)。
 
-3. Al llegar cada ~5-10K steps(ckpt-gN):correr `eval_curve`(pro6000,--no-gen,min
-   --min-step 500;~1 min/ckpt)o adaptar el watch `scripts/eval_curve_watch.sh`(detectar
-   fin por state.json step==TARGET,NO por el flagfile)。
+3. Cuando f2-spanes complete (`runs/f2-spanes/training_complete.flag` presente o
+   `runs/f2-spanes/state.json step==TARGET_STEPS==50000`), correr
+   `python scripts/verdict_f2.py --run-dir runs/f2-spanes` y seguir el VERDICT:
+   - `HIT` (last acc >= 0.60) -> archivar como resultado positivo.
+   - `EXTEND` (acc > 0.535 y pendiente last-3 positiva) -> relanzar f2 a 100K steps.
+   - `FALSIFY` / `NO-GO` -> archivar la línea como falsificada y pasar a la
+     arquitectura controller/verificator.
+   Mientras tanto, `eval_curve` / `eval_curve_watch_f2.sh` siguen re-evaluando
+   checkpoints; la deduplicación por step en `eval_curve.jsonl` mantiene la última fila.
 
 4. Hito:si pairwise_acc escala de 0.535(partida del micro)hacia 0.6+
    con la curva — la receta era correcta;solo faltaban updates finos. Falsación:a100K

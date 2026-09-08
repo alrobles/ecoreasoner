@@ -18,6 +18,7 @@ Uso:
 """
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -38,6 +39,29 @@ def find_checkpoints(run_dir):
         if m and d.is_dir() and (d / "model.pt").is_file():
             out.append((int(m.group(1)), d / "model.pt"))
     return sorted(out)
+
+
+def load_existing_rows(out_path):
+    """Carga eval_curve.jsonl existente en un dict {step: row}, conservando la última fila de cada step.
+
+    Acepta filas con campo 'error' y las mantiene si son la última para ese step.
+    Líneas malformadas o sin 'step' se ignoran con advertencia.
+    """
+    by_step = {}
+    if not out_path.exists():
+        return by_step
+    for i, line in enumerate(out_path.read_text().splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+            step = row.get("step")
+            if step is not None:
+                by_step[int(step)] = row
+        except Exception as e:
+            print(f"[eval_curve] ignorando línea {i} de {out_path}: {e}", file=sys.stderr)
+    return by_step
 
 
 def main():
@@ -64,6 +88,7 @@ def main():
     run_dir = Path(args.run_dir)
     out_path = Path(args.out) if args.out else run_dir / "eval_curve.jsonl"
     tmp_path = run_dir / ".eval_tmp.json"  # tmp DENTRO del run-dir (no /tmp)
+    existing = load_existing_rows(out_path)
 
     ckpts = [(n, p) for n, p in find_checkpoints(run_dir) if n >= args.min_step]
     every = max(1, args.every)
@@ -100,10 +125,21 @@ def main():
                    "error": str(e)}
             print(f"[eval_curve] step={step} ERROR: {e}", file=sys.stderr)
         rows.append(row)
-        with out_path.open("a") as f:
-            f.write(json.dumps(row) + "\n")
 
     tmp_path.unlink(missing_ok=True)
+
+    # Reescribir la curva completa: deduplicar por step conservando la última fila.
+    all_rows = dict(existing)
+    for r in rows:
+        all_rows[r["step"]] = r
+    final_rows = [all_rows[s] for s in sorted(all_rows)]
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_tmp = out_path.with_name(out_path.name + ".tmp")
+    with out_tmp.open("w") as f:
+        for r in final_rows:
+            f.write(json.dumps(r) + "\n")
+    os.replace(out_tmp, out_path)
+
     print(f"\n{'step':>8} {'pairwise_acc':>12} {'mean_delta':>10}")
     for r in rows:
         pa = f"{r['pairwise_acc']:.4f}" if isinstance(r["pairwise_acc"], (int, float)) else "-"
