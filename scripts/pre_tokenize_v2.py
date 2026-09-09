@@ -20,11 +20,25 @@ from pathlib import Path
 from transformers import AutoTokenizer
 
 
+def _clamp(ids, vocab, eos_id):
+    """Asegura que todos los ids esten dentro del vocab del tokenizer."""
+    if eos_id is not None and eos_id >= vocab:
+        eos_id = 0
+    out = []
+    for x in ids:
+        if x >= vocab:
+            out.append(0)
+        else:
+            out.append(x)
+    return out, eos_id
+
+
 def encode_batch(args):
     lines, tok_path, max_len, field = args
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(tok_path, trust_remote_code=True,
                                         local_files_only=True)
+    vocab = tok.vocab_size
     eos_id = tok.eos_token_id
     if eos_id is None:
         eos_id = tok.pad_token_id
@@ -41,6 +55,7 @@ def encode_batch(args):
             continue
         ids = tok.encode(t, add_special_tokens=False)[:max_len - 1]
         if len(ids) >= 4:
+            ids, eos_id = _clamp(ids, vocab, eos_id)
             ids.append(eos_id)
             ids_all.extend(ids)
             lengths.append(len(ids))
@@ -86,12 +101,16 @@ def main():
 
     tok = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=True,
                                         local_files_only=True)
+    vocab = tok.vocab_size
     eos_id = tok.eos_token_id
     if eos_id is None:
         eos_id = tok.pad_token_id
+    if eos_id is not None and eos_id >= vocab:
+        eos_id = 0
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    np.savez(args.out, ids=arr, lengths=lengths, eos_id=int(eos_id))
+    np.savez(args.out, ids=arr, lengths=lengths, vocab_size=int(vocab),
+             eos_id=int(eos_id))
 
     meta = {
         "n_tokens": int(arr.size),

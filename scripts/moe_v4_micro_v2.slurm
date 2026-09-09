@@ -37,6 +37,14 @@
 #   USE_ROPE       0 | 1
 #   BATCH_SIZE     default 8
 #   GRAD_ACCUM     default 2
+#   VOCAB          default 126080
+#   HIDDEN         default 512
+#   LAYERS         default 8
+#   HEADS          default 8
+#   FF_MULT        default 4
+#   N_EXPERTS      default 1
+#   EXPERT_K       default 1
+#   SEQ_LEN        default 768
 # =============================================================================
 set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
@@ -67,6 +75,14 @@ WEIGHT_TYING="${WEIGHT_TYING:-0}"
 USE_ROPE="${USE_ROPE:-0}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
 GRAD_ACCUM="${GRAD_ACCUM:-2}"
+VOCAB="${VOCAB:-126080}"
+HIDDEN="${HIDDEN:-512}"
+LAYERS="${LAYERS:-8}"
+HEADS="${HEADS:-8}"
+FF_MULT="${FF_MULT:-4}"
+N_EXPERTS="${N_EXPERTS:-1}"
+EXPERT_K="${EXPERT_K:-1}"
+SEQ_LEN="${SEQ_LEN:-768}"
 OUT=$RUNS/$TAG
 FLAG=$OUT/training_complete.flag
 AUTO_RESUBMIT="${AUTO_RESUBMIT:-1}"
@@ -88,7 +104,7 @@ finalize() {
     fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "resubmiting ola ($TAG) target=$TARGET_STEPS..."
-        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS_DIR=$PAIRS_DIR;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;AUTO_RESUBMIT=1" \
+        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS_DIR=$PAIRS_DIR;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;VOCAB=$VOCAB;HIDDEN=$HIDDEN;LAYERS=$LAYERS;HEADS=$HEADS;FF_MULT=$FF_MULT;N_EXPERTS=$N_EXPERTS;EXPERT_K=$EXPERT_K;SEQ_LEN=$SEQ_LEN;AUTO_RESUBMIT=1" \
             "$BASE/scripts/moe_v4_micro_v2.slurm"
         echo "ola siguiente enviada."
     else
@@ -121,8 +137,8 @@ echo "=== Lanzando micro-run v2 $TAG (mask=$MASK_TYPE schedule=$MASK_SCHEDULE st
 apptainer exec --nv --overlay "$OVL":ro "$SIF" \
     "$VENV/bin/python" "$BASE/scripts/train_mdlm_moe_v2.py" \
     --data_cache "$DATA_CACHE" \
-    --vocab 126080 --hidden 512 --layers 8 --heads 8 --ff_mult 4 \
-    --n_experts 1 --expert_k 1 --seq_len 768 \
+    --vocab "$VOCAB" --hidden "$HIDDEN" --layers "$LAYERS" --heads "$HEADS" --ff_mult "$FF_MULT" \
+    --n_experts "$N_EXPERTS" --expert_k "$EXPERT_K" --seq_len "$SEQ_LEN" \
     --batch_size "$BATCH_SIZE" --grad_accum "$GRAD_ACCUM" \
     --mask_type "$MASK_TYPE" --mask_schedule "$MASK_SCHEDULE" \
     --mask_schedule_args "$MASK_SCHEDULE_ARGS" \
