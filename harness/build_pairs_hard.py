@@ -297,7 +297,7 @@ def main():
     if not a.inp or not a.tokenizer:
         ap.error("se requiere --in y --tokenizer (o --diagnose/--selftest)")
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(a.tokenizer)
+    tok = AutoTokenizer.from_pretrained(a.tokenizer, local_files_only=True, trust_remote_code=True)
     encode = lambda s: tok.encode(s, add_special_tokens=False)
     docs = list(_iter_docs(a.inp, a.limit_docs))
     print(f"docs cargados: {len(docs)}")
