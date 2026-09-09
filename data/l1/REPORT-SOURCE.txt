@@ -1,20 +1,29 @@
 toolcalls_lit_gold — REPORT-SOURCE
 ================================
 Fecha: 2026-09-09
-Pares totales: 120
-Distribución:
-  bioclim_download: 24 (20.0%)
-  gbif_occurrence: 84 (70.0%)
-  maxent_train: 12 (10.0%)
+Pares totales: 180
+Distribución (gold original):
+  bioclim_download: 24 (13.3%)
+  gbif_occurrence: 84 (46.7%)
+  maxent_train: 12 (6.7%)
+Distribución (pilot4 añadido):
+  inaturalist_occurrence: 15 (8.3%)
+  iucn_status: 15 (8.3%)
+  srtm_elevation: 15 (8.3%)
+  try_traits: 15 (8.3%)
 
-Seed: 7331
+Seed gold: 7331
+Seed pilot4: 7332
 Archivo: data/l1/toolcalls_lit_gold.jsonl
+Archivo piloto: data/l1/toolcalls_lit_pilot4.jsonl
 Validación:
-  - Consistencia prompt↔args: 120/120
-  - verify_toolcall.py: 120
+  - Consistencia prompt↔args: 180/180
+  - verify_toolcall.py: 180/180
 
 Notas:
+- Gold original: 3 herramientas (gbif_occurrence, bioclim_download, maxent_train).
+- Pilot4: 4 herramientas nuevas (iucn_status, srtm_elevation,
+  inaturalist_occurrence, try_traits).
 - Especies y regiones reales de literatura ecológica.
-- Prompts son llamadas directas a 3 herramientas (gbif_occurrence,
-  bioclim_download, maxent_train).
+- Prompts son llamadas directas a una única herramienta.
 - Sin análisis compuestos, sin scripts/HPC/PubMed/GitHub/APIs de terceros.

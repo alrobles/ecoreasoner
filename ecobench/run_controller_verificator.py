@@ -44,6 +44,23 @@ TOOLS_DEF = [
     {"name": "maxent_train",
      "description": "Entrena un modelo de nicho (MaxEnt) para una especie con capas bioclimáticas.",
      "parameters": {"species": "string, especie", "layers": "string, capas (ej. 'bioclim_19')"}},
+    # PILOTO 4 tools (2026-09-09)
+    {"name": "iucn_status",
+     "description": "Consulta el estado de conservación de una especie en la Lista Roja de la UICN.",
+     "parameters": {"species": "string, nombre científico",
+                    "region": "string, región opcional (ej. 'europa')"}},
+    {"name": "srtm_elevation",
+     "description": "Descarga las capas de elevación SRTM para una región y resolución.",
+     "parameters": {"region": "string, región geográfica",
+                    "resolution": "string, resolución (ej. '30m' o '90m')"}},
+    {"name": "inaturalist_occurrence",
+     "description": "Busca observaciones de ciudadanos de una especie en iNaturalist.",
+     "parameters": {"species": "string, nombre científico",
+                    "region": "string, región geográfica"}},
+    {"name": "try_traits",
+     "description": "Consulta rasgos funcionales de una especie en la base de datos TRY.",
+     "parameters": {"species": "string, nombre científico",
+                    "trait": "string, rasgo opcional (ej. 'leaf_area')"}},
 ]
 
 SYSTEM_PROMPT = f"""Eres un controller de agentes ecológicos. Dada una tarea, decide QUÉ herramienta

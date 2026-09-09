@@ -36,6 +36,11 @@ SCHEMAS = {
     "gbif_occurrence": {"required": ["species"], "optional": ["region"]},
     "bioclim_download": {"required": ["region"], "optional": ["year"]},
     "maxent_train": {"required": ["species", "layers"], "optional": []},
+    # PILOTO 4 tools (2026-09-09)
+    "iucn_status": {"required": ["species"], "optional": ["region"]},
+    "srtm_elevation": {"required": ["region"], "optional": ["resolution"]},
+    "inaturalist_occurrence": {"required": ["species"], "optional": ["region"]},
+    "try_traits": {"required": ["species"], "optional": ["trait"]},
 }
 # tipos (todas strings en el corpus)
 ARG_TYPES = {k: str for f, meta in SCHEMAS.items() for k in meta["required"] + meta["optional"]}

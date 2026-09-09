@@ -117,10 +117,59 @@ def resolve_maxent_train(args):
     return "ok", (f"maxent: species={species} layers={layers} ({stack_state}) -> spec lista "
                   f"para job HPC (moe_v4/species_dm) — ejecución es entrenamiento, no síncrona")
 
+# ---- pilot 4 tools (2026-09-09) ----
+def resolve_iucn_status(args):
+    species = str(args.get("species") or "").strip()
+    if not species:
+        return "fail", "iucn_status requiere species"
+    # IUCN Red List API v3 requiere token; en modo piloto resolvemos como mock
+    # verificando que el nombre es un binomio científico.
+    if len(species.split()) < 2:
+        return "partial", f"iucn_status: '{species}' no parece un binomio científico; mock"
+    return "ok", (f"iucn_status: {species} -> mock (token IUCN requerido para API real; "
+                  f"estructura de llamada válida)")
+
+def resolve_srtm_elevation(args):
+    region = str(args.get("region") or "").strip()
+    resolution = str(args.get("resolution") or "30m").strip()
+    if not region:
+        return "fail", "srtm_elevation requiere region"
+    # SRTM es global; resolver verifica HPC y cae a spec mock
+    return "ok", (f"srtm_elevation: region={region} resolution={resolution} -> "
+                  f"spec para tiles SRTM (mock hasta descarga real)")
+
+def resolve_inaturalist_occurrence(args):
+    species = str(args.get("species") or "").strip()
+    region = str(args.get("region") or "").strip() or "global"
+    if not species:
+        return "fail", "inaturalist_occurrence requiere species"
+    try:
+        url = f"https://api.inaturalist.org/v1/observations?taxon_name={urllib.parse.quote(species)}&per_page=0"
+        r = _http(url, timeout=30)
+        total = r.get("total_results", 0)
+        return "ok", (f"inaturalist: {species} region={region} -> {total:,} observaciones "
+                      f"públicas (real)")
+    except Exception as e:
+        return "partial", (f"inaturalist: {species} region={region} "
+                           f"(error API: {type(e).__name__}: {e})")
+
+def resolve_try_traits(args):
+    species = str(args.get("species") or "").strip()
+    trait = str(args.get("trait") or "").strip()
+    if not species:
+        return "fail", "try_traits requiere species"
+    # TRY no tiene API pública; mock validado
+    return "ok", (f"try_traits: species={species} trait={trait or 'all'} -> "
+                  f"mock (TRY requiere acceso a base de datos/data dump)")
+
 RESOLVERS = {
     "gbif_occurrence": resolve_gbif_occurrence,
     "bioclim_download": resolve_bioclim_download,
     "maxent_train": resolve_maxent_train,
+    "iucn_status": resolve_iucn_status,
+    "srtm_elevation": resolve_srtm_elevation,
+    "inaturalist_occurrence": resolve_inaturalist_occurrence,
+    "try_traits": resolve_try_traits,
 }
 
 def resolve(tool, args):
