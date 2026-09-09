@@ -157,9 +157,13 @@ a batch gigante).. **Ganador: span-esqueleto.**
 - **REPLICACIÓN FASE 3 (500 tool-calls, 7 tools) — ACEPTADA**: match_func 500/500 (100%),
   match_args 458/500 (92%). fallos=42: 26 year-mismatch (2010->2015), 13 region
   (africa occidental->asia oriental), 3 species cercanas — errores de VOCABULARIO del
-  controller, no de diseño. Fix propuesto: regiones/años al SYSTEM_PROMPT.
-  Dataset: data/l1/toolcalls_fase3_500.jsonl (123 especies reales GBIF+Devin).
-  Reporte: docs/results/REPLICACION-500-FASE3-RESULTADO.md.
+  controller, no de diseño. **RUN v2 (fix vocabulario): match_args 491/500 (98.2%)**,
+  year 26->0 (2010 exacto, antes ni estaba en KNOWN_VALUES), region 13->0.
+  Fix: KNOWN_VALUES años 2010-2026 + 23 regiones del gold; SYSTEM_PROMPT lista
+  vocabulario válido. Residual 9: 4 ambigüedad Quercus ilex->suber, 3 región
+  traducida es->en (southeast asia), 2 tool sinonima (inaturalist vs gbif, args exactos).
+  Reporte: docs/results/REPLICACION-500-FASE3-RESULTADO.md (v2). Dataset:
+  data/l1/toolcalls_fase3_500.jsonl (123 especies reales GBIF+Devin).
 - **FASE 3 EN CURSO (2026-09-09)**: minería de literatura (ecoseek-litdump + PMC/arXiv)
   -> extracción de entidades (especies/regiones/datasets) -> propuesta de tool-calls
   -> curación -> meta 500 pares. Diseño: docs/designs/toolcalls-expansion-2026-09-09.md.
