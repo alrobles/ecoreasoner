@@ -148,6 +148,15 @@ a batch gigante).. **Ganador: span-esqueleto.**
   controller/verificator** (deepseek/glm genera tool-calls + dLLM como conocimiento/
   repair — opción D del A/B). El dLLM propio queda como posible línea de fluidez 155M
   SOLO con gate de falsación reformulado (word/rep4/uniq son engañables).
+- **OPCIÓN D — VALIDACIÓN 300/10 TOOLS ACEPTADA (2026-09-09)**: replicación sobre 300 pares
+  / 10 tools verificada de forma independiente (no self-report): match_func 298/300 (99.3%),
+  match_args 291/300 (97.0%). El controller zero-shot aguanta 10 tools sin degradación.
+  Reporte: docs/results/REPLICACION-300-10TOOLS-RESULTADO.md + replication_300.jsonl.
+  PENDIENTE: resolvers reales de las 7 tools nuevas (iucn/try/filogenia quedan mock),
+  estratificar gbif (84 vs maxent 12) si va a banco público. Aceptado como hito.
+- **FASE 3 EN CURSO (2026-09-09)**: minería de literatura (ecoseek-litdump + PMC/arXiv)
+  -> extracción de entidades (especies/regiones/datasets) -> propuesta de tool-calls
+  -> curación -> meta 500 pares. Diseño: docs/designs/toolcalls-expansion-2026-09-09.md.
 - **OPCIÓN D VALIDADA (2026-09-09)**: controller/verificator demo end-to-end.
   `verify_toolcall.py` (verificador M1-M5, schemas empiricos 533 toolcalls reales, 100% valido) +
   `ecobench/run_controller_verificator.py` (controller + verificator + retry) +
