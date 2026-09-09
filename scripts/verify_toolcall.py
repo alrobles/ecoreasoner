@@ -86,7 +86,8 @@ def extract_toolcalls(text):
                     continue
                 fn = (it.get("function") or {}).get("name") if isinstance(it.get("function"), dict) else (it.get("function") or it.get("name"))
                 fn = fn or (it.get("name") if isinstance(it.get("name"), str) else None)
-                args_raw = (it.get("function") or {}).get("arguments") or it.get("arguments") or "{}"
+                fn = fn or (it.get("tool") if isinstance(it.get("tool"), str) else None)  # formato controller {"tool","arguments"}
+                args_raw = (it.get("function") or {}).get("arguments") or it.get("arguments") or it.get("args") or "{}"
                 if isinstance(args_raw, dict):
                     args_raw = json.dumps(args_raw, ensure_ascii=False)
                 if fn:
