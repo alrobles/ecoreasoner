@@ -41,6 +41,10 @@ SCHEMAS = {
     "srtm_elevation": {"required": ["region"], "optional": ["resolution"]},
     "inaturalist_occurrence": {"required": ["species"], "optional": ["region"]},
     "try_traits": {"required": ["species"], "optional": ["trait"]},
+    # EVOLUCIÓN (2026-09-09)
+    "timetree_divergence": {"required": ["taxon"], "optional": []},
+    "opentree_phylogeny": {"required": ["taxon"], "optional": ["region"]},
+    "ncbi_taxonomy": {"required": ["species"], "optional": []},
 }
 # tipos (todas strings en el corpus)
 ARG_TYPES = {k: str for f, meta in SCHEMAS.items() for k in meta["required"] + meta["optional"]}

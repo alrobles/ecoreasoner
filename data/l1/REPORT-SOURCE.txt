@@ -1,29 +1,35 @@
 toolcalls_lit_gold — REPORT-SOURCE
 ================================
 Fecha: 2026-09-09
-Pares totales: 180
-Distribución (gold original):
-  bioclim_download: 24 (13.3%)
-  gbif_occurrence: 84 (46.7%)
-  maxent_train: 12 (6.7%)
-Distribución (pilot4 añadido):
-  inaturalist_occurrence: 15 (8.3%)
-  iucn_status: 15 (8.3%)
-  srtm_elevation: 15 (8.3%)
-  try_traits: 15 (8.3%)
+Pares totales: 300
 
-Seed gold: 7331
-Seed pilot4: 7332
-Archivo: data/l1/toolcalls_lit_gold.jsonl
-Archivo piloto: data/l1/toolcalls_lit_pilot4.jsonl
+Distribución por tool:
+  gbif_occurrence: 84 (28.0%)
+  bioclim_download: 24 (8.0%)
+  maxent_train: 12 (4.0%)
+  iucn_status: 15 (5.0%)
+  srtm_elevation: 15 (5.0%)
+  inaturalist_occurrence: 15 (5.0%)
+  try_traits: 15 (5.0%)
+  timetree_divergence: 40 (13.3%)
+  opentree_phylogeny: 40 (13.3%)
+  ncbi_taxonomy: 40 (13.3%)
+
+Archivos:
+  data/l1/toolcalls_lit_gold.jsonl (master, 300 pares)
+  data/l1/toolcalls_lit_pilot4.jsonl (60 pares: iucn, srtm, inat, try)
+  data/l1/toolcalls_lit_evolucion.jsonl (120 pares: timetree, opentree, ncbi)
+
+Seeds:
+  gold: 7331
+  pilot4: 7332
+  evolucion: 7333
+
 Validación:
-  - Consistencia prompt↔args: 180/180
-  - verify_toolcall.py: 180/180
+  - Consistencia prompt↔args: 300/300
+  - verify_toolcall.py: 300/300
 
 Notas:
-- Gold original: 3 herramientas (gbif_occurrence, bioclim_download, maxent_train).
-- Pilot4: 4 herramientas nuevas (iucn_status, srtm_elevation,
-  inaturalist_occurrence, try_traits).
-- Especies y regiones reales de literatura ecológica.
+- Especies, taxones y regiones reales de literatura ecológica y evolutiva.
 - Prompts son llamadas directas a una única herramienta.
 - Sin análisis compuestos, sin scripts/HPC/PubMed/GitHub/APIs de terceros.

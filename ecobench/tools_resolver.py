@@ -162,6 +162,40 @@ def resolve_try_traits(args):
     return "ok", (f"try_traits: species={species} trait={trait or 'all'} -> "
                   f"mock (TRY requiere acceso a base de datos/data dump)")
 
+# ---- evolución (2026-09-09) ----
+def resolve_timetree_divergence(args):
+    taxon = str(args.get("taxon") or "").strip()
+    if not taxon:
+        return "fail", "timetree_divergence requiere taxon"
+    # TimeTree no tiene API REST abierta; resolver valida el taxón y mock
+    return "ok", (f"timetree_divergence: {taxon} -> mock (TimeTree requiere "
+                  f"interfaz web o data dump para resolución real)")
+
+def resolve_opentree_phylogeny(args):
+    taxon = str(args.get("taxon") or "").strip()
+    if not taxon:
+        return "fail", "opentree_phylogeny requiere taxon"
+    # Open Tree of Life API: v3/taxonomy/{name} o v3/tree_of_life
+    # No implementamos fetch real por simplicidad; mock validado
+    return "ok", (f"opentree_phylogeny: {taxon} -> mock (API OTL v3 disponible "
+                  f"en https://api.opentreeoflife.org/v3)")
+
+def resolve_ncbi_taxonomy(args):
+    species = str(args.get("species") or "").strip()
+    if not species:
+        return "fail", "ncbi_taxonomy requiere species"
+    try:
+        url = (f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?"
+               f"db=taxonomy&term={urllib.parse.quote(species)}&retmode=json")
+        r = _http(url, timeout=30)
+        ids = r.get("esearchresult", {}).get("idlist", [])
+        if not ids:
+            return "partial", f"ncbi_taxonomy: {species} no encontrado en NCBI Taxonomy"
+        return "ok", (f"ncbi_taxonomy: {species} -> TaxID(s) {ids} "
+                      f"(NCBI E-utilities real)")
+    except Exception as e:
+        return "partial", f"ncbi_taxonomy: {species} (error: {type(e).__name__}: {e})"
+
 RESOLVERS = {
     "gbif_occurrence": resolve_gbif_occurrence,
     "bioclim_download": resolve_bioclim_download,
@@ -170,6 +204,9 @@ RESOLVERS = {
     "srtm_elevation": resolve_srtm_elevation,
     "inaturalist_occurrence": resolve_inaturalist_occurrence,
     "try_traits": resolve_try_traits,
+    "timetree_divergence": resolve_timetree_divergence,
+    "opentree_phylogeny": resolve_opentree_phylogeny,
+    "ncbi_taxonomy": resolve_ncbi_taxonomy,
 }
 
 def resolve(tool, args):

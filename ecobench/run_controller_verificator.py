@@ -61,6 +61,17 @@ TOOLS_DEF = [
      "description": "Consulta rasgos funcionales de una especie en la base de datos TRY.",
      "parameters": {"species": "string, nombre científico",
                     "trait": "string, rasgo opcional (ej. 'leaf_area')"}},
+    # EVOLUCIÓN (2026-09-09)
+    {"name": "timetree_divergence",
+     "description": "Consulta la edad de divergencia de un taxón en TimeTree.",
+     "parameters": {"taxon": "string, taxón (género, especie o clado, ej. 'Felidae')"}},
+    {"name": "opentree_phylogeny",
+     "description": "Descarga el árbol filogenético de un taxón desde Open Tree of Life.",
+     "parameters": {"taxon": "string, taxón (ej. 'Hominidae')",
+                    "region": "string, región opcional"}},
+    {"name": "ncbi_taxonomy",
+     "description": "Consulta la clasificación taxonómica de una especie en NCBI.",
+     "parameters": {"species": "string, nombre científico (ej. 'Panthera onca')"}},
 ]
 
 SYSTEM_PROMPT = f"""Eres un controller de agentes ecológicos. Dada una tarea, decide QUÉ herramienta
