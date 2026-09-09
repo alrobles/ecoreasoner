@@ -1,0 +1,55 @@
+# run.yaml — micro-run v2 (Fase 3 -new). TAG: f0-span-esqueleto-v2
+# Entrenamiento con train_mdlm_moe_v2.py y data_cache .npz (packing EOS).
+# Receta v2: mask_schedule=uniform, whole_stage=true, cosine LR, grad_clip.
+
+job:
+  name: f0-span-esqueleto-v2
+  partition: sixhour
+  gres: gpu:pro6000:1
+  cpus: 16
+  mem: 80G
+  time: "05:50:00"
+  overlay: /beegfs/a474r867/ecoreasoner/blackwell-torch.overlay
+  venv: /bb/bwvenv/bin/python
+  output: /beegfs/a474r867/ecoreasoner/runs/f0-span-esqueleto-v2/job-%j.out
+
+model:
+  vocab: 126080
+  hidden: 512
+  layers: 8
+  heads: 8
+  ff_mult: 4
+  seq_len: 768
+  n_experts: 1
+  k: 1
+  use_rope: false
+  weight_tying: false
+
+train:
+  mask_type: span
+  mask_p: 0.15
+  mask_schedule: uniform
+  mask_schedule_args: '{"b_l": 0.05, "b_h": 0.95}'
+  span_len: 64
+  whole_stage: true
+  data_cache: /beegfs/a474r867/ecoreasoner/data/train_ids_skeleton_v2.npz
+  lr: 2.0e-4
+  lr_decay: cosine
+  lr_min_ratio: 0.1
+  warmup: 200
+  grad_clip: 1.0
+  ema_decay: 0.0
+
+eval:
+  mask_p: 0.15
+  n_pairs: 256
+  temp: 1.0
+  steps: 8
+  max_new: 128
+  batch: 8
+
+out:
+  dir: /beegfs/a474r867/ecoreasoner/runs
+  tag: f0-span-esqueleto-v2
+
+seed: 7331
