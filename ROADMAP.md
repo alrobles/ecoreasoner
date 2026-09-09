@@ -139,6 +139,10 @@ a batch gigante).. **Ganador: span-esqueleto.**
   micro ganadora ×5 pasos NO produjo HIT. **Detalle**: el run original 28962112 murió
   TIMEOUT 88% por el deadlock SIGUSR1 (confirmado) y se relanzó 28982555 con el fix;
   el resume a 44,151→50,000 fue limpio.
+- **SANITY L0-L3 (batería Devin PR #1, ejecutada 2026-09-08)**: L0 0.5738** / L1 0.5607** /
+  L2 0.465 ns / L3 0.5089 ns → solo coherencia temática (atajo overlap); **FALSIFICACIÓN
+  FUERTE** de la línea inferencial. Vía libre al controller/verificator.
+  Doc: docs/results/F2-SPANES-RESULTADO.md (anexo).
 - **DECISIÓN (pre-registrada, ejecutada)**: línea f2 **archivada como falsada** —
   `docs/results/F2-SPANES-RESULTADO.md`. NO relanzar a 100K. **Siguiente: arquitectura
   controller/verificator** (deepseek/glm genera tool-calls + dLLM como conocimiento/

@@ -63,3 +63,31 @@
 - `runs/f2-spanes/verdict_f2.json` (veredicto oficial)
 - `runs/f2-spanes/checkpoint-g50000` + g49301 (retention-2, últimos)
 - Este doc: `docs/results/F2-SPANES-RESULTADO.md`
+
+
+---
+
+## Anexo — SANITY L0-L3 (post-FALSIFIC, batería Devin PR #1, 2026-09-08)
+
+**Pregunta**: ¿hay señal inferencial escondida o falsación fuerte? Negativos
+graduados sobre el ckpt final g50000 (L0=427, L1=428, L2=428, L3=338 pares,
+seed 7331, --no-gen):
+
+| Nivel | bad = | acc | IC95 Wilson | p (1-cola) | sig |
+|---|---|---|---|---|---|
+| L0 | otro doc, cualquier dominio (coherencia) | 0.5738 | [0.526, 0.620] | 0.0013 | ** |
+| L1 | otro doc, MISMO dominio (tópico controlado) | 0.5607 | [0.513, 0.607] | 0.0068 | ** |
+| L2 | misma doc, etapa j≠k (orden/rol) | 0.4650 | [0.418, 0.512] | 0.933 | ns |
+| L3 | misma etapa, payload mutado (inferencia) | 0.5089 | [0.456, 0.562] | 0.393 | ns |
+
+**Lectura (pre-registrada)**: solo L0/L1 significativos → **FALSIFICACIÓN FUERTE**:
+el atajo temático (overlap ctx↔ok) explica toda la señal previa; sin inferencia de
+orden (L2, incluso bajo azar: el bad más solapado "gana") ni de contenido (L3 a
+azar). El pico 0.566 del F2 era el atajo + comparaciones múltiples (auditoría 2a).
+Vía libre al **controller/verificator**. Diagnóstico previo (pairs.jsonl original):
+jac(ctx,ok)=0.1825 vs jac(ctx,bad)=0.0713 (margen +0.117) → el atajo existía de fábrica.
+
+Fix del PR aplicados (main): trust_remote_code en build_pairs_hard (sin él → 0 pares
+silencioso), _select_k a k=2 (corpus real es OBS/EVID/CONC sin PREDICCION), verdict.py
+leyendo discrimination anidado. Artefactos: runs/pairs_hard/*, runs/f2-spanes/
+battery_L0L3/*, runs/f2-spanes/battery_verdict.json.
