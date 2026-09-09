@@ -165,12 +165,14 @@ def build_controller_prompt(task):
     """Prompt del controller: tarea + instrucción estricta de formato JSON tool-call.
     (La versión previa pasaba la pregunta cruda y el teacher respondía código/texto,
     no una tool-call — el llm_call directo con instrucción JSON SÍ funciona)."""
+    tool_descriptions = " | ".join(
+        f"{t['name']}({','.join(t['parameters'])})" for t in TOOLS_DEF
+    )
     return (
         f"{task}\n\n"
         f"Emite EXACTAMENTE UNA tool-call en JSON con este formato:\n"
         f"{{\"tool\": \"<nombre>\", \"arguments\": {{\"param\": \"valor\", ...}}, \"rationale\": \"<1 frase>\"}}\n"
-        f"Herramientas: gbif_occurrence(species,region) | bioclim_download(region,year) | "
-        f"maxent_train(species,layers).\n"
+        f"Herramientas disponibles: {tool_descriptions}.\n"
         f"SOLO JSON, sin markdown ni explicación fuera."
     )
 

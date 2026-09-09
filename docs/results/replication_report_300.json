@@ -1,0 +1,12 @@
+{
+ "model": "deepseek-v4-flash:latest",
+ "backend": "ollama",
+ "n": 300,
+ "n_match_func": 298,
+ "match_func_ratio": 0.9933,
+ "n_match_args": 291,
+ "match_args_ratio": 0.97,
+ "elapsed_s": 459,
+ "sec_per_item": 1.5,
+ "out": "docs/results/replication_300.jsonl"
+}
