@@ -40,3 +40,6 @@ docs/devin-*.md
 
 # repos de terceros clonados (no subir)
 third_party/
+
+# artefactos crudos regenerables de mineria (12MB+)
+docs/results/entities_fulltext_corpus.json
