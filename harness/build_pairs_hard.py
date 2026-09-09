@@ -70,12 +70,18 @@ def _parse_stages(text):
 
 
 def _select_k(stages):
-    """Igual que build_pairs: el candidato es la etapa tras PREDICCION (típicamente
-    EVIDENCIA). Devuelve j o None."""
+    """El candidato es la etapa tras PREDICCION (típicamente EVIDENCIA).
+    Si el corpus no incluye PREDICCION (caso real: OBS/EVID/CONC), usamos
+    k=2 como default para predecir la tercera etapa (EVIDENCIA o CONCLUSION).
+    Devuelve j o None."""
     pi = next((i for i, s in enumerate(stages) if s == "prediccion"), None)
-    if pi is None or pi + 1 >= len(stages):
-        return None
-    return pi + 1
+    if pi is not None:
+        if pi + 1 >= len(stages):
+            return None
+        return pi + 1
+    if len(stages) > 2:
+        return 2
+    return None
 
 
 def _mutate_payload(text, rng):
