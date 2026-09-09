@@ -87,7 +87,10 @@ def main():
 
     run_dir = Path(args.run_dir)
     out_path = Path(args.out) if args.out else run_dir / "eval_curve.jsonl"
-    tmp_path = run_dir / ".eval_tmp.json"  # tmp DENTRO del run-dir (no /tmp)
+    # tmp UNICO POR PROCESO (2026-09-08, auditoria 1.5): antes era path fijo
+    # .eval_tmp.json -> dos evals concurrentes (watcher cada 10 min + eval en
+    # cola) leian el tmp del otro y escribian filas con metricas de otro ckpt.
+    tmp_path = run_dir / f".eval_tmp.{os.getpid()}.json"  # tmp DENTRO del run-dir
     existing = load_existing_rows(out_path)
 
     ckpts = [(n, p) for n, p in find_checkpoints(run_dir) if n >= args.min_step]
@@ -129,12 +132,15 @@ def main():
     tmp_path.unlink(missing_ok=True)
 
     # Reescribir la curva completa: deduplicar por step conservando la última fila.
-    all_rows = dict(existing)
+    # Re-leer el jsonl AHORA (no usar `existing` del inicio): otra eval
+    # concurrente puede haber añadido filas mientras corríamos -> mergear evita
+    # lost-update (auditoria 1.5).
+    all_rows = load_existing_rows(out_path)
     for r in rows:
         all_rows[r["step"]] = r
     final_rows = [all_rows[s] for s in sorted(all_rows)]
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_tmp = out_path.with_name(out_path.name + ".tmp")
+    out_tmp = out_path.with_name(f"{out_path.name}.{os.getpid()}.tmp")
     with out_tmp.open("w") as f:
         for r in final_rows:
             f.write(json.dumps(r) + "\n")

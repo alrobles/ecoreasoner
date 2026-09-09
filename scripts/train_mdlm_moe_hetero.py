@@ -540,6 +540,20 @@ def main():
         active_n = nparam
         log(f"model: total={nparam/1e6:.1f}M (dense)")
     glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr, weight_decay=0.01)
+
+    def _set_lr(step):
+        # WARMUP REAL (2026-09-08, auditoria 1.8): antes --warmup era arg muerto
+        # (lr constante). Rampa lineal [0, ARGS.lr] durante los primeros
+        # --warmup steps del step GLOBAL (continuo entre olas via STEPS_DONE ->
+        # resume correcto aunque optimizer.load_state_dict restaure el lr del
+        # save; _set_lr lo sobreescribe en cada optimizer step).
+        if ARGS.warmup > 0 and step < ARGS.warmup:
+            lr = ARGS.lr * (step + 1) / ARGS.warmup
+        else:
+            lr = ARGS.lr
+        for g in glob_opt.param_groups:
+            g["lr"] = lr
+    log(f"optimizer: AdamW lr={ARGS.lr} warmup={ARGS.warmup} (real, 2026-09-08)")
     resume()
     # wrap in DDP after resume so state stays on raw module.
     # MoE: con el loss aux de balance tocando TODOS los expertos cada iteración,
@@ -575,6 +589,7 @@ def main():
         with cm:
             (loss*SCALE_I/GA + aux).backward()
         if sync:
+            _set_lr(step)  # warmup real (auditoria 1.8); step global continuo
             glob_opt.step(); glob_opt.zero_grad(set_to_none=True)
         LAST_LOSS[0] = loss.item(); STEPS_DONE[0] = step+1
         if ddp: torch.distributed.barrier()

@@ -153,7 +153,21 @@ def main():
         heads=mcfg["heads"], ff_mult=mcfg["ff_mult"], seq_len=mcfg["seq_len"],
         n_experts=mcfg["n_experts"], k=mcfg["k"],
     ).to(dev)
-    model.load_state_dict(ck, strict=False)
+    # STRICT=True (2026-09-08, auditoria 1.6): antes strict=False cargaba un
+    # modelo semi-aleatorio en silencio si el ckpt no cuadraba con el config
+    # (drift de arquitectura o prefijo "module." DDP) -> acc≈0.5 falso.
+    # Ahora un desajuste REAL falla ruidoso; solo se tolera el prefijo "module."
+    # (ckpt guardado con el wrapper DDP, caso legitimo).
+    try:
+        model.load_state_dict(ck, strict=True)
+    except RuntimeError as e:
+        if all(k.startswith("module.") for k in ck):
+            ck = {k[len("module."):]: v for k, v in ck.items()}
+            model.load_state_dict(ck, strict=True)
+        else:
+            raise RuntimeError(
+                f"state_dict desajustado contra el config (strict=True, "
+                f"auditoria 1.6): {e}") from e
     model.eval()
 
     # ---- 1) discriminación pairwise ----
