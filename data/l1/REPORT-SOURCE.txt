@@ -1,0 +1,20 @@
+toolcalls_lit_gold — REPORT-SOURCE
+================================
+Fecha: 2026-09-09
+Pares totales: 120
+Distribución:
+  bioclim_download: 24 (20.0%)
+  gbif_occurrence: 84 (70.0%)
+  maxent_train: 12 (10.0%)
+
+Seed: 7331
+Archivo: data/l1/toolcalls_lit_gold.jsonl
+Validación:
+  - Consistencia prompt↔args: 120/120
+  - verify_toolcall.py: 120
+
+Notas:
+- Especies y regiones reales de literatura ecológica.
+- Prompts son llamadas directas a 3 herramientas (gbif_occurrence,
+  bioclim_download, maxent_train).
+- Sin análisis compuestos, sin scripts/HPC/PubMed/GitHub/APIs de terceros.
