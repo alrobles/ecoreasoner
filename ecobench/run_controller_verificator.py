@@ -118,10 +118,11 @@ def parse_controller_output(text):
     return None, "output sin tool-call JSON"
 
 def resolve_tool(tool, args, iid):
-    """Mock de resolución de la herramienta (HITO 2). Devuelve (status, msg)."""
-    # En HITO 3 esto llama a las APIs reales (GBIF/CHELSA/MaxEnt). Aquí
-    # validamos que los argumentos son coherentes y devolvemos un resultado
-    # simbólico que alimenta el siguiente paso del agente.
+    """Resolución de la herramienta. Con --real llama a tools_resolver (GBIF API
+    real + stack HPC); sin él, mock simbólico (HITO 2). Devuelve (status, msg)."""
+    if _USE_REAL:
+        from tools_resolver import resolve
+        return resolve(tool, args)
     if tool == "gbif_occurrence":
         return "ok", f"gbif: {args.get('species')} en {args.get('region')} -> 42 registros (mock)"
     if tool == "bioclim_download":
@@ -129,6 +130,8 @@ def resolve_tool(tool, args, iid):
     if tool == "maxent_train":
         return "ok", f"maxent {args.get('species')} layers={args.get('layers')} -> AUC 0.85 (mock)"
     return "fail", f"tool desconocida: {tool}"
+
+_USE_REAL = False  # set por --real en main()
 
 def build_controller_prompt(task):
     """Prompt del controller: tarea + instrucción estricta de formato JSON tool-call.
@@ -182,7 +185,11 @@ def main():
     ap.add_argument("--model", default="deepseek-v4-flash:latest")
     ap.add_argument("--backend", choices=["ollama", "openrouter"], default="ollama")
     ap.add_argument("--ids", default="")
+    ap.add_argument("--real", action="store_true",
+                    help="resolver REAL (GBIF API + stack HPC) en vez de mock")
     a = ap.parse_args()
+    global _USE_REAL
+    _USE_REAL = a.real
     doc = json.load(open(a.items))
     meta = doc["meta"]
     items = [i for i in doc["items"] if i["split"] == "eval_holdout" and not i["id"].startswith("eco-")]
