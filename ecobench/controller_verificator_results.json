@@ -1,0 +1,46 @@
+{
+ "meta": {
+  "name": "EcoBench-EVAL (prototipo)",
+  "version": "0.1.0",
+  "method": "DiDAL+gate (3 rondas) -> celda ejecucion-verif x dominio ecologico",
+  "license_sources": {
+   "own": "own",
+   "scienceagentbench": "cc-by-4.0"
+  },
+  "contamination_policy": "eval_holdout CONGELADO; nunca en training",
+  "seed": 42,
+  "counts": {
+   "total": 30,
+   "eval_holdout": 17,
+   "train": 13,
+   "core_own": 3,
+   "sab_gis": 27
+  }
+ },
+ "model": "deepseek-v4-flash:latest",
+ "backend": "ollama",
+ "results": [
+  {
+   "id": "sab-46",
+   "attempts": 3,
+   "tool": null,
+   "args": null,
+   "verified": false,
+   "repairs": [],
+   "resolve": null,
+   "error": "output sin tool-call JSON"
+  },
+  {
+   "id": "sab-87",
+   "attempts": 3,
+   "tool": "bioclim_download",
+   "args": {
+    "region": "north america",
+    "year": "2020"
+   },
+   "verified": true,
+   "repairs": [],
+   "resolve": "bioclim north america 2020 -> 19 capas (mock)"
+  }
+ ]
+}
