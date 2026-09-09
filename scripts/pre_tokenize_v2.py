@@ -17,6 +17,7 @@ import argparse, json, os, time
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from transformers import AutoTokenizer
 
 
 def encode_batch(args):
@@ -38,7 +39,7 @@ def encode_batch(args):
             t = json.loads(line).get(field, "")
         except Exception:
             continue
-        ids = tok.encode(t)[:max_len - 1]
+        ids = tok.encode(t, add_special_tokens=False)[:max_len - 1]
         if len(ids) >= 4:
             ids.append(eos_id)
             ids_all.extend(ids)

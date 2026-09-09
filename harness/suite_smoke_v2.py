@@ -147,11 +147,13 @@ def main():
     if isinstance(ck, dict) and "model" in ck:
         ck = ck["model"]
 
+    use_rope = args.use_rope or mcfg.get("use_rope", False)
+    weight_tying = args.weight_tying or mcfg.get("weight_tying", False)
     model = MdLMMoE(
         vocab=mcfg["vocab"], hidden=mcfg["hidden"], layers=mcfg["layers"],
         heads=mcfg["heads"], ff_mult=mcfg["ff_mult"], seq_len=mcfg["seq_len"],
         n_experts=mcfg["n_experts"], k=mcfg["k"],
-        use_rope=args.use_rope, weight_tying=args.weight_tying,
+        use_rope=use_rope, weight_tying=weight_tying,
     ).to(dev)
     # STRICT=True (2026-09-08, auditoria 1.6): antes strict=False cargaba un
     # modelo semi-aleatorio en silencio si el ckpt no cuadraba con el config
@@ -174,7 +176,7 @@ def main():
     if args.pairs:
         pairs = _load_pairs(args.pairs, rng, mcfg["seq_len"] // 2, mcfg["seq_len"] // 4)
     else:
-        pairs = _synth_pairs(rng, ecfg["n_pairs"], 64, 32)
+        pairs = _synth_pairs(rng, ecfg["n_pairs"], mcfg["seq_len"] // 2, mcfg["seq_len"] // 4)
         print(f"[warn] sin --pairs: usando pares sintéticos (self-test), "
               f"no apto para evaluar el modelo real")
     if not pairs:

@@ -174,7 +174,7 @@ def main():
     if args.pairs:
         pairs = _load_pairs(args.pairs, rng, mcfg["seq_len"] // 2, mcfg["seq_len"] // 4)
     else:
-        pairs = _synth_pairs(rng, ecfg["n_pairs"], 64, 32)
+        pairs = _synth_pairs(rng, ecfg["n_pairs"], mcfg["seq_len"] // 2, mcfg["seq_len"] // 4)
         print(f"[warn] sin --pairs: usando pares sintéticos (self-test), "
               f"no apto para evaluar el modelo real")
     if not pairs:

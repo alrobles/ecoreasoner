@@ -279,7 +279,8 @@ def load_corpus(paths):
 
 def _pack_with_eos(all_ids, lengths, eos_id, batch_size, seq_len):
     """Packing con EOS: rellena streams por documento y los corta a seq_len.
-    El ultimo trozo de cada stream se rellena con EOS para no perder datos."""
+    El ultimo trozo de cada stream se rellena con EOS para no perder datos.
+    Devuelve batches de forma [batch_size, seq_len]."""
     import random
     docs = []
     pos = 0
@@ -290,20 +291,22 @@ def _pack_with_eos(all_ids, lengths, eos_id, batch_size, seq_len):
     streams = [[] for _ in range(batch_size)]
     for i, doc in enumerate(docs):
         streams[i % batch_size].extend(doc)
-    batches = []
+    # descartar streams vacios y rellenar a multiplo de seq_len
+    streams = [s for s in streams if s]
+    if not streams:
+        return []
+    max_len = max(len(s) for s in streams)
+    n_chunks = (max_len + seq_len - 1) // seq_len
+    full_len = n_chunks * seq_len
+    padded = []
     for s in streams:
-        if not s:
-            continue
-        # chunk enteros de seq_len
-        n_full = len(s) // seq_len
-        for i in range(n_full):
-            batches.append(torch.tensor(s[i*seq_len:(i+1)*seq_len], dtype=torch.long))
-        tail = s[n_full*seq_len:]
-        if tail:
-            # rellenar con EOS para no desechar el final de un documento
-            tail += [eos_id] * (seq_len - len(tail))
-            batches.append(torch.tensor(tail, dtype=torch.long))
-    return batches
+        pad = full_len - len(s)
+        if pad > 0:
+            s = s + [eos_id] * pad
+        padded.append(torch.tensor(s, dtype=torch.long).view(n_chunks, seq_len))
+    # stack: [batch_size, n_chunks, seq_len] -> list of [batch_size, seq_len]
+    stacked = torch.stack(padded, dim=0)
+    return [stacked[:, i, :] for i in range(n_chunks)]
 
 
 def build_batches():

@@ -51,7 +51,9 @@ TARGET_STEPS="${TARGET_STEPS:-10000}"
 PAIRS="${PAIRS:-$RUNS/pairs.jsonl}"
 MASK_TYPE="${MASK_TYPE:-span}"
 MASK_SCHEDULE="${MASK_SCHEDULE:-uniform}"
-MASK_SCHEDULE_ARGS="${MASK_SCHEDULE_ARGS:-'{"b_l":0.05,"b_h":0.95}'}"
+if [ -z "${MASK_SCHEDULE_ARGS:-}" ]; then
+    MASK_SCHEDULE_ARGS='{"b_l":0.05,"b_h":0.95}'
+fi
 SPAN_LEN="${SPAN_LEN:-64}"
 WHOLE_STAGE="${WHOLE_STAGE:-1}"
 LR="${LR:-2e-4}"
