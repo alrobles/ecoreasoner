@@ -1,0 +1,226 @@
+{
+ "docs": 78,
+ "candidatos": 2441,
+ "validados": 250,
+ "especies_reales": 27,
+ "min_confidence": 85,
+ "species": [
+  {
+   "query": "cistanthe philhershkovitziana",
+   "canonical": "Cistanthe philhershkovitziana",
+   "usageKey": 10865541,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 9
+  },
+  {
+   "query": "drosophila melanogaster",
+   "canonical": "Drosophila melanogaster",
+   "usageKey": 5073713,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 6
+  },
+  {
+   "query": "poecilia reticulata",
+   "canonical": "Poecilia reticulata",
+   "usageKey": 2350050,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 5
+  },
+  {
+   "query": "rangifer tarandus",
+   "canonical": "Rangifer tarandus",
+   "usageKey": 5220114,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 5
+  },
+  {
+   "query": "zika virus",
+   "canonical": "Zika virus",
+   "usageKey": 9884175,
+   "confidence": 100,
+   "status": "ACCEPTED",
+   "mentions": 5
+  },
+  {
+   "query": "homo sapiens",
+   "canonical": "Homo sapiens",
+   "usageKey": 2436436,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 4
+  },
+  {
+   "query": "pseudotsuga menziesii",
+   "canonical": "Pseudotsuga menziesii",
+   "usageKey": 2685796,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 4
+  },
+  {
+   "query": "nothophaeocryptopus gaeumannii",
+   "canonical": "Nothophaeocryptopus gaeumannii",
+   "usageKey": 10808078,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 4
+  },
+  {
+   "query": "aedes aegypti",
+   "canonical": "Aedes aegypti",
+   "usageKey": 1651891,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 4
+  },
+  {
+   "query": "cryptomeria japonica",
+   "canonical": "Cryptomeria japonica",
+   "usageKey": 5284237,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 4
+  },
+  {
+   "query": "sus barbatus",
+   "canonical": "Sus barbatus",
+   "usageKey": 2441222,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "psychotria serpens",
+   "canonical": "Psychotria serpens",
+   "usageKey": 2923582,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "psychotria boninensis",
+   "canonical": "Psychotria boninensis",
+   "usageKey": 2921217,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "primula sieboldii",
+   "canonical": "Primula sieboldii",
+   "usageKey": 7290475,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "primula modesta",
+   "canonical": "Primula modesta",
+   "usageKey": 7127341,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "ensete ventricosum",
+   "canonical": "Ensete ventricosum",
+   "usageKey": 2763050,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "rhabdocline pseudotsugae",
+   "canonical": "Rhabdocline pseudotsugae",
+   "usageKey": 2580559,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "terrapene carolina",
+   "canonical": "Terrapene carolina",
+   "usageKey": 2443173,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "neisseria gonorrhoeae",
+   "canonical": "Neisseria gonorrhoeae",
+   "usageKey": 3220217,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "sterna hirundo",
+   "canonical": "Sterna hirundo",
+   "usageKey": 9367409,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "apis mellifera",
+   "canonical": "Apis mellifera",
+   "usageKey": 1341976,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 3
+  },
+  {
+   "query": "crotalus horridus",
+   "canonical": "Crotalus horridus",
+   "usageKey": 2444468,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 2
+  },
+  {
+   "query": "tursiops truncatus",
+   "canonical": "Tursiops truncatus",
+   "usageKey": 2440447,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 2
+  },
+  {
+   "query": "macropus giganteus",
+   "canonical": "Macropus giganteus",
+   "usageKey": 5219981,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 2
+  },
+  {
+   "query": "ara chloropterus",
+   "canonical": "Ara chloropterus",
+   "usageKey": 5959225,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 2
+  },
+  {
+   "query": "jasminum superfluum",
+   "canonical": "Jasminum superfluum",
+   "usageKey": 3684786,
+   "confidence": 98,
+   "status": "SYNONYM",
+   "mentions": 2
+  },
+  {
+   "query": "nymphoides indica",
+   "canonical": "Nymphoides indica",
+   "usageKey": 5341503,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 2
+  }
+ ],
+ "errors": 0
+}
