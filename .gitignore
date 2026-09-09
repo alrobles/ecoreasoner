@@ -37,3 +37,6 @@ Thumbs.db
 # Internal / handoff (not public)
 HANDOFF-*.md
 docs/devin-*.md
+
+# Third-party research code (cloned by scripts/vendor_clone.sh)
+third_party/
