@@ -16,6 +16,6 @@ BASE=/beegfs/a474r867/ecoreasoner
 echo "[$(date)] f3-extract-ents start"
 python3 "$BASE/scripts/extract_entities_lit.py" \
   --input "$BASE/data/fulltext_corpus_all.jsonl" \
-  --sample 97012 \
+  --sample 97012 --top 200000 \
   --out "/beegfs/a474r867/ecoreasoner/docs/results/entities_fulltext_corpus.json"
 echo "[$(date)] f3-extract-ents DONE rc=$?"

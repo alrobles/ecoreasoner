@@ -163,6 +163,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="fulltext_corpus_all.jsonl")
     ap.add_argument("--sample", type=int, default=5000)
+    ap.add_argument("--top", type=int, default=200000,
+                    help="cuantas especies mas frecuentes guardar en species_top (default 200K)")
     ap.add_argument("--out", default="/tmp/entities.json")
     a = ap.parse_args()
 
@@ -183,7 +185,7 @@ def main():
     report = {
         "docs_leidos": n,
         "sample": a.sample,
-        "species_top": sp_hist.most_common(40),
+        "species_top": sp_hist.most_common(min(a.top, len(sp_hist))),
         "regions_top": reg_hist.most_common(25),
         "tools_top": tool_hist.most_common(),
         "candidates": cands,
