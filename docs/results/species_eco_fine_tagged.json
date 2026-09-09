@@ -1,0 +1,764 @@
+{
+ "docs": 142054,
+ "candidatos": 200000,
+ "validados": 600,
+ "especies_reales": 93,
+ "min_freq": 3,
+ "min_confidence": 85,
+ "species": [
+  {
+   "query": "arabidopsis thaliana",
+   "canonical": "Arabidopsis thaliana",
+   "usageKey": 3052436,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 1684
+  },
+  {
+   "query": "oryza sativa",
+   "canonical": "Oryza sativa",
+   "usageKey": 2703459,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 1263
+  },
+  {
+   "query": "zea mays",
+   "canonical": "Zea mays",
+   "usageKey": 5290052,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 1189
+  },
+  {
+   "query": "triticum aestivum",
+   "canonical": "Triticum aestivum",
+   "usageKey": 7795888,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 947
+  },
+  {
+   "query": "glycine max",
+   "canonical": "Glycine max",
+   "usageKey": 5359660,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 698
+  },
+  {
+   "query": "apis mellifera",
+   "canonical": "Apis mellifera",
+   "usageKey": 1341976,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 596
+  },
+  {
+   "query": "solanum lycopersicum",
+   "canonical": "Solanum lycopersicum",
+   "usageKey": 2930137,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 550
+  },
+  {
+   "query": "canis lupus",
+   "canonical": "Canis lupus",
+   "usageKey": 5219173,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 460
+  },
+  {
+   "query": "picea abies",
+   "canonical": "Picea abies",
+   "usageKey": 5284884,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 447
+  },
+  {
+   "query": "pinus sylvestris",
+   "canonical": "Pinus sylvestris",
+   "usageKey": 5285637,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 437
+  },
+  {
+   "query": "brassica napus",
+   "canonical": "Brassica napus",
+   "usageKey": 3042636,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 423
+  },
+  {
+   "query": "saccharomyces cerevisiae",
+   "canonical": "Saccharomyces cerevisiae",
+   "usageKey": 7440012,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 422
+  },
+  {
+   "query": "daphnia magna",
+   "canonical": "Daphnia magna",
+   "usageKey": 2234822,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 390
+  },
+  {
+   "query": "bacillus subtilis",
+   "canonical": "Bacillus subtilis",
+   "usageKey": 10826006,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 380
+  },
+  {
+   "query": "fagus sylvatica",
+   "canonical": "Fagus sylvatica",
+   "usageKey": 2882316,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 380
+  },
+  {
+   "query": "hordeum vulgare",
+   "canonical": "Hordeum vulgare",
+   "usageKey": 2706056,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 348
+  },
+  {
+   "query": "pseudomonas aeruginosa",
+   "canonical": "Pseudomonas aeruginosa",
+   "usageKey": 10894522,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 347
+  },
+  {
+   "query": "medicago sativa",
+   "canonical": "Medicago sativa",
+   "usageKey": 9151957,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 335
+  },
+  {
+   "query": "solanum tuberosum",
+   "canonical": "Solanum tuberosum",
+   "usageKey": 2930262,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 329
+  },
+  {
+   "query": "phaseolus vulgaris",
+   "canonical": "Phaseolus vulgaris",
+   "usageKey": 5350452,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 318
+  },
+  {
+   "query": "vitis vinifera",
+   "canonical": "Vitis vinifera",
+   "usageKey": 5372392,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 316
+  },
+  {
+   "query": "danio rerio",
+   "canonical": "Danio rerio",
+   "usageKey": 9797255,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 308
+  },
+  {
+   "query": "sorghum bicolor",
+   "canonical": "Sorghum bicolor",
+   "usageKey": 2705181,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 303
+  },
+  {
+   "query": "fusarium oxysporum",
+   "canonical": "Fusarium oxysporum",
+   "usageKey": 5251961,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 295
+  },
+  {
+   "query": "staphylococcus aureus",
+   "canonical": "Staphylococcus aureus",
+   "usageKey": 3227657,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 289
+  },
+  {
+   "query": "sus scrofa",
+   "canonical": "Sus scrofa",
+   "usageKey": 7705930,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 283
+  },
+  {
+   "query": "phragmites australis",
+   "canonical": "Phragmites australis",
+   "usageKey": 5290149,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 280
+  },
+  {
+   "query": "vulpes vulpes",
+   "canonical": "Vulpes vulpes",
+   "usageKey": 5219243,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 280
+  },
+  {
+   "query": "cervus elaphus",
+   "canonical": "Cervus elaphus",
+   "usageKey": 2440958,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 262
+  },
+  {
+   "query": "aedes albopictus",
+   "canonical": "Aedes albopictus",
+   "usageKey": 1651430,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 256
+  },
+  {
+   "query": "caenorhabditis elegans",
+   "canonical": "Caenorhabditis elegans",
+   "usageKey": 2283683,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 256
+  },
+  {
+   "query": "oncorhynchus mykiss",
+   "canonical": "Oncorhynchus mykiss",
+   "usageKey": 5204019,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 249
+  },
+  {
+   "query": "pseudomonas fluorescens",
+   "canonical": "Pseudomonas fluorescens",
+   "usageKey": 3223199,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 241
+  },
+  {
+   "query": "bacillus thuringiensis",
+   "canonical": "Bacillus thuringiensis",
+   "usageKey": 5428045,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 239
+  },
+  {
+   "query": "quercus robur",
+   "canonical": "Quercus robur",
+   "usageKey": 2878688,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 237
+  },
+  {
+   "query": "gasterosteus aculeatus",
+   "canonical": "Gasterosteus aculeatus",
+   "usageKey": 4286327,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 236
+  },
+  {
+   "query": "salmo salar",
+   "canonical": "Salmo salar",
+   "usageKey": 7595433,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 234
+  },
+  {
+   "query": "mus musculus",
+   "canonical": "Mus musculus",
+   "usageKey": 7429082,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 233
+  },
+  {
+   "query": "gadus morhua",
+   "canonical": "Gadus morhua",
+   "usageKey": 8084280,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 226
+  },
+  {
+   "query": "pisum sativum",
+   "canonical": "Pisum sativum",
+   "usageKey": 5347845,
+   "confidence": 98,
+   "status": "SYNONYM",
+   "mentions": 224
+  },
+  {
+   "query": "anopheles gambiae",
+   "canonical": "Anopheles gambiae",
+   "usageKey": 1650518,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 216
+  },
+  {
+   "query": "ursus arctos",
+   "canonical": "Ursus arctos",
+   "usageKey": 2433433,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 216
+  },
+  {
+   "query": "nicotiana tabacum",
+   "canonical": "Nicotiana tabacum",
+   "usageKey": 2928774,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 210
+  },
+  {
+   "query": "brassica rapa",
+   "canonical": "Brassica rapa",
+   "usageKey": 7903057,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 210
+  },
+  {
+   "query": "gossypium hirsutum",
+   "canonical": "Gossypium hirsutum",
+   "usageKey": 3152661,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 208
+  },
+  {
+   "query": "salmo trutta",
+   "canonical": "Salmo trutta",
+   "usageKey": 8215487,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 207
+  },
+  {
+   "query": "loxodonta africana",
+   "canonical": "Loxodonta africana",
+   "usageKey": 2435350,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 206
+  },
+  {
+   "query": "cyprinus carpio",
+   "canonical": "Cyprinus carpio",
+   "usageKey": 4286975,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 205
+  },
+  {
+   "query": "puma concolor",
+   "canonical": "Puma concolor",
+   "usageKey": 2435099,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 203
+  },
+  {
+   "query": "vicia faba",
+   "canonical": "Vicia faba",
+   "usageKey": 2974832,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 196
+  },
+  {
+   "query": "rangifer tarandus",
+   "canonical": "Rangifer tarandus",
+   "usageKey": 5220114,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 195
+  },
+  {
+   "query": "plasmodium falciparum",
+   "canonical": "Plasmodium falciparum",
+   "usageKey": 10540993,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 194
+  },
+  {
+   "query": "pan troglodytes",
+   "canonical": "Pan troglodytes",
+   "usageKey": 5219534,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 193
+  },
+  {
+   "query": "panthera leo",
+   "canonical": "Panthera leo",
+   "usageKey": 5219404,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 193
+  },
+  {
+   "query": "medicago truncatula",
+   "canonical": "Medicago truncatula",
+   "usageKey": 2965280,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 193
+  },
+  {
+   "query": "olea europaea",
+   "canonical": "Olea europaea",
+   "usageKey": 5415040,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 189
+  },
+  {
+   "query": "odocoileus virginianus",
+   "canonical": "Odocoileus virginianus",
+   "usageKey": 2440965,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 189
+  },
+  {
+   "query": "pseudomonas putida",
+   "canonical": "Pseudomonas putida",
+   "usageKey": 3223145,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 189
+  },
+  {
+   "query": "lolium perenne",
+   "canonical": "Lolium perenne",
+   "usageKey": 2706241,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 188
+  },
+  {
+   "query": "cucumis sativus",
+   "canonical": "Cucumis sativus",
+   "usageKey": 2874569,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 188
+  },
+  {
+   "query": "capsicum annuum",
+   "canonical": "Capsicum annuum",
+   "usageKey": 2932944,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 187
+  },
+  {
+   "query": "panthera tigris",
+   "canonical": "Panthera tigris",
+   "usageKey": 5219416,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 185
+  },
+  {
+   "query": "lactuca sativa",
+   "canonical": "Lactuca sativa",
+   "usageKey": 7403263,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 182
+  },
+  {
+   "query": "zostera marina",
+   "canonical": "Zostera marina",
+   "usageKey": 2863967,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 181
+  },
+  {
+   "query": "camellia sinensis",
+   "canonical": "Camellia sinensis",
+   "usageKey": 3189635,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 180
+  },
+  {
+   "query": "bos taurus",
+   "canonical": "Bos taurus",
+   "usageKey": 2441022,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 179
+  },
+  {
+   "query": "bacillus cereus",
+   "canonical": "Bacillus cereus",
+   "usageKey": 5428132,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 179
+  },
+  {
+   "query": "malus domestica",
+   "canonical": "Malus domestica",
+   "usageKey": 3001244,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 178
+  },
+  {
+   "query": "brassica oleracea",
+   "canonical": "Brassica oleracea",
+   "usageKey": 3042845,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 177
+  },
+  {
+   "query": "helianthus annuus",
+   "canonical": "Helianthus annuus",
+   "usageKey": 9206251,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 177
+  },
+  {
+   "query": "borrelia burgdorferi",
+   "canonical": "Borrelia burgdorferi",
+   "usageKey": 3228185,
+   "confidence": 98,
+   "status": "SYNONYM",
+   "mentions": 177
+  },
+  {
+   "query": "pseudotsuga menziesii",
+   "canonical": "Pseudotsuga menziesii",
+   "usageKey": 2685796,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 173
+  },
+  {
+   "query": "chlamydomonas reinhardtii",
+   "canonical": "Chlamydomonas reinhardtii",
+   "usageKey": 5271221,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 173
+  },
+  {
+   "query": "panthera pardus",
+   "canonical": "Panthera pardus",
+   "usageKey": 5219436,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 171
+  },
+  {
+   "query": "spartina alterniflora",
+   "canonical": "Spartina alterniflora",
+   "usageKey": 5290035,
+   "confidence": 98,
+   "status": "SYNONYM",
+   "mentions": 171
+  },
+  {
+   "query": "botrytis cinerea",
+   "canonical": "Botrytis cinerea",
+   "usageKey": 2583139,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 170
+  },
+  {
+   "query": "robinia pseudoacacia",
+   "canonical": "Robinia pseudoacacia",
+   "usageKey": 5352251,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 168
+  },
+  {
+   "query": "canis latrans",
+   "canonical": "Canis latrans",
+   "usageKey": 5219153,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 165
+  },
+  {
+   "query": "arachis hypogaea",
+   "canonical": "Arachis hypogaea",
+   "usageKey": 5353770,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 162
+  },
+  {
+   "query": "parus major",
+   "canonical": "Parus major",
+   "usageKey": 9705453,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 160
+  },
+  {
+   "query": "mytilus edulis",
+   "canonical": "Mytilus edulis",
+   "usageKey": 8288896,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 156
+  },
+  {
+   "query": "chelonia mydas",
+   "canonical": "Chelonia mydas",
+   "usageKey": 2442225,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 155
+  },
+  {
+   "query": "populus tremuloides",
+   "canonical": "Populus tremuloides",
+   "usageKey": 3040215,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 154
+  },
+  {
+   "query": "cicer arietinum",
+   "canonical": "Cicer arietinum",
+   "usageKey": 2947311,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 154
+  },
+  {
+   "query": "ixodes ricinus",
+   "canonical": "Ixodes ricinus",
+   "usageKey": 2182588,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 153
+  },
+  {
+   "query": "populus trichocarpa",
+   "canonical": "Populus trichocarpa",
+   "usageKey": 6362904,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 152
+  },
+  {
+   "query": "trifolium repens",
+   "canonical": "Trifolium repens",
+   "usageKey": 5358748,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 151
+  },
+  {
+   "query": "oreochromis niloticus",
+   "canonical": "Oreochromis niloticus",
+   "usageKey": 4285694,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 149
+  },
+  {
+   "query": "alces alces",
+   "canonical": "Alces alces",
+   "usageKey": 2440940,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 149
+  },
+  {
+   "query": "culex pipiens",
+   "canonical": "Culex pipiens",
+   "usageKey": 1652991,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 148
+  },
+  {
+   "query": "capreolus capreolus",
+   "canonical": "Capreolus capreolus",
+   "usageKey": 5220126,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 148
+  },
+  {
+   "query": "batrachochytrium dendrobatidis",
+   "canonical": "Batrachochytrium dendrobatidis",
+   "usageKey": 2627503,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 146
+  },
+  {
+   "query": "quercus ilex",
+   "canonical": "Quercus ilex",
+   "usageKey": 2879098,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 145
+  }
+ ],
+ "errors": 0,
+ "drop_no_ecologico": [
+  "aedes aegypti",
+  "drosophila melanogaster",
+  "escherichia coli",
+  "homo sapiens",
+  "neisseria gonorrhoeae",
+  "poecilia reticulata",
+  "zika virus"
+ ]
+}
