@@ -130,25 +130,39 @@ def resolve_tool(tool, args, iid):
         return "ok", f"maxent {args.get('species')} layers={args.get('layers')} -> AUC 0.85 (mock)"
     return "fail", f"tool desconocida: {tool}"
 
+def build_controller_prompt(task):
+    """Prompt del controller: tarea + instrucción estricta de formato JSON tool-call.
+    (La versión previa pasaba la pregunta cruda y el teacher respondía código/texto,
+    no una tool-call — el llm_call directo con instrucción JSON SÍ funciona)."""
+    return (
+        f"{task}\n\n"
+        f"Emite EXACTAMENTE UNA tool-call en JSON con este formato:\n"
+        f"{{\"tool\": \"<nombre>\", \"arguments\": {{\"param\": \"valor\", ...}}, \"rationale\": \"<1 frase>\"}}\n"
+        f"Herramientas: gbif_occurrence(species,region) | bioclim_download(region,year) | "
+        f"maxent_train(species,layers).\n"
+        f"SOLO JSON, sin markdown ni explicación fuera."
+    )
+
 def run_one(iid, q, model, backend):
     """Devuelve dict con el resultado del ítem tras el bucle controller->verificator."""
     out = {"id": iid, "attempts": 0, "tool": None, "args": None,
            "verified": False, "repairs": [], "resolve": None, "error": None}
+    prompt = build_controller_prompt(q)
     for attempt in range(1, 4):  # 1 + 2 retries con feedback
         out["attempts"] = attempt
-        text, err = llm_call(q, model, backend)
+        text, err = llm_call(prompt, model, backend)
         if err:
             out["error"] = f"llm: {err}"; break
         parsed, perr = parse_controller_output(text)
         if perr:
             # feedback: pedir regenerar (no contamina el conteo de JSON válidas)
-            q = q + f"\n\nTu respuesta anterior no contenía una tool-call JSON válida. Devuelve solo JSON con la herramienta y argumentos correctos."
+            prompt = prompt + f"\n\nTu respuesta anterior no contenía una tool-call JSON válida. Devuelve solo JSON con la herramienta y argumentos correctos."
             out["error"] = perr
             continue
         # verificator: repara M1-M5
         ver = verify(text)
         if not ver["ok"]:
-            q = q + f"\n\nTool-call inválida: {ver['error']}. Repara y reemite solo JSON."
+            prompt = prompt + f"\n\nTool-call inválida: {ver['error']}. Repara y reemite solo JSON."
             out["error"] = ver["error"]
             continue
         out["tool"] = ver["function"]
