@@ -110,7 +110,7 @@ case "$TRAIN_X" in
 esac
 
 # ---- eval: checkpoint más reciente + suite_smoke + report ----
-CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -t g -k2 -n | tail -1 || true)
+CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -V | tail -1 || true)
 if [ -z "$CKPT_DIR" ]; then
     echo "[eval] sin checkpoints en $OUT"; exit 1
 fi
@@ -123,5 +123,6 @@ apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" \
 apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" \
     "$BASE/harness/report.py" \
     --config "$CONFIG" --suite "$OUT/report.suite.json" \
-    --out "$OUT/report.json" --job-id "$SLURM_JOB_ID" || echo "[eval] report FAILED"
+    --out "$OUT/report.json" --job-id "$SLURM_JOB_ID" \
+    --index "$BASE/runs/index.jsonl" || echo "[eval] report FAILED"
 echo "=== micro-run $TAG DONE $(date -u) ==="

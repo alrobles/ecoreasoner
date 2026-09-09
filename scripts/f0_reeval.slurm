@@ -31,7 +31,7 @@ TAGS="${TAGS:-f0-random-prosa;f0-span-prosa;f0-spanhi-prosa}"
 IFS=';' read -ra TAGLIST <<< "$TAGS"
 for TAG in "${TAGLIST[@]}"; do
     OUT=$RUNS/$TAG
-    CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -t g -k2 -n | tail -1 || true)
+    CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -V | tail -1 || true)
     [ -z "$CKPT_DIR" ] && { echo "[$TAG] sin checkpoints"; continue; }
     CKPT="$CKPT_DIR/model.pt"
     CFG=$BASE/harness/configs/$TAG.yaml
@@ -46,7 +46,8 @@ for TAG in "${TAGLIST[@]}"; do
         apptainer exec --nv --overlay "$OVL":ro "$SIF" "$PY" \
             "$BASE/harness/report.py" \
             --config "$CFG" --suite "$OUT/report.suite.json" \
-            --out "$OUT/report.json" --job-id "$SLURM_JOB_ID" || echo "[$TAG] report FAILED"
+            --out "$OUT/report.json" --job-id "$SLURM_JOB_ID" \
+            --index "$BASE/runs/index.jsonl" || echo "[$TAG] report FAILED"
     fi
     echo "=== [$TAG] -------"
 done

@@ -277,12 +277,16 @@ def _save_checkpoint(tag):
     # LOCK de guardado (2026-09-01): serializa los saves entre ranks aunque el
     # filtro rank==0 fallara; evita que la limpieza de retencion-2 borre un dir
     # que otro rank esta escribiendo. Wrapper: el cuerpo queda intacto.
+    # Flag SAVING (2026-09-08, auditoria 1.1): el handler SIGUSR1 lo consulta
+    # para NO re-entrar en un save en curso (deadlock flock, ver _handle_sig).
     import fcntl
     _lf = open(OUT / ".save.lock", "w")
     fcntl.flock(_lf, fcntl.LOCK_EX)
     try:
+        _SAVING[0] = True
         _save_checkpoint_locked(tag)
     finally:
+        _SAVING[0] = False
         fcntl.flock(_lf, fcntl.LOCK_UN)
         _lf.close()
 
@@ -358,14 +362,23 @@ def resume():
 
 def _handle_sig(sig, frm):
     log("SIGUSR1 — guardando ola y saliendo 42")
-    # SOLO rank 0 guarda (world>1): si los 2 ranks escribieran al mismo dir,
-    # race de escritura -> checkpoint corrupto o FileNotFoundError (2026-08-29).
     r = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", "0")))
     w = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS", "1")))
     if w <= 1 or r == 0:
+        # ANTI-REENTRADA (2026-09-08, auditoria 1.1): si USR1 llega mientras el
+        # hilo principal esta dentro de _save_checkpoint (flock LOCK_EX tomado),
+        # re-entrar en flock seria DEADLOCK: la senial se ejecuta en el mismo
+        # hilo que interrumpe el save, y el lock lo sostiene el frame suspendido.
+        # -> Slurm KILL al limite -> finalize() nunca corre -> cadena muerta.
+        # Fix: flag SAVING; si ya se esta guardando, salir 42 sin tocar el lock
+        # (el save en curso termina via finally; el ckpt previo atomico vale).
+        if _SAVING[0]:
+            log("  USR1 durante save en curso — saliendo 42 sin re-entrar (ckpt previo)")
+            raise SystemExit(42)
         _save_checkpoint("sigusr1")
     raise SystemExit(42)
 
+_SAVING = [False]  # anti-reentrada SIGUSR1 (2026-09-08, auditoria 1.1); antes del handler
 signal.signal(signal.SIGUSR1, _handle_sig)
 
 # ---------------- train ----------------
