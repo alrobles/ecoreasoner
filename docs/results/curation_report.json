@@ -1,0 +1,1292 @@
+{
+ "total": 60,
+ "pure": 14,
+ "rejected": 46,
+ "rejected_samples": [
+  {
+   "prompt": "Filtra estos registros GBIF por coordenadas dudosas y borra duplicados antes de calibrar MaxEnt. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ursus arctos",
+      "region": "Palaearctic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Palaearctic",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Ursus arctos",
+      "layers": "all_bioclim"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Carga un arbol filogenetico de 120 especies de aves y ejecuta un analisis de contrastes independientes. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Aves",
+      "region": "PALEARCTIC"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "PALEARCTIC"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Aves",
+      "layers": "PALEARCTIC_ERA5"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Consulta el knowledgebase para recuperar los scripts de pipeline SDM para la especie Quercus robur. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Quercus robur",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Quercus robur",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Consulta el knowledgebase para recuperar los scripts de pipeline SDM para la especie Quercus robur. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Quercus robur",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartico",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Quercus robur",
+      "layers": "19 bioclim variables"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta una regresion de Bosques Aleatorios sobre datos de ocurrencia para estimar idoneidad de habitat. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ursus arctos",
+      "region": "palearctic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "palearctic",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Ursus arctos",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Escala un analisis de diversidad funcional con datos de morfologia para 200 especies de peces de arrecife.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Pomacentridae",
+      "region": "Great Barrier Reef"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Labridae",
+      "region": "Great Barrier Reef"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Great_Barrier_Reef",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Pomacentridae",
+      "layers": "Great_Barrier_Reef"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Labridae",
+      "layers": "Great_Barrier_Reef"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Escala un analisis de diversidad funcional con datos de morfologia para 200 especies de peces de arrecife. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Pomacentridae",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Labridae",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Scaridae",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Serranidae",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Chaetodontidae",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico",
+      "year": "2020"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Escala un analisis de diversidad funcional con datos de morfologia para 200 especies de peces de arrecife. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Pisces reef fish",
+      "region": "Paleartic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Paleartic"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Chromis chromis",
+      "layers": "Paleartic bioclim 19 vars"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Consulta la base de datos FTS5 de PubMed por articulos de nicho ecologico MAXENT en los ultimos 3 anos. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Panthera onca",
+      "region": "neotropic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropic"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Panthera onca",
+      "layers": "all_bioclim"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Envia un script slurm a KU HPC para entrenar un modelo SDM de la especie 'Acer saccharum'.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Acer saccharum",
+      "region": "North America"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "North America"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Acer saccharum",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Envia un script slurm a KU HPC para entrenar un modelo SDM de la especie 'Acer saccharum'. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Acer saccharum",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Acer saccharum",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Envia un script slurm a KU HPC para entrenar un modelo SDM de la especie 'Acer saccharum'. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Acer saccharum",
+      "region": "palearctic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "palearctic",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Acer saccharum",
+      "layers": "bio1,bio2,bio3,bio4,bio5,bio6,bio7,bio8,bio9,bio10,bio11,bio12,bio13,bio14,bio15,bio16,bio17,bio18,bio19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Usa la herramienta de fitogeografia para proyectar el nicho de 'Opuntia ficus-indica' a clima futuro.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Opuntia ficus-indica"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Mexico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Mediterranean"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Opuntia ficus-indica",
+      "layers": "bio1,bio5,bio6,bio12,bio15"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Usa la herramienta de fitogeografia para proyectar el nicho de 'Opuntia ficus-indica' a clima futuro. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Opuntia ficus-indica",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Opuntia ficus-indica",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Usa la herramienta de fitogeografia para proyectar el nicho de 'Opuntia ficus-indica' a clima futuro. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Opuntia ficus-indica",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartico",
+      "year": "actual"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartico",
+      "year": "2050"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta un analisis de dispersion y conectividad entre poblaciones de 'Corvus corax' en Europa.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Corvus corax",
+      "region": "Europa"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Europa"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Corvus corax",
+      "layers": "todas"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta un analisis de dispersion y conectividad entre poblaciones de 'Corvus corax' en Europa. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Corvus corax",
+      "region": "Europa"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Europa"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Corvus corax",
+      "region": "Neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Neotropico"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta un analisis de dispersion y conectividad entre poblaciones de 'Corvus corax' en Europa. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Corvus corax",
+      "region": "Palaearctic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Palaearctic"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Corvus corax",
+      "layers": "bioclim_19vars"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Landscape: calcula metricas de configuracion espacial para un mapa de habitat fragmentado. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Panthera onca",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Panthera onca",
+      "layers": "bio1,bio12,bio7"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Landscape: calcula metricas de configuracion espacial para un mapa de habitat fragmentado. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ursus arctos",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Ursus arctos",
+      "layers": "paleartico"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca articulos revisados por pares sobre el metodo 'occupancy model' en GBIF Literature. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Panthera onca",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Panthera onca",
+      "layers": "bioclim_1,bioclim_12,bioclim_15"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Consulta la API de IUCN para el estado de conservacion de 20 especies de anfibios mexicanos. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ambystoma mexicanum",
+      "region": "Mexico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Rhinophrynus dorsalis",
+      "region": "Mexico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Pachymedusa dacnicolor",
+      "region": "Mexico"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta un analisis de correlacion entre clima y diversidad realizando bootstrap en 1000 muestras. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Cecropia pachystachya",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Erythrina crista-galli",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Tabebuia rosea",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ara macao",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Cecropia pachystachya,Tabebuia rosea,Erythrina crista-galli,Ara macao",
+      "layers": "bio1,bio12,bio7,bio15"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta un analisis de correlacion entre clima y diversidad realizando bootstrap en 1000 muestras. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Vulpes vulpes",
+      "region": "Paleártico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Cervus elaphus",
+      "region": "Paleártico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Pinus sylvestris",
+      "region": "Paleártico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Paleártico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Vulpes vulpes",
+      "layers": "bio1,bio12,bio7"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en GitHub Ecment una issue sobre la integracion del tool de GBIF en Emily. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Cebus capucinus",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Cebus capucinus",
+      "layers": "bioclim_era5"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Describe como monitorear la cola de trabajos Slurm en HPC para un lote de SDM. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Cervus elaphus",
+      "region": "PALAERCTIC"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "PALAERCTIC",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Cervus elaphus",
+      "layers": "bio1,bio12,bio7"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Genera una traza distilada con el teacher local para el articulo de conectividad genrica. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Panthera onca",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Panthera onca",
+      "layers": "19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Genera una traza distilada con el teacher local para el articulo de conectividad genrica. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Canis lupus",
+      "region": "PALEARCTIC"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "PALEARCTIC",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Canis lupus",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Muestra el estado del watchdog del swarm de entrenamiento ecoreasoner. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Euterpe edulis",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Euterpe edulis",
+      "layers": "bioclim"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Muestra el estado del watchdog del swarm de entrenamiento ecoreasoner. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Cervus elaphus",
+      "region": "PALEARCTIC"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "PALEARCTIC",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Cervus elaphus",
+      "layers": "PALEARCTIC_19vars"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Rankea por AUC los 50 modelos MaxEnt de las especies de referencia recopiladas. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Canis lupus",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ursus arctos",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Cervus elaphus",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Aquila chrysaetos",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Bison bonasus",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Lynx lynx",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Panthera tigris",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Alces alces",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Vulpes vulpes",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Falco peregrinus",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartico",
+      "year": "2020"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en la web articulos revisados por pares sobre el cambio climatico y el rango de distribucion de aves. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ramphastos toco",
+      "region": "Neotrópico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Neotrópico",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Ramphastos toco",
+      "layers": "bio1,bio12,bio5,bio6"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en la web articulos revisados por pares sobre el cambio climatico y el rango de distribucion de aves. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Parus major",
+      "region": "Palearctic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Palearctic",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Parus major",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Carga un arbol filogenetico de 120 especies de aves y ejecuta un analisis de contrastes independientes. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ramphastos toco",
+      "region": "Neotrópico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Neotrópico",
+      "year": "2020"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta una regresion de Bosques Aleatorios sobre datos de ocurrencia para estimar idoneidad de habitat. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Panthera onca",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Panthera onca",
+      "layers": "bioclim_1,bioclim_12,bioclim_15,bioclim_4,bioclim_7"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en el repositorio GitHub alrobles/ecoseek el codigo que implementa el pipeline de conectividad temporal. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Canis lupus",
+      "region": "paleartico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Canis lupus",
+      "layers": "bioclim_paleartico"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Consulta la base de datos FTS5 de PubMed por articulos de nicho ecologico MAXENT en los ultimos 3 anos. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ursus arctos",
+      "region": "Paleártico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Paleártico",
+      "year": "2020-2023"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Ursus arctos",
+      "layers": "bio1,bio12,bio7"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca articulos revisados por pares sobre el metodo 'occupancy model' en GBIF Literature. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Lynx lynx",
+      "region": "PALEARCTIC"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "PALEARCTIC",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Lynx lynx",
+      "layers": "PALEARCTIC_bioclim"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en la literatura PubMed articulos sobre conectividad genomica temporal y conectividad espacial. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Ara macao",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Ara macao",
+      "layers": "bio1,bio12,bio7"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en la sesion DB de Hermes las trazas de generacion de una knowledgebase de conectividad. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Panthera onca",
+      "region": "Neotropic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Neotropic"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Panthera onca",
+      "layers": "19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en la sesion DB de Hermes las trazas de generacion de una knowledgebase de conectividad. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Canis lupus",
+      "region": "paleartic"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartic",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Canis lupus",
+      "layers": "bio1,bio12,bio7,bio15"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta un analisis de correlacion entre clima y diversidad realizando bootstrap en 1000 muestras.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Pinus sylvestris",
+      "region": "Europe"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "Europe",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Pinus sylvestris",
+      "layers": "bio1,bio12,bio5,bio6,bio15"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Busca en GitHub Ecment una issue sobre la integracion del tool de GBIF en Emily. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Canis lupus",
+      "region": "PALEARCTIC"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "PALEARCTIC",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Canis lupus",
+      "layers": "PALEARCTIC"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Consulta la API de Ollama local para listar los modelos GGUF disponibles para inferencia. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Cyanocorax chrysops",
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico"
+     }
+    },
+    {
+     "tool": "maxent_train",
+     "args": {
+      "species": "Cyanocorax chrysops",
+      "layers": "bioclim_19"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta una prueba de latencia y throughput entre dos nodos del cluster para diagnosticar la red. Usa como referencia la region neotropico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "neotropico",
+      "year": "2020"
+     }
+    }
+   ]
+  },
+  {
+   "prompt": "Ejecuta una prueba de latencia y throughput entre dos nodos del cluster para diagnosticar la red. Usa como referencia la region paleartico y explica el metodo.",
+   "gold": [
+    {
+     "tool": "bioclim_download",
+     "args": {
+      "region": "paleartic",
+      "year": "2020"
+     }
+    },
+    {
+     "tool": "gbif_occurrence",
+     "args": {
+      "species": "Canis lupus",
+      "region": "paleartic"
+     }
+    }
+   ]
+  }
+ ]
+}

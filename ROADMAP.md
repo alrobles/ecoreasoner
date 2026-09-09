@@ -155,9 +155,15 @@ a batch gigante).. **Ganador: span-esqueleto.**
   match_func 76% / match_args 65%, 100% JSON valido; el resto del corpus = gold contaminado
   [prompts NO de las 3 tools etiquetados gbif], no fallo del controller).
   Teacher v4flash REACTIVADO como serve slurm + tunel :20006 (keepalive `2d884420a767` reanudado).
-  PENDIENTE REAL (para tomar la opcion D como linea): (a) limpiar/gold-standardizar el corpus
-  de toolcalls (solo 17/60 prompts son realmente de las 3 tools), (b) HITO 4 opcional:
-  resolve_tool SIN mock (GBIF/CHELSA reales). Commits: a9d85fe, 5b796f3, 7c68053, 548abbf.
+  PENDIENTE REAL: (b) HITO 4 opcional: resolve_tool SIN mock (GBIF/CHELSA reales).
+  Commits: a9d85fe, 5b796f3, 7c68053, 548abbf.
+- **GOLD LIMPIO (2026-09-09)**: curacion manual de los 60 prompts -> 14 tool-calls PURAS
+  (12 gbif + 2 bioclim; 46 descartados: RF/filogenia/diversidad funcional/slurm/literatura/
+  otras APIs — gold ruidoso del teacher original). REMEDICION sobre subset limpio:
+  **match_func 14/14 (100%) | match_args 12/14 (86%)** — los 2 fallos de args son gold
+  inconsistente con el prompt (Yucatan vs neotropico en item 2; year 2020 vs 2050 en item 4),
+  no error del controller. Best-case de la opcion D medido y limpio. Artefactos:
+  docs/results/replication_pure_14.* + curation_report.json.
 - **Legado técnico (validado en prod, commits bf25fec/03a2cde)**: anti-reentrada
   SIGUSR1 (flag SAVING, test EAGAIN), sort -V ckpt, --index absoluto, strict=True en
   suite_smoke, tmp PID en eval_curve, warmup REAL (era arg muerto), verdict_f2.py
