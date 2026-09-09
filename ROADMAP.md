@@ -128,32 +128,28 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 08-09 20:50 CDT — tras deadlock SIGUSR1)
+## 4. ESTADO VIVO (HPC, al 08-09 21:45 CDT — F2 CERRADO FALSIFY)
 
-- **INCIDENTE + RELANZAMIENTO**: job 28962112 murió por TIMEOUT 5:50 a las 18:38 en
-  step 44,051/50,000 (88%) — **deadlock SIGUSR1 CONFIRMADO en producción** (la
-  auditoría Devin 1.1 lo predijo). El log muestra "SIGUSR1 — guardando ola" a 18:38:04
-  y luego SIGTERM; el save quedó colgado (el handler re-entró en flock mientras el
-  save periódico tenía el lock) → Slurm KILL → `finalize()` nunca corrió → sin
-  resubmit (sacct: solo 1 ola, `.ba+` FAILED exit 1, 0 "Resumed"). **EXTRAÑAMENTE el
-  deadlock NO era por el save periódico**: el último checkpoint periódico g44051 se
-  guardó a 18:37:41 y el USR1 llegó a 18:37:59; el trainer intentó el save del
-  SIGUSR1 y se colgó ahí — el fix anti-reentrada (flag SAVING) ya desplegado
-  (bf25fec) NO pudo ayudar a esta ola (código cargado en memoria al arrancar 12:47).
-- **RELANZADO** (job **28982555**, mismo TAG=f2-spanes, TARGET_STEPS=50000 absoluto):
-  resume() arrancó en step 44,151 (state.json), loss ~6.9 sin salto. Con el fix
-  anti-reentrada activo en esta ola. Faltan ~5,850 steps ≈ 45-50 min. Watch relanzado:
-  **28982556** (4:30h). Waiter local: proc_bd4a4b46fe16 (`~/.hermes/scripts/f2_waiter2.sh`).
-- **Al retomar**: `python scripts/verdict_f2.py --run-dir runs/f2-spanes` → veredicto
-  (la curva ya estuvo 0.5508 en g44051, sobre el GO). Si el run termina normal: HIT
-  probable (≥0.55 sostenido) → archivar positivo.
-- **Fix 1.1 activo desde esta ola**: `_handle_sig` consulta `_SAVING`; si USR1 llega
-  durante un save, sale 42 sin re-entrar (el ckpt previo atómico cubre el resume).
-  Validado con test real (segundo flock LOCK_EX mismo proceso = EAGAIN = deadlock
-  reproducido). El wrapper aún manda USR1 2× (pkill -f + kill PID) — P2, no tocado.
-- **Fix 1.3 (sort -V) + 1.4 (--index absoluto) desplegados** en moe_v4_micro.slurm /
-  f0_reeval.slurm (commit bf25fec). El eval final de ESTE run usará sort -V (elegirá
-  g50000, no g49999).
+- **F2-SPANES COMPLETO — FALSIFY** (50,000/50,000, job 28982555 COMPLETED 00:47:38,
+  flag COMPLETE 21:34). Veredicto oficial (verdict_f2.json): pairwise_acc final
+  **0.5273** (< falsify_threshold 0.55), slope últimos 3 **-6e-06**, delta primeros 3→
+  últimos 3 +0.0546, n=69 pts. La curva tocó picos 0.5664 (28,351) / 0.5586 (30,951)
+  pero **decayó al final** (últimos 10: 0.52-0.54) — el pico es el artefacto de
+  comparaciones múltiples que la auditoría advirtió; el punto final decide. Receta
+  micro ganadora ×5 pasos NO produjo HIT. **Detalle**: el run original 28962112 murió
+  TIMEOUT 88% por el deadlock SIGUSR1 (confirmado) y se relanzó 28982555 con el fix;
+  el resume a 44,151→50,000 fue limpio.
+- **DECISIÓN (pre-registrada, ejecutada)**: línea f2 **archivada como falsada** —
+  `docs/results/F2-SPANES-RESULTADO.md`. NO relanzar a 100K. **Siguiente: arquitectura
+  controller/verificator** (deepseek/glm genera tool-calls + dLLM como conocimiento/
+  repair — opción D del A/B). El dLLM propio queda como posible línea de fluidez 155M
+  SOLO con gate de falsación reformulado (word/rep4/uniq son engañables).
+- **Para retomar**: definir el diseño del controller/verificator (requiere decisión
+  del usuario) — ver `docs/results/F2-SPANES-RESULTADO.md` y la ruta de prosa Devin.
+- **Legado técnico (validado en prod, commits bf25fec/03a2cde)**: anti-reentrada
+  SIGUSR1 (flag SAVING, test EAGAIN), sort -V ckpt, --index absoluto, strict=True en
+  suite_smoke, tmp PID en eval_curve, warmup REAL (era arg muerto), verdict_f2.py
+  arreglado (f-string <3.12).
 - **GAP**: `train_mdlm_moe_hetero.py` NO escribe `training_complete.flag` (solo
   loguea COMPLETE) — watchdogs/herederos: detectar fin por `state.json step==TARGET`
   o `sacct COMPLETED`, NO por el flagfile. (El micro trainer SÍ escribe el flag.)

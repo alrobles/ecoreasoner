@@ -136,16 +136,20 @@ def build_report(verdict, last_step, last_acc, slope, delta, points):
 
 
 def print_block(report):
+    # compat Python <3.12: f-strings anidadas con comillas simples no compilan
+    last_acc_s = f"{report['last_acc']:.4f}" if report['last_acc'] is not None else "N/A"
+    slope_s = f"{report['slope_last3']:.6f}" if report['slope_last3'] is not None else "N/A"
+    delta_s = f"{report['delta_first3_last3']:+.4f}" if report['delta_first3_last3'] is not None else "N/A"
     print("=" * 62)
     print(f"VERDICT: {report['verdict']}")
     print("-" * 62)
     print(f"Last evaluated step : {report['last_step'] if report['last_step'] is not None else 'N/A'}")
-    print(f"Last pairwise_acc   : {f'{report['last_acc']:.4f}' if report['last_acc'] is not None else 'N/A'}")
+    print(f"Last pairwise_acc   : {last_acc_s}")
     print(f"Start reference     : {report['start_ref']:.3f}")
     print(f"Hit threshold       : {report['hit_threshold']:.2f}")
     print(f"Falsify threshold   : {report['falsify_threshold']:.2f}")
-    print(f"Slope (last 3)      : {f'{report['slope_last3']:.6f}' if report['slope_last3'] is not None else 'N/A'}")
-    print(f"Delta (last3-first3): {f'{report['delta_first3_last3']:+.4f}' if report['delta_first3_last3'] is not None else 'N/A'}")
+    print(f"Slope (last 3)      : {slope_s}")
+    print(f"Delta (last3-first3): {delta_s}")
     print(f"N points            : {report['n_points']}")
     print("-" * 62)
     print("Trajectory:")
