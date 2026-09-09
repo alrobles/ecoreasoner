@@ -164,9 +164,15 @@ a batch gigante).. **Ganador: span-esqueleto.**
   traducida es->en (southeast asia), 2 tool sinonima (inaturalist vs gbif, args exactos).
   Reporte: docs/results/REPLICACION-500-FASE3-RESULTADO.md (v2). Dataset:
   data/l1/toolcalls_fase3_500.jsonl (123 especies reales GBIF+Devin).
-- **FASE 3 EN CURSO (2026-09-09)**: minería de literatura (ecoseek-litdump + PMC/arXiv)
-  -> extracción de entidades (especies/regiones/datasets) -> propuesta de tool-calls
-  -> curación -> meta 500 pares. Diseño: docs/designs/toolcalls-expansion-2026-09-09.md.
+- **FASE 3 EN CURSO (2026-09-09)**: minería de literatura -> tool-calls.
+  **Replicación 500 v2: match_args 92%->98.2%** (year 26->0, region 13->0; ver arriba).
+  **Minería especies**: fulltext PMC completo → 1.32M candidatas pero BIOMEDICAS;
+  subcorpus eco v7 (919K docs, 63%) → 84 GBIF-reales, solo 23 ecológicas reales.
+  HALLAZGO: dominios GRUESOS v7 no separan eco de biomed (S.aureus/M.tb/levaduras dominan
+  aun en "eco"). Para poso eco GENUINO: domain_fine del v5 (climate_ecology/population_ecology...)
+  o fuentes eco-nativas (EcoEvoRxiv, ecoseek-litdump, arXiv eco).
+  Reporte: docs/results/MINERIA-ESPECIES-SUBCORPUS-ECO-V7.md.
+  Diseño: docs/designs/toolcalls-expansion-2026-09-09.md.
 - **OPCIÓN D VALIDADA (2026-09-09)**: controller/verificator demo end-to-end.
   `verify_toolcall.py` (verificador M1-M5, schemas empiricos 533 toolcalls reales, 100% valido) +
   `ecobench/run_controller_verificator.py` (controller + verificator + retry) +
