@@ -37,3 +37,6 @@ Thumbs.db
 # Internal / handoff (not public)
 HANDOFF-*.md
 docs/devin-*.md
+
+# repos de terceros clonados (no subir)
+third_party/
