@@ -75,38 +75,97 @@ def _synth_pairs(rng, n, max_ctx, max_cand):
     return pairs
 
 
-def denoise_loss(model, seq, mask_p, rng, mask_id):
-    """forward con máscara aleatoria determinista -> CE solo en posiciones mask."""
-    T = seq.shape[0]
-    n = max(1, int(mask_p * T))
-    idx = torch.tensor(rng.sample(range(T), n), dtype=torch.long, device=seq.device)
+def denoise_loss(model, seq, mask_p, rng, mask_id, use_random_mask=True):
+    """forward con máscara aleatoria determinista -> CE solo en posiciones mask.
+
+    Si use_random_mask=False, evalua en las posiciones que ya están enmascaradas
+    (útil para scoring de best-of-N de secuencias generadas).
+    """
+    if use_random_mask:
+        T = seq.shape[0]
+        n = max(1, int(mask_p * T))
+        idx = torch.tensor(rng.sample(range(T), n), dtype=torch.long, device=seq.device)
+    else:
+        idx = (seq == mask_id).nonzero(as_tuple=True)[0]
+        if idx.numel() == 0:
+            idx = torch.tensor([0], device=seq.device, dtype=torch.long)
     masked = seq.clone()
     masked[idx] = mask_id
     logits = model(masked.unsqueeze(0)).squeeze(0)
     return F.cross_entropy(logits[idx], seq[idx])
 
 
-def generate(model, prompt_ids, max_new, steps, temp, rng, mask_id, mask_p):
-    """denoising iterativo: en cada paso se remascara una fracción y se re-muestrea."""
-    dev = next(model.parameters()).device   # el modelo puede estar en cuda
+def _generate_one(model, prompt_ids, max_new, steps, temp, gen_seed, mask_id, mask_p, sampling="random"):
+    """Genera una sola secuencia con el sampler elegido."""
+    torch.manual_seed(gen_seed)
+    dev = next(model.parameters()).device
     ids = torch.tensor(prompt_ids + [mask_id] * max_new, dtype=torch.long, device=dev)
     n = len(ids)
+    prompt_len = len(prompt_ids)
     with torch.no_grad():
-        for _ in range(steps):
+        for step_i in range(steps):
             logits = model(ids.unsqueeze(0)).squeeze(0)
-            probs = (logits / max(temp, 1e-6)).softmax(-1)
-            # muestrear SOLO posiciones aún enmascaradas
             still = (ids == mask_id).nonzero(as_tuple=True)[0]
             if still.numel() == 0:
                 break
-            new = torch.multinomial(probs[still], 1).squeeze(-1)
-            ids[still] = new
-            # remascara una fracción (mask-predict estándar), salvo el prompt
-            remask_n = max(1, int(mask_p * n))
-            remask = rng.sample(range(len(prompt_ids), n), min(remask_n, n - len(prompt_ids)))
-            if remask:
-                ids[torch.tensor(remask, device=ids.device)] = mask_id
+            if sampling == "low_confidence":
+                # Fast-dLLM / LLaDA: desenmascarar primero las posiciones de mayor
+                # confianza (argmax), dejando las dudosas para el siguiente paso.
+                probs = (logits[still] / max(temp, 1e-6)).softmax(-1)
+                pred = probs.argmax(-1)
+                conf = probs.max(-1).values
+                # por defecto desenmascara un 1/steps de las posiciones restantes
+                k = max(1, int(still.numel() * (1.0 / max(steps - step_i, 1))))
+                k = min(k, still.numel())
+                # Elegir k posiciones por confianza (con temperatura: conf^temp)
+                # Si temp bajo -> top-k; si temp alto -> mas diverso
+                sel_probs = (conf / max(temp, 1e-6)).softmax(0)
+                topk_idx = torch.multinomial(sel_probs, k, replacement=False)
+                topk = still[topk_idx]
+                # Elegir token: argmax puro si temp bajo, sino samplear
+                token_probs = probs[topk_idx]
+                if temp < 0.05:
+                    ids[topk] = pred[topk_idx]
+                else:
+                    new = torch.multinomial(token_probs, 1).squeeze(-1)
+                    ids[topk] = new
+            else:
+                # random: samplear todas las posiciones enmascaradas
+                probs = (logits[still] / max(temp, 1e-6)).softmax(-1)
+                new = torch.multinomial(probs, 1).squeeze(-1)
+                ids[still] = new
+                # remascara una fracción (mask-predict estándar), salvo el prompt
+                remask_n = max(1, int(mask_p * n))
+                remask_n = min(remask_n, n - prompt_len)
+                if remask_n > 0:
+                    # remascar posiciones con menor confianza para inducir revision
+                    conf = probs.max(-1).values
+                    low_conf = conf.argsort()[:remask_n]
+                    remask = still[low_conf]
+                    ids[remask] = mask_id
     return ids.tolist()
+
+
+def generate(model, prompt_ids, max_new, steps, temp, rng, mask_id, mask_p,
+             sampling="random", best_of_n=1, rerank=False):
+    """Genera (best_of_n veces) y opcionalmente rerankea por denoise-loss."""
+    base_seed = rng.randint(0, 2**31 - 1)
+    best_ids = None
+    best_score = float("inf")
+    for i in range(best_of_n):
+        gen_seed = base_seed + i
+        cand = _generate_one(model, prompt_ids, max_new, steps, temp, gen_seed,
+                             mask_id, mask_p, sampling=sampling)
+        if not rerank and best_of_n == 1:
+            return cand
+        # puntuar con denoise-loss en el candidato (usar posiciones generadas)
+        seq = torch.tensor(cand, dtype=torch.long, device=next(model.parameters()).device)
+        score = denoise_loss(model, seq, mask_p, random.Random(gen_seed),
+                             mask_id, use_random_mask=False).item()
+        if score < best_score:
+            best_score = score
+            best_ids = cand
+    return best_ids
 
 
 def fluency_from_ids(ids):
@@ -131,6 +190,12 @@ def main():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--mask-id", type=int, default=None,
                     help="token MASK; default = vocab del config (126080)")
+    ap.add_argument("--sampling", default="random", choices=["random", "low_confidence"],
+                    help="estrategia de denoising para generación")
+    ap.add_argument("--best-of-n", type=int, default=1,
+                    help="generar N candidatos y devolver el mejor (ver --rerank)")
+    ap.add_argument("--rerank", action="store_true",
+                    help="rerankar los best-of-N con denoise-loss")
     args = ap.parse_args()
 
     import yaml
@@ -207,7 +272,10 @@ def main():
         else:
             prompt = []
         gen_ids = generate(model, prompt, ecfg["max_new"], ecfg["steps"],
-                           ecfg["temp"], rng, mask_id, ecfg["mask_p"])
+                           ecfg["temp"], rng, mask_id, ecfg["mask_p"],
+                           sampling=args.sampling,
+                           best_of_n=args.best_of_n,
+                           rerank=args.rerank)
         n_gen = len(gen_ids) - len(prompt)
         gen = {"completed_len": n_gen, "prompt_len": len(prompt)}
         gen.update(fluency_from_ids(gen_ids[len(prompt):]))

@@ -22,6 +22,10 @@
 #   MASK_TYPE   random | span
 #   MASK_P      ratio de máscara (0.15 | 1.2 para span-alto)
 #   SPAN_LEN    longitud de span (solo span; default 64)
+#   MASK_SCHEDULE  fixed | uniform | cosine (default fixed)
+#   MASK_SCHEDULE_ARGS  JSON, p.ej. '{"b_l":0.1,"b_h":0.9}'
+#   WHOLE_STAGE    0 | 1 (enmascarar etapas enteras en esqueletos)
+#   STAGE_LABELS   lista separada por comas (default [OBSERVACION],...)
 #   DATA_CACHE  npy de tokens (prosa: train_ids_v7_clean.npy | esqueleto: train_ids_skeleton.npy)
 #   TARGET_STEPS  steps absolutos (default 10000)
 #   PAIRS       jsonl de pares para la eval de discriminación
@@ -37,6 +41,10 @@ TAG="${TAG:?TAG requerido}"
 MASK_TYPE="${MASK_TYPE:?MASK_TYPE requerido}"
 MASK_P="${MASK_P:?MASK_P requerido}"
 SPAN_LEN="${SPAN_LEN:-64}"
+MASK_SCHEDULE="${MASK_SCHEDULE:-fixed}"
+MASK_SCHEDULE_ARGS="${MASK_SCHEDULE_ARGS:-}"
+WHOLE_STAGE="${WHOLE_STAGE:-0}"
+STAGE_LABELS="${STAGE_LABELS:-}"
 DATA_CACHE="${DATA_CACHE:?DATA_CACHE requerido}"
 TARGET_STEPS="${TARGET_STEPS:-10000}"
 PAIRS="${PAIRS:-$RUNS/pairs.jsonl}"
@@ -97,6 +105,10 @@ apptainer exec --nv --overlay "$OVL":ro "$SIF" \
     --n_experts 1 --expert_k 1 --seq_len 768 \
     --batch_size 8 --grad_accum 2 --mask_p "$MASK_P" \
     --mask_type "$MASK_TYPE" --span_len "$SPAN_LEN" \
+    --mask_schedule "$MASK_SCHEDULE" \
+    ${MASK_SCHEDULE_ARGS:+--mask_schedule_args "$MASK_SCHEDULE_ARGS"} \
+    $(if [ "$WHOLE_STAGE" = "1" ]; then echo "--whole_stage"; fi) \
+    ${STAGE_LABELS:+--stage_labels "$STAGE_LABELS"} \
     --lr 2e-4 --warmup 200 --max_steps "$TARGET_STEPS" \
     --output "$OUT" &
 TRAIN_PID=$!

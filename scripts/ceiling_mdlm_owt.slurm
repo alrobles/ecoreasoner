@@ -22,10 +22,12 @@ SIF="${SIF:-$BASE/pytorch-cuda.sif}"
 OVL="${OVL:-$BASE/blackwell-torch.overlay}"
 PY="/bb/bwvenv/bin/python"
 PAIRS="${PAIRS:-$BASE/runs/pairs_hard/pairs_L0.jsonl}"
+PAIRS_TOKENIZER="${PAIRS_TOKENIZER:-$BASE/tokenizer/LLaDA}"
 OUT="${OUT:-$BASE/runs/ceiling_mdlm_owt.json}"
 
-echo "=== ceiling_mdlm_owt PAIRS=$PAIRS $(date -u) ==="
+echo "=== ceiling_mdlm_owt PAIRS=$PAIRS TOKENIZER=$PAIRS_TOKENIZER $(date -u) ==="
 apptainer exec --nv --overlay "$OVL":ro "$SIF" "$PY" \
     "$BASE/scripts/ceiling_mdlm_owt.py" \
-    --pairs "$PAIRS" --out "$OUT" --device cuda
+    --pairs "$PAIRS" --pairs-tokenizer "$PAIRS_TOKENIZER" \
+    --out "$OUT" --device cuda
 echo "=== ceiling_mdlm_owt done $(date -u) ==="

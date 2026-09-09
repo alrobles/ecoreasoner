@@ -23,10 +23,13 @@ SIF="${SIF:-$BASE/pytorch-cuda.sif}"
 OVL="${OVL:-$BASE/blackwell-torch.overlay}"
 PY="/bb/bwvenv/bin/python"
 PAIRS="${PAIRS:-$BASE/runs/pairs_hard/pairs_L0.jsonl}"
+PAIRS_TOKENIZER="${PAIRS_TOKENIZER:-$BASE/tokenizer/LLaDA}"
 OUT="${OUT:-$BASE/runs/ceiling_llada8b.json}"
+MC_NUM="${MC_NUM:-32}"
 
-echo "=== ceiling_llada8b PAIRS=$PAIRS $(date -u) ==="
+echo "=== ceiling_llada8b PAIRS=$PAIRS TOKENIZER=$PAIRS_TOKENIZER $(date -u) ==="
 apptainer exec --nv --overlay "$OVL":ro "$SIF" "$PY" \
     "$BASE/scripts/ceiling_llada8b.py" \
-    --pairs "$PAIRS" --out "$OUT" --device cuda
+    --pairs "$PAIRS" --pairs-tokenizer "$PAIRS_TOKENIZER" \
+    --out "$OUT" --device cuda --mc-num "$MC_NUM"
 echo "=== ceiling_llada8b done $(date -u) ==="

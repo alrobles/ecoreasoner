@@ -4,7 +4,7 @@
 Pipeline:
   1. Cargar fuentes (v7, arxiv, fulltexts PMC, ecoseek-litdump).
   2. Normalizar a schema canonico.
-  3. Dedup exacto + fuzzy.
+  3. Dedup exacto (keys + titulo normalizado).
   4. Limpiar boilerplate / disclaimers.
   5. Filtrar por calidad (heuristico; TODO: perplexity filtering con ref model).
   6. EOS packing a ventanas de max_seq tokens.
@@ -13,6 +13,7 @@ Pipeline:
 
 Uso:
   python3 scripts/build_prosa_v8.py --config scripts/build_prosa_v8.yaml
+  python3 scripts/build_prosa_v8.py --selftest
 """
 import argparse
 import hashlib
@@ -20,16 +21,18 @@ import json
 import os
 import re
 import sys
+import tempfile
+import yaml
+from collections import Counter
 from pathlib import Path
 
-# TODO (Hermes): importar tokenizador cuando el env este disponible
-# from transformers import AutoTokenizer
 
-DEFAULT_LABELS = ["[OBSERVACION]", "[HIPOTESIS]", "[PREDICCION]", "[EVIDENCIA]", "[CONCLUSION]"]
+def _md5_hex(s: str) -> str:
+    return hashlib.md5(s.encode("utf-8")).hexdigest()
 
 
 def _load_jsonl(path, limit=None):
-    with open(path) as f:
+    with open(path, encoding="utf-8", errors="ignore") as f:
         for i, line in enumerate(f):
             if limit and i >= limit:
                 break
@@ -41,11 +44,12 @@ def _load_jsonl(path, limit=None):
 
 def _normalize(doc, source, idx):
     """Normaliza un doc de cualquier fuente al schema canonico."""
-    text = doc.get("text") or doc.get("abstract") or doc.get("content") or ""
+    text = doc.get("text") or doc.get("abstract") or doc.get("content") or doc.get("body", "")
+    title = doc.get("title", "") or ""
     return {
         "doc_id": doc.get("pmcid") or doc.get("pmid") or doc.get("doi") or f"{source}_{idx}",
         "source": source,
-        "title": doc.get("title", ""),
+        "title": title,
         "text": text,
         "year": doc.get("year"),
         "domain": doc.get("domain") or doc.get("field") or source,
@@ -55,72 +59,118 @@ def _normalize(doc, source, idx):
     }
 
 
-def _dedup_exact(docs, keys=("pmid", "pmcid", "doi")):
-    seen = set()
-    out = []
-    for d in docs:
-        sig = tuple(d.get(k) for k in keys)
-        if any(sig) and sig in seen:
-            continue
-        if any(sig):
-            seen.add(sig)
-        out.append(d)
-    return out
-
-
-def _dedup_fuzzy(docs, threshold=0.95):
-    """TODO: dedup por similitud de titulo con MinHash/LSH o embedding ligero."""
-    # stub: conserva todos
-    return docs
-
-
-def _clean_boilerplate(text):
-    """Quita boilerplate y plantillas metodologicas comunes."""
-    # TODO (Hermes): aprender plantillas frecuentes del corpus y removerlas.
-    # Patrones preliminares:
+def _clean_text(text: str) -> str:
+    """Limpieza ligera: espacios, copyright, disclaimers."""
+    text = re.sub(r"\s+", " ", text)
     patterns = [
-        r"©\s*\d{4}.*?(?=[A-Z]|$)",
-        r"Published by.*?(?=[A-Z]|$)",
-        r"This is an open access article.*?license",
+        r"©\s*\d{4}[^\n]{0,200}",
+        r"Published by[^\n]{0,200}",
+        r"This is an open access article[^\n]{0,400}",
+        r"All rights reserved[^\n]{0,100}",
     ]
     for p in patterns:
         text = re.sub(p, "", text, flags=re.IGNORECASE)
     return text.strip()
 
 
-def _quality_filter(docs, mode="heuristic"):
-    """Filtra por calidad. TODO: anadir perplexity filtering con referencia."""
+def _boilerplate_filter(text: str) -> str:
+    """Elimina lineas/plantillas metodologicas muy repetidas.
+
+    TODO (futuro): aprender n-gramas frecuentes del corpus y filtrar.
+    """
+    lines = text.split(". ")
+    # Descartar frases de agradecimiento comunes
+    filtered = []
+    for line in lines:
+        low = line.lower()
+        if any(x in low for x in ["we thank ", "we acknowledge ", "funding:", "acknowledgements"]):
+            continue
+        if len(line) > 10:
+            filtered.append(line)
+    return ". ".join(filtered)
+
+
+def _quality_heuristic(text: str, cfg: dict) -> bool:
+    """Filtro de calidad heurístico."""
+    if len(text) < cfg.get("min_chars", 256):
+        return False
+    words = text.split()
+    if len(words) < cfg.get("min_words", 50):
+        return False
+    # Evitar documentos con demasiadas lineas muy cortas
+    lines = text.split("\n")
+    short = sum(1 for l in lines if len(l) < 20)
+    if short / max(len(lines), 1) > 0.5:
+        return False
+    # Evitar demasiado repeticion de tokens
+    uniq = len(set(words))
+    if not words:
+        return False
+    if uniq / len(words) < 0.2:
+        return False
+    return True
+
+
+def _dedup(docs, keys=("pmid", "pmcid", "doi")):
+    """Dedup exacto por keys + titulo normalizado."""
+    seen = set()
     out = []
     for d in docs:
-        t = d["text"]
-        if len(t) < 256:
+        sig = tuple(sorted([(k, str(d.get(k, "")).lower().strip()) for k in keys if d.get(k)]))
+        title_norm = d.get("title", "").lower().strip()
+        key = (sig, _md5_hex(title_norm))
+        if key in seen:
             continue
-        words = len(t.split())
-        if words < 50:
-            continue
-        # simple heuristic: evitar documentos con >30% de lineas cortas
-        lines = t.split("\n")
-        short = sum(1 for l in lines if len(l) < 20)
-        if short / max(len(lines), 1) > 0.5:
-            continue
+        seen.add(key)
         out.append(d)
     return out
 
 
-def _pack_with_eos(docs, tokenizer, max_seq=768, eos_token="<|endoftext|>"):
+def _build_tokenizer(path: str, allow_dummy=False):
+    try:
+        from transformers import AutoTokenizer
+        print(f"[tokenizer] cargando {path}")
+        return AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+    except Exception as e:
+        if allow_dummy:
+            print(f"[warn] no pude cargar tokenizer ({e}); usando dummy para selftest")
+            class DummyTok:
+                vocab_size = 126080
+                eos_token = "<|endoftext|>"
+                def encode(self, text, add_special_tokens=False):
+                    return [abs(hash(w)) % self.vocab_size for w in text.split()]
+            return DummyTok()
+        raise RuntimeError(f"No se pudo cargar tokenizer {path}: {e}")
+
+
+def _pack_with_eos(docs, tokenizer, max_seq=768, eos_token=None):
     """Concatena documentos con EOS y corta en ventanas de max_seq ids."""
-    # TODO (Hermes): asegurar que cada ventana nueva empiece con EOS previo.
+    eos_token = eos_token or getattr(tokenizer, "eos_token", "<|endoftext|>")
     all_ids = []
+    eid = tokenizer.encode(eos_token, add_special_tokens=False)
+    if not eid:
+        eid = [tokenizer.vocab_size - 1]
     for d in docs:
         ids = tokenizer.encode(d["text"], add_special_tokens=False)
-        eid = tokenizer.encode(eos_token, add_special_tokens=False)
-        all_ids.extend(ids + eid)
-    windows = []
-    for i in range(0, len(all_ids), max_seq):
-        w = all_ids[i:i + max_seq]
-        if len(w) == max_seq:
-            windows.append(w)
-    return windows
+        if not ids:
+            continue
+        all_ids.extend(ids)
+        all_ids.extend(eid)
+        # Si el buffer crece mucho, ir cortando ventanas para no saturar memoria
+        while len(all_ids) >= max_seq:
+            yield all_ids[:max_seq]
+            all_ids = all_ids[max_seq:]
+    # No yield final corto (para evitar ventanas con mucho EOS)
+
+
+def _write_jsonl(docs, outdir):
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    path = outdir / "train_corpus_v8.jsonl"
+    with open(path, "w", encoding="utf-8") as f:
+        for d in docs:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    return path
 
 
 def _write_npy(windows, outdir):
@@ -133,35 +183,58 @@ def _write_npy(windows, outdir):
     return path
 
 
-def _write_jsonl(docs, outdir):
-    outdir = Path(outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
-    path = outdir / "train_corpus_v8.jsonl"
-    with open(path, "w") as f:
-        for d in docs:
-            f.write(json.dumps(d) + "\n")
-    return path
-
-
 def _write_report(docs, windows, outdir, config):
     outdir = Path(outdir)
-    domains = {}
-    years = {}
-    for d in docs:
-        domains[d.get("domain", "?")] = domains.get(d.get("domain", "?"), 0) + 1
-        years[str(d.get("year", "?"))] = years.get(str(d.get("year", "?")), 0) + 1
+    domains = Counter(d.get("domain", "?") for d in docs)
+    years = Counter(str(d.get("year", "?")) for d in docs)
     report = {
         "n_docs": len(docs),
         "n_windows": len(windows),
         "n_tokens": sum(len(w) for w in windows),
-        "domains": domains,
-        "years": years,
+        "domains": dict(domains),
+        "years": dict(years),
         "sources": config.get("sources", []),
+        "config": config,
     }
     path = outdir / "v8_report.json"
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
     return report
+
+
+def _selftest():
+    docs = [
+        {"title": "Bees and drought", "text":
+         "Bees declined in dry years. Drought reduces floral resources. "
+         "Dry plots showed lower visitation. Visitation increased in irrigated plots. "
+         "Irrigation buffers drought effects.", "year": 2025, "domain": "eco"},
+        {"title": "Frogs and pesticides", "text":
+         "Frogs vanished upstream. Pesticide runoff drives declines. "
+         "Downstream sites showed lower abundance. Abundance decreased downstream. "
+         "Runoff likely contributes.", "year": 2025, "domain": "eco"},
+        {"title": "Bees and drought", "text":
+         "This is a duplicate abstract with the same title.", "year": 2025, "domain": "eco"},
+    ]
+    config = {
+        "sources": [{"path": "_dummy", "weight": 1.0}],
+        "dedup": {"keys": ["pmid", "pmcid", "doi"]},
+        "filter": {"min_chars": 100, "min_words": 10},
+        "packing": {"eos_token": "<|endoftext|>", "max_seq": 32},
+        "tokenizer": "dummy",
+        "outdir": tempfile.mkdtemp(prefix="prosa_v8_selftest_"),
+    }
+    all_docs = [_normalize(d, "selftest", i) for i, d in enumerate(docs)]
+    all_docs = _dedup(all_docs, tuple(config["dedup"]["keys"]))
+    for d in all_docs:
+        d["text"] = _boilerplate_filter(_clean_text(d["text"]))
+    all_docs = [d for d in all_docs if _quality_heuristic(d["text"], config["filter"])]
+    tok = _build_tokenizer(config["tokenizer"], allow_dummy=True)
+    windows = list(_pack_with_eos(all_docs, tok, config["packing"]["max_seq"], config["packing"]["eos_token"]))
+    _write_jsonl(all_docs, config["outdir"])
+    _write_npy(windows, config["outdir"])
+    report = _write_report(all_docs, windows, config["outdir"], config)
+    print("selftest OK:", json.dumps(report, indent=2))
+    return 0
 
 
 def main():
@@ -172,71 +245,65 @@ def main():
                     help="limitar a N docs por fuente para test rapido")
     ap.add_argument("--dry", action="store_true",
                     help="no tokenizar, solo armar report y corpus plano")
-    args = ap.parse_args()
+    ap.add_argument("--selftest", action="store_true",
+                    help="corre pipeline con datos dummy")
+    a = ap.parse_args()
 
-    # TODO (Hermes): cargar YAML real con safe_load
-    # import yaml
-    # config = yaml.safe_load(open(args.config))
-    # Stub: config por defecto mientras no exista el YAML
-    config = {
-        "sources": [
-            {"path": "data/train_corpus_v7_clean.jsonl", "weight": 0.5},
-            {"path": "data/arxiv/fulltext/fulltext_corpus.jsonl", "weight": 0.25},
-        ],
-        "dedup": {"keys": ["pmid", "pmcid", "doi"]},
-        "filter": {"min_chars": 256, "mode": "heuristic"},
-        "packing": {"eos_token": "<|endoftext|>", "max_seq": 768},
-        "tokenizer": "/beegfs/a474r867/ecoreasoner/tokenizer/LLaDA",
-        "outdir": "data/prosa_v8",
-    }
+    if a.selftest:
+        return _selftest()
+
+    with open(a.config, encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    outdir = Path(config["outdir"])
+    outdir.mkdir(parents=True, exist_ok=True)
 
     # Cargar y normalizar
     all_docs = []
     for src in config["sources"]:
         p = src["path"]
+        if not os.path.exists(p):
+            print(f"[warn] fuente no existe: {p}")
+            continue
         name = Path(p).stem
-        for idx, doc in _load_jsonl(p, limit=args.limit_docs or None):
-            all_docs.append(_normalize(doc, name, idx))
+        for idx, doc in _load_jsonl(p, limit=a.limit_docs or None):
+            d = _normalize(doc, name, idx)
+            d["text"] = _clean_text(d["text"])
+            all_docs.append(d)
 
     print(f"[load] {len(all_docs)} docs crudos")
 
     # Dedup
-    all_docs = _dedup_exact(all_docs, tuple(config["dedup"]["keys"]))
-    all_docs = _dedup_fuzzy(all_docs)
-    print(f"[dedup] {len(all_docs)} docs")
+    all_docs = _dedup(all_docs, tuple(config["dedup"]["keys"]))
+    print(f"[dedup] {len(all_docs)} docs unicos")
 
-    # Limpiar y filtrar
+    # Boilerplate y filtro de calidad
     for d in all_docs:
-        d["text"] = _clean_boilerplate(d["text"])
-    all_docs = _quality_filter(all_docs, mode=config["filter"].get("mode", "heuristic"))
+        d["text"] = _boilerplate_filter(d["text"])
+    all_docs = [d for d in all_docs if _quality_heuristic(d["text"], config["filter"])]
     print(f"[filter] {len(all_docs)} docs")
 
     # Guardar corpus plano
-    _write_jsonl(all_docs, config["outdir"])
+    _write_jsonl(all_docs, outdir)
 
-    if args.dry:
+    if a.dry:
         print("[dry] sin tokenizar")
+        report = _write_report(all_docs, [], outdir, config)
+        print(json.dumps(report, indent=2))
+        print(f"[done] en {outdir}")
         return 0
 
     # Tokenizar y packing
-    # TODO (Hermes): usar AutoTokenizer con trust_remote_code=True
-    # tok = AutoTokenizer.from_pretrained(config["tokenizer"], trust_remote_code=True)
-    # stub: tokenizador dummy para que el script corra en CPU sin HF
-    class DummyTok:
-        vocab_size = 126080
-        def encode(self, text, add_special_tokens=False):
-            return [hash(w) % self.vocab_size for w in text.split()]
-    tok = DummyTok()
-
-    windows = _pack_with_eos(all_docs, tok,
-                            max_seq=config["packing"]["max_seq"],
-                            eos_token=config["packing"]["eos_token"])
+    tok = _build_tokenizer(config["tokenizer"])
+    max_seq = config["packing"]["max_seq"]
+    eos_token = config["packing"]["eos_token"]
+    windows = list(_pack_with_eos(all_docs, tok, max_seq, eos_token))
     print(f"[pack] {len(windows)} ventanas, {sum(len(w) for w in windows)} tokens")
 
-    _write_npy(windows, config["outdir"])
-    report = _write_report(all_docs, windows, config["outdir"], config)
+    _write_npy(windows, outdir)
+    report = _write_report(all_docs, windows, outdir, config)
     print(json.dumps(report, indent=2))
-    print(f"[done] en {config['outdir']}")
+    print(f"[done] en {outdir}")
     return 0
 
 

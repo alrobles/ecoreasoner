@@ -28,11 +28,12 @@ training:
   seed: 7331
 
 masking:
-  mask_type: "schedule"
+  mask_type: "span"
   mask_schedule: "uniform"
+  mask_schedule_args: "{\"b_l\":0.0,\"b_h\":0.8}"
   span_len: 64
   whole_stage: true
-  stage_labels: ["[OBSERVACION]", "[HIPOTESIS]", "[PREDICCION]", "[EVIDENCIA]", "[CONCLUSION]"]
+  stage_labels: "[OBSERVACION],[HIPOTESIS],[PREDICCION],[EVIDENCIA],[CONCLUSION]"
 
 output:
   tag: "skeleton-v2-155M"

@@ -29,9 +29,9 @@ training:
 
 masking:
   # Receta MDLM: t~U(0,1) por ejemplo (no fijo)
-  mask_type: "schedule"
-  mask_schedule: "uniform"
-  # span_len sigue siendo util para coherencia local; mask_schedule controla t
+  mask_type: "span"       # o "random"; controla como se colocan las mascaras
+  mask_schedule: "uniform"  # t~U(0,1) fraccion de tokens enmascarados
+  mask_schedule_args: "{\"b_l\":0.0,\"b_h\":1.0}"
   span_len: 64
 
 output:

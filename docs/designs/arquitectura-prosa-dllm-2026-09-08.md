@@ -4,7 +4,11 @@ Fecha: 2026-09-08 · Autor: Devin (SWE-1.7) · Rama: `devin/prosa-dllm-software-
 
 Este documento es la **contraparte de software** del plan
 `plan-prosa-dllm-2026-09-08.md`. Define módulos, flujos de datos, formatos y
-stubs para que Hermes pueda empezar a implementar mañana sin rediseñar.
+**implementación** de la Fase B.1/B.2/E.
+
+> Estado: build_prosa_v8, mask_schedule/whole_stage, suite_smoke v2 y los
+> techos LLaDA-8B/MDLM-OWT están implementados y pasan `python3 -m py_compile`.
+> Pendiente: correr en HPC y ajustar hiperparámetros.
 
 ---
 
@@ -275,14 +279,19 @@ Cada YAML especifica `data`, `mask_schedule`, `whole_stage`, `sampling`, y
 
 | Archivo | Estado | Nota |
 |---|---|---|
-| `scripts/build_prosa_v8.py` | stub | cuerpo de pipeline con TODOs |
-| `scripts/build_prosa_v8.slurm` | stub | plantilla de slurm CPU |
-| `harness/configs/prosa-v8-155M.yaml` | stub | config declarativa del micro-run |
-| `scripts/ceiling_llada8b.py` | stub | carga LLaDA-8B y evalúa pares |
-| `scripts/ceiling_llada8b.slurm` | stub | slurm 1x pro6000 bf16 |
-| `scripts/ceiling_mdlm_owt.py` | stub | carga MDLM-OWT |
-| `scripts/ceiling_mdlm_owt.slurm` | stub | slurm 1x pro6000 |
+| `scripts/build_prosa_v8.py` | implementado | pipeline completo + selftest CPU |
+| `scripts/build_prosa_v8.slurm` | implementado | slurm CPU |
+| `harness/configs/prosa-v8-155M.yaml` | implementado | config declarativa del micro-run |
+| `harness/configs/skeleton-v2-155M.yaml` | implementado | config con whole_stage |
+| `scripts/train_mdlm_moe.py` | implementado | mask_schedule, whole_stage, lr warmup |
+| `scripts/train_mdlm_moe_hetero.py` | implementado | mask_schedule, whole_stage |
+| `harness/suite_smoke.py` | implementado | low_confidence, best_of_n, rerank |
+| `scripts/ceiling_llada8b.py` | implementado | carga LLaDA-8B y evalúa pares |
+| `scripts/ceiling_llada8b.slurm` | implementado | slurm 1x pro6000 bf16 |
+| `scripts/ceiling_mdlm_owt.py` | implementado | carga MDLM-OWT |
+| `scripts/ceiling_mdlm_owt.slurm` | implementado | slurm 1x pro6000 |
+| `scripts/moe_v4_micro.slurm` | actualizado | acepta MASK_SCHEDULE, WHOLE_STAGE, etc. |
 | `docs/designs/arquitectura-prosa-dllm-2026-09-08.md` | completo | este doc |
 
-*Documento de arquitectura rastreable. La implementación se delega a Hermes
-siguiendo los stubs y el orden de esta hoja.*
+*Documento de arquitectura rastreable. La implementación está lista para
+validación en HPC por Hermes.*

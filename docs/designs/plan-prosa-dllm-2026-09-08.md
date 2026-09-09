@@ -2,6 +2,11 @@
 
 Fecha: 2026-09-08 · Autor: Devin (SWE-1.7) · Estado: F2 FALSIFY, infra madura.
 
+> **Actualización**: software de la Fase B.1/B.2/E implementado en
+> `devin/prosa-dllm-software-design`: `build_prosa_v8.py`, `train_mdlm_moe.py`
+> (mask_schedule/whole_stage), `suite_smoke.py` (low_confidence/best_of_n),
+> y techos `ceiling_mdlm_owt.py` / `ceiling_llada8b.py`.
+
 > Objetivo: decidir si un dLLM <500M entrenado desde cero con **prosa y
 > estructura científica** puede ser el motor de EcoReasoner, y si no, cuándo
 > pivotar a BD3-LM o controller/verificator.
