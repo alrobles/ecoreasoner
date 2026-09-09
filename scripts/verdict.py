@@ -183,7 +183,10 @@ def battery_report(batt_dir, args):
             d = json.load(open(fp))
         except json.JSONDecodeError:
             continue
-        acc, n = d.get("pairwise_acc"), d.get("n_pairs") or args.n_pairs
+        # suite_smoke anida las métricas en "discrimination" (no a nivel raíz)
+        disc = d.get("discrimination") or {}
+        acc = disc.get("pairwise_acc") or d.get("pairwise_acc")
+        n = disc.get("n_pairs") or d.get("n_pairs") or args.n_pairs
         if acc is None:
             continue
         k = int(round(acc * n))
@@ -262,9 +265,11 @@ def main():
         return battery_report(a.battery, a)
     if a.report:
         d = json.load(open(a.report))
-        n = d.get("n_pairs") or a.n_pairs
-        label, stats = eval_point(d["pairwise_acc"], n, a.go, a.hit, a.ref,
-                                  0.0, a.alpha, is_final=True)
+        # suite_smoke anida las métricas en "discrimination" (no a nivel raíz)
+        disc = d.get("discrimination") or {}
+        n = disc.get("n_pairs") or d.get("n_pairs") or a.n_pairs
+        label, stats = eval_point(disc.get("pairwise_acc") or d["pairwise_acc"],
+                                  n, a.go, a.hit, a.ref, 0.0, a.alpha, is_final=True)
         out = {"verdict": label, **stats}
         print(json.dumps(out, indent=2))
         if a.out:
