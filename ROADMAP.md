@@ -148,12 +148,16 @@ a batch gigante).. **Ganador: span-esqueleto.**
   controller/verificator** (deepseek/glm genera tool-calls + dLLM como conocimiento/
   repair — opción D del A/B). El dLLM propio queda como posible línea de fluidez 155M
   SOLO con gate de falsación reformulado (word/rep4/uniq son engañables).
-- **Para retomar**: diseño controller/verificator (opcion D) EN CURSO — `verify_toolcall.py`
-  (verificador M1-M5, schemas empiricos 533 tool-calls reales, 100% validacion) +
-  `ecobench/run_controller_verificator.py` (controller deepseek local + verificator + retry).
+- **OPCIÓN D VALIDADA (2026-09-09)**: controller/verificator demo end-to-end.
+  `verify_toolcall.py` (verificador M1-M5, schemas empiricos 533 toolcalls reales, 100% valido) +
+  `ecobench/run_controller_verificator.py` (controller + verificator + retry) +
+  `scripts/eval_controller_replication.py` (HITO 3: en 17 prompts tool-call genuinos
+  match_func 76% / match_args 65%, 100% JSON valido; el resto del corpus = gold contaminado
+  [prompts NO de las 3 tools etiquetados gbif], no fallo del controller).
   Teacher v4flash REACTIVADO como serve slurm + tunel :20006 (keepalive `2d884420a767` reanudado).
-  Prueba del bucle sobre sab-46/sab-87 en curso (first-call en frio, lento).
-  Docs: docs/results/F2-SPANES-RESULTADO.md (anexo), commits a9d85fe/5b796f3.
+  PENDIENTE REAL (para tomar la opcion D como linea): (a) limpiar/gold-standardizar el corpus
+  de toolcalls (solo 17/60 prompts son realmente de las 3 tools), (b) HITO 4 opcional:
+  resolve_tool SIN mock (GBIF/CHELSA reales). Commits: a9d85fe, 5b796f3, 7c68053, 548abbf.
 - **Legado técnico (validado en prod, commits bf25fec/03a2cde)**: anti-reentrada
   SIGUSR1 (flag SAVING, test EAGAIN), sort -V ckpt, --index absoluto, strict=True en
   suite_smoke, tmp PID en eval_curve, warmup REAL (era arg muerto), verdict_f2.py
