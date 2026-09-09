@@ -71,15 +71,18 @@ def _parse_stages(text):
 
 def _select_k(stages):
     """El candidato es la etapa tras PREDICCION (típicamente EVIDENCIA).
-    Si el corpus no incluye PREDICCION (caso real: OBS/EVID/CONC), usamos
-    k=2 como default para predecir la tercera etapa (EVIDENCIA o CONCLUSION).
-    Devuelve j o None."""
+    Si el corpus no incluye PREDICCION (caso real: OBS/EVID/CONC), evitamos
+    predecir la ultima etapa con contexto que ya la contiene.
+    Para 3 etapas predecimos la segunda (EVIDENCIA, ctx=OBS); para >=4
+    etapas predecimos la tercera (EVIDENCIA, ctx=OBS+HIP). Devuelve j o None."""
     pi = next((i for i, s in enumerate(stages) if s == "prediccion"), None)
     if pi is not None:
         if pi + 1 >= len(stages):
             return None
         return pi + 1
-    if len(stages) > 2:
+    if len(stages) == 3:
+        return 1
+    if len(stages) > 3:
         return 2
     return None
 
@@ -178,18 +181,24 @@ def build_battery(docs, n_pairs, seed, max_len):
         else:
             bad_l1 = bad_l0
             fallback["L1_no_domain_pool"] += 1
-        # L2: misma doc, etapa distinta (preferir etapa FUTURA j'>j = orden roto)
+        # L2: misma doc, etapa FUTURA no vista en el contexto (orden roto).
+        # Si solo hay etapas anteriores, el bad caeria dentro del ctx -> atajo trivial.
         js = [x for x in range(len(st)) if x != j]
         fut = [x for x in js if x > j]
-        jp = rng.choice(fut if fut else js)
-        bad_l2 = f"[{st[j].upper()}] {tx[jp]}"
+        if fut:
+            jp = rng.choice(fut)
+            bad_l2 = f"[{st[j].upper()}] {tx[jp]}"
+        else:
+            bad_l2 = None
+            fallback["L2_no_future_stage"] += 1
         # L3: payload mutado de la etapa real
         mut = _mutate_payload(tx[j], rng)
         bad_l3 = f"[{st[j].upper()}] {mut}" if mut else None
         rec = {"ctx": ctx, "ok": ok}
         out["L0"].append({**rec, "bad": bad_l0})
         out["L1"].append({**rec, "bad": bad_l1})
-        out["L2"].append({**rec, "bad": bad_l2})
+        if bad_l2:
+            out["L2"].append({**rec, "bad": bad_l2})
         if bad_l3:
             out["L3"].append({**rec, "bad": bad_l3})
         else:
