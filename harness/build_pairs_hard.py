@@ -70,12 +70,21 @@ def _parse_stages(text):
 
 
 def _select_k(stages):
-    """Igual que build_pairs: el candidato es la etapa tras PREDICCION (típicamente
-    EVIDENCIA). Devuelve j o None."""
+    """Elige la etapa a predecir (la 'k' de build_pairs.py).
+
+    - Si existe una etapa tras PREDICCION (típicamente EVIDENCIA), usarla: es
+      la etapa inferencialmente más informativa (intención del PR).
+    - Si no (el corpus real suele ser OBS/EVID/CONC sin la cadena PRED:
+      ~305K docs, ~0 con PREDICCION+sucesor), caer a k=2 (3ª etapa), igual que
+      build_pairs.py (`k = rng.randrange(2, len(seq))`).  [fix 2026-09-08:
+      la v1 del PR exigia PREDICCION y producia 0 candidatos en el corpus]
+    """
     pi = next((i for i, s in enumerate(stages) if s == "prediccion"), None)
-    if pi is None or pi + 1 >= len(stages):
-        return None
-    return pi + 1
+    if pi is not None and pi + 1 < len(stages):
+        return pi + 1
+    if len(stages) >= 3:
+        return 2
+    return None
 
 
 def _mutate_payload(text, rng):
@@ -297,7 +306,10 @@ def main():
     if not a.inp or not a.tokenizer:
         ap.error("se requiere --in y --tokenizer (o --diagnose/--selftest)")
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(a.tokenizer)
+    # el snapshot LLaDA tiene config custom -> trust_remote_code (igual que
+    # build_pairs.py/pre_tokenize.py; sin el flag AutoTokenizer devuelve un
+    # model vacio y construye 0 pares en silencio)  [fix 2026-09-08]
+    tok = AutoTokenizer.from_pretrained(a.tokenizer, trust_remote_code=True)
     encode = lambda s: tok.encode(s, add_special_tokens=False)
     docs = list(_iter_docs(a.inp, a.limit_docs))
     print(f"docs cargados: {len(docs)}")
