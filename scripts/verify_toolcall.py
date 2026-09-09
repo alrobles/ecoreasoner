@@ -258,14 +258,24 @@ def main():
                 d = json.loads(line)
             except Exception:
                 continue
+            # formato A: trazas con trajectory[].tool_calls[] (formato OpenAI)
+            # formato B (gold limpio, 2026-09-09): {"prompt": ..., "gold": [{"tool", "args"}]}
+            golds = []
             for m in d.get("trajectory", []):
                 for tc in (m.get("tool_calls") or []):
-                    total += 1
-                    res = verify(json.dumps(tc, ensure_ascii=False))
-                    by_func[res.get("function") or "?unknown"] = by_func.get(res.get("function") or "?unknown", 0) + 1
-                    if res["ok"]:
-                        ok += 1
-                    n_repairs += len(res.get("repairs", []))
+                    golds.append(json.dumps(tc, ensure_ascii=False))
+            if not golds and d.get("gold"):
+                for g in d["gold"]:
+                    golds.append(json.dumps(
+                        {"tool": g["tool"], "arguments": g.get("args") or {}},
+                        ensure_ascii=False))
+            for gjson in golds:
+                total += 1
+                res = verify(gjson)
+                by_func[res.get("function") or "?unknown"] = by_func.get(res.get("function") or "?unknown", 0) + 1
+                if res["ok"]:
+                    ok += 1
+                n_repairs += len(res.get("repairs", []))
         print(f"tool-calls: {total} | válidas directas: {ok} ({ok/max(total,1):.1%}) | reparaciones totales: {n_repairs}")
         print(f"por función: {by_func}")
         return 0 if ok == total else 1
