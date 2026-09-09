@@ -27,7 +27,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent / "scripts"))
-from verify_toolcall import verify, SCHEMAS  # el verificator del HITO 1
+from verify_toolcall import verify, SCHEMAS, KNOWN_VALUES  # el verificator del HITO 1
+
+_KNOWN_REGIONS = KNOWN_VALUES["region"]
+_KNOWN_YEARS = KNOWN_VALUES["year"]
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:20006/v1/chat/completions")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -84,7 +87,10 @@ Formato de respuesta (solo JSON, sin markdown, sin explicación extra):
 Reglas:
 - Usa SOLO los nombres y parámetros exactos de la definición.
 - Los argumentos deben ser strings.
-- Si la tarea no es una llamada de herramienta clara, responde con "tool": null."""
+- Si la tarea no es una llamada de herramienta clara, responde con "tool": null.
+- Regiones geográficas VÁLIDAS (usa SIEMPRE el valor más cercano del prompt entre estas, en minúsculas):
+  {", ".join(_KNOWN_REGIONS)}
+- Años VÁLIDOS para el argumento year: {", ".join(_KNOWN_YEARS)} (usa el año EXACTO del prompt; no lo cambies)."""
 
 def llm_call(prompt, model, backend):
     """Una llamada al LLM. Devuelve (texto_completo, error)."""

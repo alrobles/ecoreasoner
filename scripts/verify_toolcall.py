@@ -52,15 +52,21 @@ ARG_TYPES = {k: str for f, meta in SCHEMAS.items() for k in meta["required"] + m
 KNOWN_VALUES = {
     "region": [
         "peninsula de yucatan", "yucatan", "neotropico", "mexico", "brazil",
-        "colombia", "amazon", "andina", "caribbean", "madagascar",
-        "patagonia", "ibera", "sonora", "chihuahuan desert", "mesoamerica",
-        "españa", "europa", "norte de africa", "sahara", "africa subsahariana",
+        "colombia", "amazon", "amazonia", "andina", "andes", "caribbean",
+        "caribe", "madagascar", "patagonia", "ibera", "sonora", "chihuahuan desert",
+        "chihuahuan", "mesoamerica", "españa", "europa", "norte de africa",
+        "sahara", "sahel", "africa subsahariana", "sub-saharan africa",
+        "africa occidental", "west africa", "africa oriental", "east africa",
         "norteamerica", "america del norte", "centroamerica", "suramerica",
-        "sudamerica", "artico", "antartida", "india", "sudeste asiatico",
-        "asia oriental", "himalaya", "oceanía", "australia",
-        "mediterraneo", "mediterraneo occidental", "alpes", "balcanes",
-        "bosque tropical", "bosque boreal", "sabana", "desierto de gobi",
-        "gran barrera de coral", "polinesia", "canarias", "galapagos",
+        "sudamerica", "south america", "artico", "arctic", "antartida",
+        "india", "sudeste asiatico", "southeast asia", "asia oriental",
+        "east asia", "himalaya", "himalayan", "oceanía", "oceania",
+        "australia", "mediterraneo", "mediterranean", "mediterraneo occidental",
+        "alpes", "alps", "balcanes", "bosque tropical", "tropical forest",
+        "bosque boreal", "boreal", "sabana", "desierto de gobi", "gobi",
+        "gran barrera de coral", "great barrier reef", "polinesia",
+        "canarias", "galapagos", "paleartico", "palearctic", "tundra",
+        "pampas",
     ],
     "species": [
         "panthera onca", "jaguar", "lycaon pictus", "african wild dog",
@@ -72,7 +78,7 @@ KNOWN_VALUES = {
         "zea mays", "danaus plexippus", "aedes aegypti", "oncorhynchus mykiss",
         "centrocercus urophasianus", "panthera leo", "equus ferus",
     ],
-    "year": ["2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023"],
+    "year": ["2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026"],
     "layers": ["bioclim_19", "bioclim", "current", "future", "yucatan_bioclim"],
 }
 FUNCS = set(SCHEMAS)
