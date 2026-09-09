@@ -66,7 +66,7 @@ def parse():
     p.add_argument("--stage_labels", default="[OBSERVACION],[HIPOTESIS],[PREDICCION],[EVIDENCIA],[CONCLUSION]",
                    help="etiquetas de etapa para --whole_stage")
     p.add_argument("--batch_size", type=int, default=1)
-    p.add_argument("--data", nargs="+", required=True)
+    p.add_argument("--data", nargs="*", default=[])
     p.add_argument("--data_cache", default=None,
                    help="Path a un .npy de IDs pre-tokenizados (evita re-tokenizar el corpus en cada slurm). "
                         "Si se da, build_batches carga los IDs de disco en vez de tokenizar.")
@@ -327,7 +327,16 @@ def build_batches():
                 log(f"GUARDIA: {nbad} tokens >= vocab({VB}) -> clamp a 0")
                 arr = np.where(arr >= VB, 0, arr)
             all_ids = arr.astype(np.int64)
+            if eos_id >= VB:
+                log(f"GUARDIA: eos_id({eos_id}) >= vocab({VB}) -> reemplazar por 0")
+                eos_id = 0
             batches = _pack_with_eos(all_ids, lengths, eos_id, ARGS.batch_size, ARGS.seq_len)
+            # re-clamp tras packing por si el npz contenía tokens fuera de rango
+            for b in batches:
+                if int(b.max()) >= VB:
+                    nbad = int((b >= VB).sum())
+                    log(f"GUARDIA post-pack: {nbad} tokens >= vocab({VB}) -> clamp a 0")
+                    b[:] = torch.where(b >= VB, torch.tensor(0, dtype=b.dtype, device=b.device), b)
             log(f"cache npz: {arr.size/1e9:.2f}B tokens, {len(lengths)} docs, "
                 f"{len(batches)} batches ({time.time()-t0:.1f}s)")
             return tok, batches
@@ -807,8 +816,11 @@ def main():
                                       span_len=ARGS.span_len, device=xb.device)
             mp_parts.append(mp_b + b_idx * T)
         mp = torch.cat(mp_parts)
+        assert int(mp.max()) < B * T, f"mask indices out of bounds: max={int(mp.max())} >= {B*T}"
+        assert int(xb.max()) < ARGS.vocab, f"token id out of vocab: max={int(xb.max())} >= {ARGS.vocab}"
         xm = xb.clone()
         xm.view(-1)[mp] = ARGS.vocab
+        assert int(xm.max()) <= ARGS.vocab, f"masked input out of embedding range: max={int(xm.max())}"
         out = glob_model(xm)
         loss = F.cross_entropy(out.reshape(B * T, -1)[mp],
                                xb.reshape(-1)[mp])

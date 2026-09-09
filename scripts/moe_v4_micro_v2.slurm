@@ -48,7 +48,8 @@ TAG="${TAG:?TAG requerido}"
 DATA_CACHE="${DATA_CACHE:?DATA_CACHE requerido}"
 CONFIG="${CONFIG:?CONFIG requerido}"
 TARGET_STEPS="${TARGET_STEPS:-10000}"
-PAIRS="${PAIRS:-$RUNS/pairs.jsonl}"
+PAIRS_DIR="${PAIRS_DIR:-$RUNS/pairs_hard_v2}"
+PAIRS="${PAIRS:-$PAIRS_DIR/pairs_L0.jsonl}"
 MASK_TYPE="${MASK_TYPE:-span}"
 MASK_SCHEDULE="${MASK_SCHEDULE:-uniform}"
 if [ -z "${MASK_SCHEDULE_ARGS:-}" ]; then
@@ -87,7 +88,7 @@ finalize() {
     fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "resubmiting ola ($TAG) target=$TARGET_STEPS..."
-        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;AUTO_RESUBMIT=1" \
+        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS_DIR=$PAIRS_DIR;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;AUTO_RESUBMIT=1" \
             "$BASE/scripts/moe_v4_micro_v2.slurm"
         echo "ola siguiente enviada."
     else
@@ -142,25 +143,29 @@ case "$TRAIN_X" in
         echo "fail $TRAIN_X"; exit "$TRAIN_X"; fi;;
 esac
 
-# ---- eval: checkpoint mas reciente + suite_smoke_v2 + report ----
+# ---- eval: checkpoint mas reciente + suite_smoke_v2 L0-L3 + verdict ----
 CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -V | tail -1 || true)
 if [ -z "$CKPT_DIR" ]; then
     echo "[eval] sin checkpoints en $OUT"; exit 1
 fi
 CKPT="$CKPT_DIR/model.pt"
-echo "=== eval $CKPT con $PAIRS ==="
+echo "=== eval $CKPT con bateria $PAIRS_DIR ==="
 ROPE_FLAG=$(flag "$USE_ROPE" --use-rope)
 TIE_FLAG=$(flag "$WEIGHT_TYING" --weight-tying)
 
 apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" \
     "$BASE/harness/suite_smoke_v2.py" \
-    --ckpt "$CKPT" --config "$CONFIG" --pairs "$PAIRS" \
-    --out "$OUT/report.suite.json" --device cuda \
+    --ckpt "$CKPT" --config "$CONFIG" --pairs-dir "$PAIRS_DIR" \
+    --out-dir "$OUT/battery" --device cuda \
     $ROPE_FLAG $TIE_FLAG || echo "[eval] suite FAILED"
 
 apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" \
+    "$BASE/scripts/verdict.py" --battery "$OUT/battery" \
+    --out "$OUT/battery_verdict.json" || echo "[eval] verdict FAILED"
+
+apptainer exec --nv --overlay "$OVL":ro "$SIF" "$VENV/bin/python" \
     "$BASE/harness/report.py" \
-    --config "$CONFIG" --suite "$OUT/report.suite.json" \
+    --config "$CONFIG" --suite "$OUT/battery/battery.json" \
     --out "$OUT/report.json" --job-id "$SLURM_JOB_ID" \
     --index "$BASE/runs/index.jsonl" || echo "[eval] report FAILED"
 echo "=== micro-run v2 $TAG DONE $(date -u) ==="
