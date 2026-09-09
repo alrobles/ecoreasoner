@@ -44,5 +44,3 @@ third_party/
 # artefactos crudos regenerables de mineria (12MB+)
 docs/results/entities_fulltext_corpus.json
 docs/results/entities_eco_v7.json
-species_ecofulltext_tagged.json
-docs/results/entities_fulltext_corpus.json

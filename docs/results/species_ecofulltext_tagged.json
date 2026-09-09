@@ -1,0 +1,252 @@
+{
+ "docs": 97012,
+ "candidatos": 200000,
+ "validados": 600,
+ "especies_reales": 29,
+ "min_freq": 3,
+ "min_confidence": 85,
+ "species": [
+  {
+   "query": "arabidopsis thaliana",
+   "canonical": "Arabidopsis thaliana",
+   "usageKey": 3052436,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 1767
+  },
+  {
+   "query": "saccharomyces cerevisiae",
+   "canonical": "Saccharomyces cerevisiae",
+   "usageKey": 7440012,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 1755
+  },
+  {
+   "query": "staphylococcus aureus",
+   "canonical": "Staphylococcus aureus",
+   "usageKey": 3227657,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 1323
+  },
+  {
+   "query": "pseudomonas aeruginosa",
+   "canonical": "Pseudomonas aeruginosa",
+   "usageKey": 10894522,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 1253
+  },
+  {
+   "query": "caenorhabditis elegans",
+   "canonical": "Caenorhabditis elegans",
+   "usageKey": 2283683,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 1184
+  },
+  {
+   "query": "mus musculus",
+   "canonical": "Mus musculus",
+   "usageKey": 7429082,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 1008
+  },
+  {
+   "query": "bacillus subtilis",
+   "canonical": "Bacillus subtilis",
+   "usageKey": 10826006,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 873
+  },
+  {
+   "query": "oryza sativa",
+   "canonical": "Oryza sativa",
+   "usageKey": 2703459,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 867
+  },
+  {
+   "query": "plasmodium falciparum",
+   "canonical": "Plasmodium falciparum",
+   "usageKey": 10540993,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 816
+  },
+  {
+   "query": "anopheles gambiae",
+   "canonical": "Anopheles gambiae",
+   "usageKey": 1650518,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 814
+  },
+  {
+   "query": "zea mays",
+   "canonical": "Zea mays",
+   "usageKey": 5290052,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 808
+  },
+  {
+   "query": "danio rerio",
+   "canonical": "Danio rerio",
+   "usageKey": 9797255,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 787
+  },
+  {
+   "query": "mycobacterium tuberculosis",
+   "canonical": "Mycobacterium tuberculosis",
+   "usageKey": 3225140,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 729
+  },
+  {
+   "query": "candida albicans",
+   "canonical": "Candida albicans",
+   "usageKey": 2599597,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 717
+  },
+  {
+   "query": "salmonella enterica",
+   "canonical": "Salmonella enterica",
+   "usageKey": 9701185,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 684
+  },
+  {
+   "query": "canis lupus",
+   "canonical": "Canis lupus",
+   "usageKey": 5219173,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 659
+  },
+  {
+   "query": "apis mellifera",
+   "canonical": "Apis mellifera",
+   "usageKey": 1341976,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 656
+  },
+  {
+   "query": "gallus gallus",
+   "canonical": "Gallus gallus",
+   "usageKey": 9326020,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 571
+  },
+  {
+   "query": "sus scrofa",
+   "canonical": "Sus scrofa",
+   "usageKey": 7705930,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 560
+  },
+  {
+   "query": "helicobacter pylori",
+   "canonical": "Helicobacter pylori",
+   "usageKey": 11637103,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 527
+  },
+  {
+   "query": "bos taurus",
+   "canonical": "Bos taurus",
+   "usageKey": 2441022,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 505
+  },
+  {
+   "query": "agrobacterium tumefaciens",
+   "canonical": "Agrobacterium tumefaciens",
+   "usageKey": 11339291,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 294
+  },
+  {
+   "query": "odocoileus virginianus",
+   "canonical": "Odocoileus virginianus",
+   "usageKey": 2440965,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 290
+  },
+  {
+   "query": "ursus arctos",
+   "canonical": "Ursus arctos",
+   "usageKey": 2433433,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 289
+  },
+  {
+   "query": "bombyx mori",
+   "canonical": "Bombyx mori",
+   "usageKey": 1868664,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 286
+  },
+  {
+   "query": "ovis aries",
+   "canonical": "Ovis aries",
+   "usageKey": 2441110,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 284
+  },
+  {
+   "query": "sorghum bicolor",
+   "canonical": "Sorghum bicolor",
+   "usageKey": 2705181,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 284
+  },
+  {
+   "query": "bacillus thuringiensis",
+   "canonical": "Bacillus thuringiensis",
+   "usageKey": 5428045,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 280
+  },
+  {
+   "query": "aspergillus fumigatus",
+   "canonical": "Aspergillus fumigatus",
+   "usageKey": 5260010,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 279
+  }
+ ],
+ "errors": 291,
+ "drop_no_ecologico": [
+  "aedes aegypti",
+  "drosophila melanogaster",
+  "escherichia coli",
+  "homo sapiens",
+  "neisseria gonorrhoeae",
+  "poecilia reticulata",
+  "zika virus"
+ ]
+}
