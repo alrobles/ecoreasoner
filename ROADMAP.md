@@ -148,8 +148,12 @@ a batch gigante).. **Ganador: span-esqueleto.**
   controller/verificator** (deepseek/glm genera tool-calls + dLLM como conocimiento/
   repair — opción D del A/B). El dLLM propio queda como posible línea de fluidez 155M
   SOLO con gate de falsación reformulado (word/rep4/uniq son engañables).
-- **Para retomar**: definir el diseño del controller/verificator (requiere decisión
-  del usuario) — ver `docs/results/F2-SPANES-RESULTADO.md` y la ruta de prosa Devin.
+- **Para retomar**: diseño controller/verificator (opcion D) EN CURSO — `verify_toolcall.py`
+  (verificador M1-M5, schemas empiricos 533 tool-calls reales, 100% validacion) +
+  `ecobench/run_controller_verificator.py` (controller deepseek local + verificator + retry).
+  Teacher v4flash REACTIVADO como serve slurm + tunel :20006 (keepalive `2d884420a767` reanudado).
+  Prueba del bucle sobre sab-46/sab-87 en curso (first-call en frio, lento).
+  Docs: docs/results/F2-SPANES-RESULTADO.md (anexo), commits a9d85fe/5b796f3.
 - **Legado técnico (validado en prod, commits bf25fec/03a2cde)**: anti-reentrada
   SIGUSR1 (flag SAVING, test EAGAIN), sort -V ckpt, --index absoluto, strict=True en
   suite_smoke, tmp PID en eval_curve, warmup REAL (era arg muerto), verdict_f2.py
