@@ -17,6 +17,21 @@ from tag_species_gbif import gbif_match
 
 RATE = 1.1  # 1 req/s (GBIF)
 
+def gbif_match_retry(name, attempts=4, base_delay=6.0):
+    """gbif_match con reintentos ante fallos transitorios (timeout/429).
+
+    GBIF hace throttling puntual; en el run sobre 600 candidatas murieron 291
+    por timeouts aislados. Con backoff exponencial (6s, 12s, 24s) se recuperan.
+    """
+    err = None
+    for i in range(attempts):
+        m = gbif_match(name)
+        if m is not None:
+            return m
+        err = f"intento {i+1} fallido"
+        time.sleep(base_delay * (2 ** i))
+    return None
+
 # palabras que abren frases no-taxonómicas del PMC (empírico del corpus + inglés común)
 STOP_WORDS = set("""
 for this however article additional electronic center taken first last statistical
@@ -77,7 +92,7 @@ def main():
 
     ok_species, not_species, errors = [], [], 0
     for i, (name, n) in enumerate(ranked):
-        m = gbif_match(name)
+        m = gbif_match_retry(name)
         if m is None:
             errors += 1
             continue
