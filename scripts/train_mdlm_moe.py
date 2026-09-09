@@ -9,7 +9,7 @@ corpus, using the EcoReasoner wave pattern:
   - write progress.json / state.json for the swarm watchdog
 Run via apptainer SIF (ROCm), 1-2 GPUs. Single-GPU friendly for PoC.
 """
-import argparse, json, os, signal, sys, time, shutil, contextlib
+import argparse, json, math, os, signal, sys, time, shutil, contextlib
 from pathlib import Path
 
 import torch
@@ -39,6 +39,18 @@ def parse():
                         "local; spans fuerzan coherencia estructural).")
     p.add_argument("--span_len", type=int, default=64,
                    help="longitud (tokens) de cada span contiguo con --mask_type=span")
+    p.add_argument("--mask_schedule", default="fixed",
+                   choices=["fixed", "uniform", "cosine"],
+                   help="schedule de corrupcion: fixed (legacy mask_p), "
+                        "uniform (t~U(b_l,b_h) fraccion de tokens enmascarados), "
+                        "cosine (distribucion sesgada a mas masking)")
+    p.add_argument("--mask_schedule_args", default="",
+                   help="JSON con args, p.ej. '{\"b_l\":0.1,\"b_h\":0.9}'")
+    p.add_argument("--whole_stage", action="store_true",
+                   help="en datos de esqueleto, enmascarar ETAPAS enteras "
+                        "(en vez de spans random)")
+    p.add_argument("--stage_labels", default="[OBSERVACION],[HIPOTESIS],[PREDICCION],[EVIDENCIA],[CONCLUSION]",
+                   help="etiquetas de etapa para --whole_stage")
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="+", required=True)
     p.add_argument("--data_cache", default=None,
@@ -48,6 +60,14 @@ def parse():
     p.add_argument("--output", required=True)
     return p.parse_args()
 ARGS = parse()
+if ARGS.mask_schedule_args:
+    ARGS.mask_schedule_args = json.loads(ARGS.mask_schedule_args)
+else:
+    ARGS.mask_schedule_args = {}
+if ARGS.stage_labels:
+    ARGS.stage_labels = [x.strip() for x in ARGS.stage_labels.split(",") if x.strip()]
+else:
+    ARGS.stage_labels = []
 
 OUT = Path(ARGS.output); OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "train.log"
@@ -273,6 +293,116 @@ def build_span_mask(T, n_target, span_len, device="cpu"):
     return masked.nonzero(as_tuple=False).squeeze(-1)
 
 
+def sample_mask_fraction(schedule, step, device="cpu"):
+    """Samplea la fraccion de tokens a enmascarar en un paso de entrenamiento.
+
+    - fixed: usa la semantica legacy mask_p (15% de la mitad = ~7.5% total).
+    - uniform: t ~ U(b_l, b_h) fraccion TOTAL de tokens.
+    - cosine: t = 1 - cos(pi/2 * u) con u~U(0,1), sesgado a mas masking.
+    """
+    if schedule == "fixed":
+        return ARGS.mask_p * 0.5
+    if schedule == "uniform":
+        b_l = float(ARGS.mask_schedule_args.get("b_l", 0.0))
+        b_h = float(ARGS.mask_schedule_args.get("b_h", 1.0))
+        return b_l + (b_h - b_l) * torch.rand(1, device=device).item()
+    if schedule == "cosine":
+        u = torch.rand(1, device=device).item()
+        return 1.0 - math.cos(u * math.pi / 2)
+    return ARGS.mask_p * 0.5
+
+
+def _find_stage_boundaries(seq, stage_label_ids):
+    """Devuelve listas de (start, end) de contenido de cada etapa.
+
+    seq: tensor 1D de token ids.
+    stage_label_ids: lista de listas de ids, p.ej. [[id('[','OBS',']'), ...]].
+    """
+    T = seq.size(0)
+    starts = []
+    for i in range(T):
+        for label_ids in stage_label_ids:
+            L = len(label_ids)
+            if i + L <= T:
+                if (seq[i:i+L] == torch.tensor(label_ids, device=seq.device, dtype=seq.dtype)).all():
+                    starts.append((i, i + L))
+                    break
+    if not starts:
+        return []
+    starts.sort()
+    boundaries = []
+    for idx, (s, e) in enumerate(starts):
+        content_start = e
+        content_end = starts[idx + 1][0] if idx + 1 < len(starts) else T
+        if content_start < content_end:
+            boundaries.append((content_start, content_end))
+    return boundaries
+
+
+def build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type="span", span_len=64, device="cpu"):
+    """Enmascara ETAPAS COMPLETAS de esqueletos (Fase B.2).
+
+    xb: [batch, T] token ids.
+    stage_label_ids: lista de listas de token ids de cada etiqueta.
+    Devuelve indices 1D planos o lista de indices por ejemplo.
+    Para optimizar, cada ejemplo del batch se procesa por separado y luego
+    concatenamos con offset T.
+    """
+    B, T = xb.shape
+    all_indices = []
+    for b in range(B):
+        seq = xb[b]
+        boundaries = _find_stage_boundaries(seq, stage_label_ids)
+        if not boundaries:
+            # sin etiquetas: fallback a span en todo el ejemplo
+            mp = build_span_mask(T, n_target, span_len, device=device)
+            all_indices.append(mp + b * T)
+            continue
+        # cuantos tokens podemos enmascarar
+        lens = torch.tensor([e - s for s, e in boundaries], device=device, dtype=torch.float32)
+        total = int(lens.sum().item())
+        target = min(n_target, total)
+        # samplear etapas proporcional a su longitud (o uniforme) hasta target
+        if lens.sum().item() <= 0:
+            continue
+        probs = lens / lens.sum()
+        chosen = set()
+        covered = 0
+        while covered < target and len(chosen) < len(boundaries):
+            # elegir etapa proporcional a longitud restante
+            idx = int(torch.multinomial(probs, 1).item())
+            if idx in chosen:
+                # fallback: primer etapa no elegida
+                for k in range(len(boundaries)):
+                    if k not in chosen:
+                        idx = k
+                        break
+            if idx in chosen:
+                break
+            chosen.add(idx)
+            s, e = boundaries[idx]
+            all_indices.append(torch.arange(s, e, device=device) + b * T)
+            covered += (e - s)
+    if not all_indices:
+        # ultimo recurso: random sobre todo
+        return torch.randperm(B * T, device=device)[:n_target]
+    return torch.cat(all_indices)
+
+
+def build_mask_indices(xb, n_target, mask_type, whole_stage=False, stage_label_ids=None, span_len=64, device="cpu"):
+    """Entry-point: devuelve indices planos [0, B*T) a enmascarar por batch."""
+    if whole_stage and stage_label_ids:
+        return build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type=mask_type, span_len=span_len, device=device)
+    B, T = xb.shape
+    if mask_type == "random":
+        # cada ejemplo con sus propias posiciones
+        parts = [torch.randperm(T, device=device)[:n_target] + b * T for b in range(B)]
+        return torch.cat(parts)
+    # span por ejemplo
+    parts = [build_span_mask(T, n_target, span_len, device=device) + b * T for b in range(B)]
+    return torch.cat(parts)
+
+
 def _save_checkpoint(tag):
     # LOCK de guardado (2026-09-01): serializa los saves entre ranks aunque el
     # filtro rank==0 fallara; evita que la limpieza de retencion-2 borre un dir
@@ -431,6 +561,11 @@ def main():
         DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     tok, batches_all = build_batches()
+    # pre-computar token ids de etiquetas de esqueleto para whole_stage
+    STAGE_LABEL_IDS = None
+    if ARGS.whole_stage and tok:
+        STAGE_LABEL_IDS = [tok.encode(lbl, add_special_tokens=False) for lbl in ARGS.stage_labels]
+        log(f"whole_stage: labels={ARGS.stage_labels} ids={STAGE_LABEL_IDS}")
     # distribute batches across ranks (each rank trains on a distinct slice)
     if ddp:
         nb = len(batches_all)
@@ -483,18 +618,28 @@ def main():
             glob_model, device_ids=[dev_idx], find_unused_parameters=False)
     glob_model.zero_grad(set_to_none=True)
     MASK = ARGS.vocab
-    n_masked = max(1, int((ARGS.seq_len//2) * ARGS.mask_p))
     nb = len(batches); it = 0
+    log(f"masking: schedule={ARGS.mask_schedule} type={ARGS.mask_type} "
+        f"whole_stage={ARGS.whole_stage} span_len={ARGS.span_len}")
     for step in range(STEPS_DONE[0], ARGS.max_steps):
         xb = batches[it % nb].to(DEVICE); it += 1
-        xm = xb.clone(); head = xb.size(1)//2
-        mp = torch.randperm(xb.size(1))[:n_masked] if ARGS.mask_type == "random" else \
-              build_span_mask(xb.size(1), n_masked, ARGS.span_len, device=xb.device)
-        # mask in second half (like diffusion delete region) — simplest: mask per half
-        xm[:, mp] = ARGS.vocab
+        B, T = xb.shape
+        # samplear fraccion de corrupcion
+        frac = sample_mask_fraction(ARGS.mask_schedule, step, device=xb.device)
+        if ARGS.mask_schedule == "fixed":
+            n_masked = max(1, int((T // 2) * ARGS.mask_p))
+        else:
+            n_masked = max(1, int(T * frac))
+        mp = build_mask_indices(xb, n_masked, ARGS.mask_type,
+                                whole_stage=ARGS.whole_stage,
+                                stage_label_ids=STAGE_LABEL_IDS,
+                                span_len=ARGS.span_len, device=xb.device)
+        xm = xb.clone()
+        xm.view(-1)[mp] = ARGS.vocab
         out = glob_model(xm)
-        loss = F.cross_entropy(out[:, mp].reshape(-1, ARGS.vocab),
-                               xb[:, mp].reshape(-1))
+        # indices planos para soportar masking por ejemplo distinto
+        loss = F.cross_entropy(out.reshape(B * T, -1)[mp],
+                               xb.reshape(-1)[mp])
         # aux loss de balance (Switch): toca TODOS los expertos cada iteración
         # -> evita params 'unused' en DDP (deadlock). Solo si n_experts>1.
         raw = glob_model.module if ddp else glob_model

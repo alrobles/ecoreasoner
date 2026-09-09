@@ -1,0 +1,45 @@
+# Config declarativa para micro-run prosa v8 155M (Fase B.1)
+# Modelo: mismo dense 155M que f2, pero entrenado sobre prosa cientifica.
+
+model:
+  name: "prosa-v8-155M"
+  hidden: 512
+  layers: 8
+  heads: 8
+  ff_mult: 4
+  n_experts: 1
+  expert_k: 1
+  max_len: 768
+  vocab: 126080
+
+data:
+  train_ids: /beegfs/a474r867/ecoreasoner/data/prosa_v8/train_ids_v8.npy
+  tokenizer: /beegfs/a474r867/ecoreasoner/tokenizer/LLaDA
+  val_split: 0.001
+
+training:
+  batch_size: 8
+  grad_accum: 2
+  lr: 2.0e-4
+  warmup: 1000
+  max_steps: 10000
+  target_steps: 10000
+  weight_decay: 0.01
+  seed: 7331
+
+masking:
+  # Receta MDLM: t~U(0,1) por ejemplo (no fijo)
+  mask_type: "span"       # o "random"; controla como se colocan las mascaras
+  mask_schedule: "uniform"  # t~U(0,1) fraccion de tokens enmascarados
+  mask_schedule_args: "{\"b_l\":0.0,\"b_h\":1.0}"
+  span_len: 64
+
+output:
+  tag: "prosa-v8-155M"
+  base: /beegfs/a474r867/ecoreasoner/runs
+
+eval:
+  pairs: /beegfs/a474r867/ecoreasoner/runs/pairs_hard/pairs_L0.jsonl
+  config: /beegfs/a474r867/ecoreasoner/harness/configs/f0-span-esqueleto.yaml
+  every: 1000
+  min_step: 1000
