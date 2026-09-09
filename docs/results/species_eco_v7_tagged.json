@@ -1,0 +1,692 @@
+{
+ "docs": 400000,
+ "candidatos": 200000,
+ "validados": 600,
+ "especies_reales": 84,
+ "min_freq": 3,
+ "min_confidence": 85,
+ "species": [
+  {
+   "query": "staphylococcus aureus",
+   "canonical": "Staphylococcus aureus",
+   "usageKey": 3227657,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 5122
+  },
+  {
+   "query": "pseudomonas aeruginosa",
+   "canonical": "Pseudomonas aeruginosa",
+   "usageKey": 10894522,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 3369
+  },
+  {
+   "query": "arabidopsis thaliana",
+   "canonical": "Arabidopsis thaliana",
+   "usageKey": 3052436,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 2269
+  },
+  {
+   "query": "saccharomyces cerevisiae",
+   "canonical": "Saccharomyces cerevisiae",
+   "usageKey": 7440012,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 2239
+  },
+  {
+   "query": "mycobacterium tuberculosis",
+   "canonical": "Mycobacterium tuberculosis",
+   "usageKey": 3225140,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 2024
+  },
+  {
+   "query": "klebsiella pneumoniae",
+   "canonical": "Klebsiella pneumoniae",
+   "usageKey": 3221874,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 1760
+  },
+  {
+   "query": "candida albicans",
+   "canonical": "Candida albicans",
+   "usageKey": 2599597,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 1521
+  },
+  {
+   "query": "bacillus subtilis",
+   "canonical": "Bacillus subtilis",
+   "usageKey": 10826006,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 1351
+  },
+  {
+   "query": "caenorhabditis elegans",
+   "canonical": "Caenorhabditis elegans",
+   "usageKey": 2283683,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 1244
+  },
+  {
+   "query": "acinetobacter baumannii",
+   "canonical": "Acinetobacter baumannii",
+   "usageKey": 3223274,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 1050
+  },
+  {
+   "query": "streptococcus pneumoniae",
+   "canonical": "Streptococcus pneumoniae",
+   "usageKey": 10967718,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 1034
+  },
+  {
+   "query": "oryza sativa",
+   "canonical": "Oryza sativa",
+   "usageKey": 2703459,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 1021
+  },
+  {
+   "query": "salmonella enterica",
+   "canonical": "Salmonella enterica",
+   "usageKey": 9701185,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 976
+  },
+  {
+   "query": "helicobacter pylori",
+   "canonical": "Helicobacter pylori",
+   "usageKey": 11637103,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 900
+  },
+  {
+   "query": "enterococcus faecalis",
+   "canonical": "Enterococcus faecalis",
+   "usageKey": 3227408,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 882
+  },
+  {
+   "query": "listeria monocytogenes",
+   "canonical": "Listeria monocytogenes",
+   "usageKey": 10979426,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 867
+  },
+  {
+   "query": "zea mays",
+   "canonical": "Zea mays",
+   "usageKey": 5290052,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 819
+  },
+  {
+   "query": "plasmodium falciparum",
+   "canonical": "Plasmodium falciparum",
+   "usageKey": 10540993,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 809
+  },
+  {
+   "query": "danio rerio",
+   "canonical": "Danio rerio",
+   "usageKey": 9797255,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 594
+  },
+  {
+   "query": "apis mellifera",
+   "canonical": "Apis mellifera",
+   "usageKey": 1341976,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 592
+  },
+  {
+   "query": "triticum aestivum",
+   "canonical": "Triticum aestivum",
+   "usageKey": 7795888,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 584
+  },
+  {
+   "query": "staphylococcus epidermidis",
+   "canonical": "Staphylococcus epidermidis",
+   "usageKey": 3227655,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 556
+  },
+  {
+   "query": "enterococcus faecium",
+   "canonical": "Enterococcus faecium",
+   "usageKey": 3227413,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 556
+  },
+  {
+   "query": "vibrio cholerae",
+   "canonical": "Vibrio cholerae",
+   "usageKey": 3222442,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 551
+  },
+  {
+   "query": "toxoplasma gondii",
+   "canonical": "Toxoplasma gondii",
+   "usageKey": 8014281,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 546
+  },
+  {
+   "query": "haemophilus influenzae",
+   "canonical": "Haemophilus influenzae",
+   "usageKey": 11245832,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 531
+  },
+  {
+   "query": "solanum lycopersicum",
+   "canonical": "Solanum lycopersicum",
+   "usageKey": 2930137,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 517
+  },
+  {
+   "query": "streptococcus mutans",
+   "canonical": "Streptococcus mutans",
+   "usageKey": 3227119,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 509
+  },
+  {
+   "query": "glycine max",
+   "canonical": "Glycine max",
+   "usageKey": 5359660,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 483
+  },
+  {
+   "query": "streptococcus pyogenes",
+   "canonical": "Streptococcus pyogenes",
+   "usageKey": 3227092,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 466
+  },
+  {
+   "query": "mus musculus",
+   "canonical": "Mus musculus",
+   "usageKey": 7429082,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 451
+  },
+  {
+   "query": "porphyromonas gingivalis",
+   "canonical": "Porphyromonas gingivalis",
+   "usageKey": 3228318,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 441
+  },
+  {
+   "query": "bacillus cereus",
+   "canonical": "Bacillus cereus",
+   "usageKey": 5428132,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 441
+  },
+  {
+   "query": "chlamydia trachomatis",
+   "canonical": "Chlamydia trachomatis",
+   "usageKey": 9098612,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 438
+  },
+  {
+   "query": "aedes albopictus",
+   "canonical": "Aedes albopictus",
+   "usageKey": 1651430,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 436
+  },
+  {
+   "query": "aspergillus fumigatus",
+   "canonical": "Aspergillus fumigatus",
+   "usageKey": 5260010,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 430
+  },
+  {
+   "query": "anopheles gambiae",
+   "canonical": "Anopheles gambiae",
+   "usageKey": 1650518,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 427
+  },
+  {
+   "query": "clostridium difficile",
+   "canonical": "Clostridium difficile",
+   "usageKey": 3226608,
+   "confidence": 98,
+   "status": "SYNONYM",
+   "mentions": 417
+  },
+  {
+   "query": "borrelia burgdorferi",
+   "canonical": "Borrelia burgdorferi",
+   "usageKey": 3228185,
+   "confidence": 98,
+   "status": "SYNONYM",
+   "mentions": 395
+  },
+  {
+   "query": "oncorhynchus mykiss",
+   "canonical": "Oncorhynchus mykiss",
+   "usageKey": 5204019,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 388
+  },
+  {
+   "query": "cryptococcus neoformans",
+   "canonical": "Cryptococcus neoformans",
+   "usageKey": 5237368,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 381
+  },
+  {
+   "query": "bacillus thuringiensis",
+   "canonical": "Bacillus thuringiensis",
+   "usageKey": 5428045,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 381
+  },
+  {
+   "query": "trypanosoma cruzi",
+   "canonical": "Trypanosoma cruzi",
+   "usageKey": 8205154,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 371
+  },
+  {
+   "query": "xenopus laevis",
+   "canonical": "Xenopus laevis",
+   "usageKey": 5217334,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 366
+  },
+  {
+   "query": "vitis vinifera",
+   "canonical": "Vitis vinifera",
+   "usageKey": 5372392,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 365
+  },
+  {
+   "query": "clostridioides difficile",
+   "canonical": "Clostridioides difficile",
+   "usageKey": 10971266,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 361
+  },
+  {
+   "query": "campylobacter jejuni",
+   "canonical": "Campylobacter jejuni",
+   "usageKey": 3223337,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 360
+  },
+  {
+   "query": "fusarium oxysporum",
+   "canonical": "Fusarium oxysporum",
+   "usageKey": 5251961,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 338
+  },
+  {
+   "query": "sus scrofa",
+   "canonical": "Sus scrofa",
+   "usageKey": 7705930,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 337
+  },
+  {
+   "query": "brassica napus",
+   "canonical": "Brassica napus",
+   "usageKey": 3042636,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 332
+  },
+  {
+   "query": "pseudomonas syringae",
+   "canonical": "Pseudomonas syringae",
+   "usageKey": 3223236,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 331
+  },
+  {
+   "query": "lactobacillus plantarum",
+   "canonical": "Lactobacillus plantarum",
+   "usageKey": 3227348,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 328
+  },
+  {
+   "query": "neisseria meningitidis",
+   "canonical": "Neisseria meningitidis",
+   "usageKey": 3220226,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 320
+  },
+  {
+   "query": "aspergillus niger",
+   "canonical": "Aspergillus niger",
+   "usageKey": 3465658,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 318
+  },
+  {
+   "query": "legionella pneumophila",
+   "canonical": "Legionella pneumophila",
+   "usageKey": 3223087,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 317
+  },
+  {
+   "query": "pseudomonas putida",
+   "canonical": "Pseudomonas putida",
+   "usageKey": 3223145,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 306
+  },
+  {
+   "query": "daphnia magna",
+   "canonical": "Daphnia magna",
+   "usageKey": 2234822,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 306
+  },
+  {
+   "query": "mycoplasma pneumoniae",
+   "canonical": "Mycoplasma pneumoniae",
+   "usageKey": 3225982,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 306
+  },
+  {
+   "query": "bombyx mori",
+   "canonical": "Bombyx mori",
+   "usageKey": 1868664,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 305
+  },
+  {
+   "query": "fusobacterium nucleatum",
+   "canonical": "Fusobacterium nucleatum",
+   "usageKey": 11218545,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 302
+  },
+  {
+   "query": "schizosaccharomyces pombe",
+   "canonical": "Schizosaccharomyces pombe",
+   "usageKey": 2586935,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 298
+  },
+  {
+   "query": "chlamydomonas reinhardtii",
+   "canonical": "Chlamydomonas reinhardtii",
+   "usageKey": 5271221,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 298
+  },
+  {
+   "query": "canis lupus",
+   "canonical": "Canis lupus",
+   "usageKey": 5219173,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 297
+  },
+  {
+   "query": "botrytis cinerea",
+   "canonical": "Botrytis cinerea",
+   "usageKey": 2583139,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 296
+  },
+  {
+   "query": "salmonella typhimurium",
+   "canonical": "Salmonella typhimurium",
+   "usageKey": 5427591,
+   "confidence": 98,
+   "status": "SYNONYM",
+   "mentions": 293
+  },
+  {
+   "query": "nicotiana tabacum",
+   "canonical": "Nicotiana tabacum",
+   "usageKey": 2928774,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 289
+  },
+  {
+   "query": "salmo salar",
+   "canonical": "Salmo salar",
+   "usageKey": 7595433,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 289
+  },
+  {
+   "query": "streptococcus agalactiae",
+   "canonical": "Streptococcus agalactiae",
+   "usageKey": 3227057,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 287
+  },
+  {
+   "query": "cyprinus carpio",
+   "canonical": "Cyprinus carpio",
+   "usageKey": 4286975,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 287
+  },
+  {
+   "query": "lactococcus lactis",
+   "canonical": "Lactococcus lactis",
+   "usageKey": 11016394,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 286
+  },
+  {
+   "query": "solanum tuberosum",
+   "canonical": "Solanum tuberosum",
+   "usageKey": 2930262,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 286
+  },
+  {
+   "query": "hordeum vulgare",
+   "canonical": "Hordeum vulgare",
+   "usageKey": 2706056,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 284
+  },
+  {
+   "query": "pseudomonas fluorescens",
+   "canonical": "Pseudomonas fluorescens",
+   "usageKey": 3223199,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 283
+  },
+  {
+   "query": "nicotiana benthamiana",
+   "canonical": "Nicotiana benthamiana",
+   "usageKey": 3800423,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 281
+  },
+  {
+   "query": "agrobacterium tumefaciens",
+   "canonical": "Agrobacterium tumefaciens",
+   "usageKey": 11339291,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 274
+  },
+  {
+   "query": "phaseolus vulgaris",
+   "canonical": "Phaseolus vulgaris",
+   "usageKey": 5350452,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 274
+  },
+  {
+   "query": "clostridium perfringens",
+   "canonical": "Clostridium perfringens",
+   "usageKey": 3226529,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 273
+  },
+  {
+   "query": "bos taurus",
+   "canonical": "Bos taurus",
+   "usageKey": 2441022,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 272
+  },
+  {
+   "query": "bacteroides fragilis",
+   "canonical": "Bacteroides fragilis",
+   "usageKey": 10887161,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 264
+  },
+  {
+   "query": "serratia marcescens",
+   "canonical": "Serratia marcescens",
+   "usageKey": 11108815,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 263
+  },
+  {
+   "query": "enterobacter cloacae",
+   "canonical": "Enterobacter cloacae",
+   "usageKey": 10926827,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 258
+  },
+  {
+   "query": "oreochromis niloticus",
+   "canonical": "Oreochromis niloticus",
+   "usageKey": 4285694,
+   "confidence": 97,
+   "status": "ACCEPTED",
+   "mentions": 254
+  },
+  {
+   "query": "pan troglodytes",
+   "canonical": "Pan troglodytes",
+   "usageKey": 5219534,
+   "confidence": 98,
+   "status": "ACCEPTED",
+   "mentions": 251
+  },
+  {
+   "query": "rattus norvegicus",
+   "canonical": "Rattus norvegicus",
+   "usageKey": 2439261,
+   "confidence": 99,
+   "status": "ACCEPTED",
+   "mentions": 248
+  }
+ ],
+ "errors": 0,
+ "drop_no_ecologico": [
+  "aedes aegypti",
+  "drosophila melanogaster",
+  "escherichia coli",
+  "homo sapiens",
+  "neisseria gonorrhoeae",
+  "poecilia reticulata",
+  "zika virus"
+ ]
+}
