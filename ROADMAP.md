@@ -154,6 +154,12 @@ a batch gigante).. **Ganador: span-esqueleto.**
   Reporte: docs/results/REPLICACION-300-10TOOLS-RESULTADO.md + replication_300.jsonl.
   PENDIENTE: resolvers reales de las 7 tools nuevas (iucn/try/filogenia quedan mock),
   estratificar gbif (84 vs maxent 12) si va a banco público. Aceptado como hito.
+- **REPLICACIÓN FASE 3 (500 tool-calls, 7 tools) — ACEPTADA**: match_func 500/500 (100%),
+  match_args 458/500 (92%). fallos=42: 26 year-mismatch (2010->2015), 13 region
+  (africa occidental->asia oriental), 3 species cercanas — errores de VOCABULARIO del
+  controller, no de diseño. Fix propuesto: regiones/años al SYSTEM_PROMPT.
+  Dataset: data/l1/toolcalls_fase3_500.jsonl (123 especies reales GBIF+Devin).
+  Reporte: docs/results/REPLICACION-500-FASE3-RESULTADO.md.
 - **FASE 3 EN CURSO (2026-09-09)**: minería de literatura (ecoseek-litdump + PMC/arXiv)
   -> extracción de entidades (especies/regiones/datasets) -> propuesta de tool-calls
   -> curación -> meta 500 pares. Diseño: docs/designs/toolcalls-expansion-2026-09-09.md.
