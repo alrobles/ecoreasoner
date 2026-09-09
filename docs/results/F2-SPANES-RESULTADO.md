@@ -39,6 +39,13 @@
    queda falsada. La pregunta de diseño queda: la discriminación de esqueletos a este
    tamaño (155M) no surge de más steps con el mismo objetivo.
 
+## Postmortem L0-L3 hard negatives (ver `F2-L0L3-BATTERY-RESULTADO.md`)
+
+La batería L0-L3 confirma la falsación: el modelo solo aprendió
+**coherencia temática / overlap léxico** (L0 0.5738**, L1 0.5607**) y
+falla tanto en orden de etapa (L2 0.465 ns) como en inferencia de
+contenido (L3 0.5089 ns). El pico 0.566 fue atajo + múltiples miradas.
+
 ## Decisión (ROADMAP pre-registrada)
 
 - **Archivar la línea f2 como falsada** con este documento.
