@@ -1,0 +1,45 @@
+# Config declarativa para micro-run esqueleto v2 155M (Fase B.2)
+# Objetivo: receta v2 sobre esqueletos con t~U(0,1) y whole_stage masking.
+
+model:
+  name: "skeleton-v2-155M"
+  hidden: 512
+  layers: 8
+  heads: 8
+  ff_mult: 4
+  n_experts: 1
+  expert_k: 1
+  max_len: 768
+  vocab: 126080
+
+data:
+  train_ids: /beegfs/a474r867/ecoreasoner/data/skeleton_v2/train_ids_skeleton_v2.npy
+  tokenizer: /beegfs/a474r867/ecoreasoner/tokenizer/LLaDA
+  val_split: 0.001
+
+training:
+  batch_size: 8
+  grad_accum: 2
+  lr: 2.0e-4
+  warmup: 1000
+  max_steps: 10000
+  target_steps: 10000
+  weight_decay: 0.01
+  seed: 7331
+
+masking:
+  mask_type: "schedule"
+  mask_schedule: "uniform"
+  span_len: 64
+  whole_stage: true
+  stage_labels: ["[OBSERVACION]", "[HIPOTESIS]", "[PREDICCION]", "[EVIDENCIA]", "[CONCLUSION]"]
+
+output:
+  tag: "skeleton-v2-155M"
+  base: /beegfs/a474r867/ecoreasoner/runs
+
+eval:
+  pairs: /beegfs/a474r867/ecoreasoner/runs/pairs_hard/pairs_L3.jsonl
+  config: /beegfs/a474r867/ecoreasoner/harness/configs/f0-span-esqueleto.yaml
+  every: 1000
+  min_step: 1000

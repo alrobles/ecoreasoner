@@ -1,0 +1,28 @@
+# Config para scripts/build_prosa_v8.py
+# Ajustar paths a beegfs antes de lanzar.
+
+sources:
+  - path: data/train_corpus_v7_clean.jsonl
+    weight: 0.50
+  - path: data/arxiv/fulltext/fulltext_corpus.jsonl
+    weight: 0.25
+  # ecoseek-litdump debe estar disponible en beegfs
+  # - path: /beegfs/a474r867/ecoseek-litdump/litdump.jsonl
+  #   weight: 0.25
+
+dedup:
+  keys: [pmid, pmcid, doi]
+  fuzzy_title_threshold: 0.95
+
+filter:
+  min_chars: 256
+  max_chars: 8192
+  mode: heuristic  # heuristic | perplexity
+
+packing:
+  eos_token: "<|endoftext|>"
+  max_seq: 768
+
+tokenizer: /beegfs/a474r867/ecoreasoner/tokenizer/LLaDA
+
+outdir: data/prosa_v8

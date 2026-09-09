@@ -13,6 +13,9 @@ Este plan fusiona dos líneas:
 
 ---
 
+> **Contraparte de software**: ver `docs/designs/arquitectura-prosa-dllm-2026-09-08.md`
+> para módulos, flujo de datos, stubs y orden de implementación.
+
 ## 0. Preparación: clonar los repos de referencia
 
 Ejecutar en el cluster **antes de empezar** (ya proveído en
