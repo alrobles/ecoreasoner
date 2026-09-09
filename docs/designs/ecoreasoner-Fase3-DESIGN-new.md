@@ -224,6 +224,99 @@ Los hitos se miden por decisión, no por calendario (no hay prisa).
 - Pool teórico ≠ pool real: asumir 2-5B tok/día y nodos compartidos/ocupados.
 - bw5_spanhi: es cierre de curva, no avance; no esperarlo para construir el harness.
 
+## 13. Piloto dLLM v2 post-F2 — control de riesgo antes de escalar (rediseño propuesto)
+
+> Fecha: 2026-09-09 · Estado: **plan pre-registrado, pendiente de aprobación**
+
+### 13.1 Diagnóstico que condiciona el rediseño
+
+- **F0** mostró dirección correcta: `span` sobre esqueletos vencía a `random` y a prosa (`0.5352`), pero **ningún run alcanzó 0.55**.
+- **F1** fue NO-GO por configuración de optimización: global batch demasiado grande y 1000 updates; la señal estructural se diluye.
+- **F2** (50K steps, receta micro ganadora a escala) fue **FALSIFY** (`0.5273`) con un pico transitorio de `0.5664` que no se sostuvo; la pendiente final fue negativa.
+- La **batería L0–L3** sobre el checkpoint final de F2 (`runs/f2-spanes/battery_verdict.json`) demostró que el modelo solo aprendió **coherencia temática**:
+  - L0 (`bad` de otro documento): `0.5738`, significativo.
+  - L1 (`bad` del mismo dominio): `0.5607`, significativo.
+  - L2 (`bad` de otra etapa del mismo documento): `0.4650`, no significativo.
+  - L3 (`bad` = etapa real con payload mutado): `0.5089`, no significativo.
+- Interpretación: el atajo original (`jac(ctx,ok) > jac(ctx,bad)` por ~0.117) explica toda la señal previa. La receta F2 no enseñó orden de etapas ni inferencia de contenido.
+
+### 13.2 Rediseño propuesto: v2 + evaluación hard-negative
+
+**Tesis a refutar:** si el objetivo de denoising se reformula para reconstruir **etapas enteras** de un esqueleto (no spans aislados), con un schedule de máscara variable y un optimizador decente, un dLLM denso de 155M puede superar el atajo temático y aprender a distinguir la etapa/rol correctos y, en última instancia, el payload inferencial.
+
+**Cambios respecto a F2:**
+
+| Qué | F2 | Piloto v2 |
+|---|---|---|
+| Packing | No (`train_ids_skeleton.npy` plano) | Sí, con EOS por documento (`pre_tokenize_v2.py` + `.npz`) |
+| Masking | Span 64 @ 15% fijo | **Whole-stage masking**: enmascara etapas completas (`[OBSERVACION]..[CONCLUSION]`); fallback a span |
+| Schedule | `mask_p=0.15` fijo | `uniform` con `b_l=0.05, b_h=0.95` (máscara variable, muchas actualizaciones con máscara alta) |
+| LR / optim | Constante, batch global 65K en F1 | Cosine decay, warmup real, grad clip, AdamW con global batch pequeño (8×2×768 = 12,288 tok/update) |
+| Evaluación | 256 pares de `build_pairs.py` (tema soluble) | **Batería L0–L3** de `build_pairs_hard.py` + split train/val para evitar leakage |
+| Cadencia | Pico recogido a posteriori | Eval fija cada 1000 steps, **sin mirar picos transitorios**; decisión sobre el checkpoint final |
+
+**Lo que NO cambia aún:** arquitectura denso 154.8M (512/8/8/4), corpus de esqueletos existente, tokenizer LLaDA, vocab 126080, `seq_len=768`. Se aísla el efecto del *entrenamiento* sin confundirlo con escala de modelo o corpus.
+
+### 13.3 Diseño del piloto
+
+**Datos:**
+1. Partir `data/skeleton/train_skeleton.jsonl` en `train_skeleton_train.jsonl` (95%) y `train_skeleton_val.jsonl` (5%, seed 7331).
+2. Pre-tokenizar ambos con `pre_tokenize_v2.py` a `train_ids_skeleton_v2.npz` y `val_ids_skeleton_v2.npz`.
+3. Generar batería L0–L3 desde `val_skeleton.jsonl` con `build_pairs_hard.py --n 512`.
+4. El entrenamiento usa solo `train_ids_skeleton_v2.npz`; la batería val se mantiene fija durante todo el run.
+
+**Entrenamiento:**
+- Script: `scripts/train_mdlm_moe_v2.py` (validado en local el 2026-09-09).
+- Slurm: `scripts/moe_v4_micro_v2.slurm`.
+- Config: `harness/configs/f0-span-esqueleto-v2.yaml`, con overrides por `--export`:
+  - `TAG=f0-span-esqueleto-v2-piloto`
+  - `DATA_CACHE=/beegfs/a474r867/ecoreasoner/data/train_ids_skeleton_v2.npz`
+  - `TARGET_STEPS=10000`
+  - `MASK_TYPE=span`, `MASK_SCHEDULE=uniform`, `MASK_SCHEDULE_ARGS='{"b_l":0.05,"b_h":0.95}'`
+  - `WHOLE_STAGE=1`, `SPAN_LEN=64`
+  - `LR=2e-4`, `LR_DECAY=cosine`, `LR_MIN_RATIO=0.1`, `WARMUP=200`, `GRAD_CLIP=1.0`
+  - `BATCH_SIZE=8`, `GRAD_ACCUM=2`
+  - `WEIGHT_TYING=0`, `USE_ROPE=0`, `EMA_DECAY=0.0`
+- Hardware: 1× pro6000 (sixhour), ~2h.
+
+**Evaluación:**
+- Cada 1000 steps, correr `harness/suite_smoke_v2.py` cuatro veces (L0–L3) contra los `pairs_L{0..3}.jsonl`.
+- Alternativa más limpia: añadir un modo `--pairs-dir` a `suite_smoke_v2.py` para emitir un solo `report_L0L3.json`.
+- Registra: `pairwise_acc` y `mean_delta` por nivel; `loss` del trainer; `word_ratio/rep4/uniq` como diagnóstico, nunca como criterio GO.
+- No se permite mirar picos: la decisión se toma sobre el **checkpoint g10000** con intervalos de confianza (Wilson binomial) sobre cada nivel.
+
+### 13.4 Criterios de parada pre-registrados
+
+| Resultado en g10000 | L0 | L1 | L2 | L3 | Veredicto |
+|---|---|---|---|---|---|
+| **FALSIFY** | < 0.55 | < 0.55 | ≤ 0.52 | ≤ 0.52 | La receta v2 no escapa al atajo temático. Archivar y pivotar: (a) objetivo contrastivo/explícito, o (b) controller/verificator como vía práctica. |
+| **DIRECCIONAL** | ≥ 0.55 | ≥ 0.55 | > 0.52 | > 0.52 | Hay alguna señal de orden/contenido, pero no suficiente. Extender a 50K steps y reevaluar. |
+| **GO** | ≥ 0.55 | ≥ 0.55 | ≥ 0.55 | ≥ 0.55 | Señal inferencial real. Escalar a 50K+ y/o escala heterogénea; comparar contra LLaDA. |
+
+Notas:
+- L0/L1 deben seguir altos si el modelo entiende lenguaje; no son la meta.
+- L2 mide si aprendió **orden/rol de etapa** aun cuando el tópico es idéntico.
+- L3 mide si aprendió **contenido inferencial** (dirección/negación/números).
+- Si L0/L1 son bajos, hay un bug de entrenamiento u optimización; se investiga antes de declarar falsificación.
+
+### 13.5 Controles y ablaciones (post-piloto, si pasa el GO de riesgo)
+
+Si el piloto entra en **DIRECCIONAL** o **GO**, las ablaciones de seguimiento serían:
+1. `WHOLE_STAGE=0` con `MASK_SCHEDULE=uniform` (para aislar el efecto del whole-stage).
+2. `WEIGHT_TYING=1` o `USE_ROPE=1` (mejoras arquitectónicas baratas).
+3. Modelo de 50M (hidden 384/6/6) con la misma receta (si la señal es robusta, probar que no es pura capacidad de parámetros).
+4. Objetivo contrastivo (ranking de pares L2/L3) si whole-stage no basta para L3.
+
+### 13.6 Costo y riesgo residual
+
+- Costo total del piloto: ~2-3h de pro6000 + minutos de CPU para pre-tokenizar y generar pares.
+- Riesgo principal: el atajo temático siga siendo suficiente para L0/L1 y el whole-stage no enseñe L2/L3. Si eso ocurre, el piloto habrá falsado la receta con evidencia barata.
+- Riesgo mitigado: no se escala a 100K steps / pool completo hasta que el micro de 10K demuestre señal limpia en L2/L3.
+
+### 13.7 Relación con controller/verificator
+
+El plan B (práctico) queda intacto: si el dLLM propio no aprende, el controller/verificator validado en Fase 3 sigue como arquitectura productiva. Este piloto decide cuánto más invertir en la vía dLLM pura.
+
 ---
 
 ## Apéndice A — Archivos que se tocan / crean
