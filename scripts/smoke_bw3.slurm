@@ -19,9 +19,21 @@ BASE=/beegfs/a474r867/ecoreasoner
 cd "$BASE"
 OVL="$BASE/blackwell-torch.overlay"
 SIF="$BASE/pytorch-cuda.sif"
+# Resolver el ckpt a usar: si no se paso CKPT_STEP, o el indicado ya NO
+# tiene model.pt (el trainer retiene solo 2 -> un ckpt elegido por el cron
+# puede ser purgado mientras el job espera en cola saturada), cae al mas
+# nuevo con model.pt INTEGRO.
 CKPT_STEP="${CKPT_STEP:-latest}"
-if [ "$CKPT_STEP" = "latest" ]; then
-    CKPT_STEP=$(ls -d "$BASE/outputs/bw3/checkpoint-g"* 2>/dev/null | sort -V | tail -1 | sed 's/.*checkpoint-g//')
+resolve_latest() {
+    for d in $(ls -d "$BASE/outputs/bw3/checkpoint-g"* 2>/dev/null | sort -V); do
+        [ -f "$d/model.pt" ] && basename "$d" | sed 's/checkpoint-g//'
+    done | tail -1
+}
+if [ "$CKPT_STEP" = "latest" ] || [ ! -f "$BASE/outputs/bw3/checkpoint-g$CKPT_STEP/model.pt" ]; then
+    NEW=$(resolve_latest)
+    [ -n "$NEW" ] || { echo "sin ckpt valido con model.pt"; exit 1; }
+    echo "==> ckpt g$CKPT_STEP no disponible (purgado?), usando g$NEW"
+    CKPT_STEP="$NEW"
 fi
 echo "=== smoke-bw3 contra checkpoint-g$CKPT_STEP $(date -u) ==="
 apptainer exec --nv --overlay "$OVL":ro "$SIF" /bb/bwvenv/bin/python \

@@ -19,6 +19,6 @@ export HF_HOME=/beegfs/a474r867/hf-cache
 "$BASE/venv_curate/bin/python" "$BASE/scripts/curate_validate.py" \
   --v6 "$BASE/data/train_corpus_v6.jsonl" \
   --phys "$BASE/data/train_corpus_phys.jsonl" \
-  --n-per-domain 5000 --k 20 \
+  --n-per-domain 2000 --k 20 \
   --out "$BASE/data/curate/validate_report.json"
 echo "curate-val done rc=$?"
