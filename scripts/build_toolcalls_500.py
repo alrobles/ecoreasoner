@@ -27,7 +27,7 @@ from collections import Counter
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# regiones reales (las mismas del gold valido + variedad)
+# regiones reales (las mismas del gold valido + variedad + las del subcorpus eco-fino)
 REGIONS = [
     "neotropico", "paleartico", "norteamerica", "sudamerica", "centroamerica",
     "mesoamerica", "amazonia", "andes", "patagonia", "caribe", "mediterraneo",
@@ -36,6 +36,10 @@ REGIONS = [
     "australia", "oceania", "artico", "peninsula de yucatan", "mexico", "brazil",
     "colombia", "europa", "alpes", "balcanes", "canarias", "galapagos",
     "gran barrera de coral", "tundra", "boreal", "bosque tropical", "sabana",
+    # + regiones top del subcorpus eco-fino (entities_eco_fine_v5.json, 2026-09-09)
+    "ibera", "neotropical", "tropical forest", "caribbean", "southeast asia",
+    "west africa", "andina", "bosque boreal", "north america", "south america",
+    "east asia", "mediterranean", "pampas",
 ]
 
 # capas para maxent_train (reales del stack HPC)
@@ -67,6 +71,39 @@ def load_species():
             n = s.get("canonical", "").lower()
             if n not in EXCL:
                 sps[n] = {"name": s.get("canonical"), "source": f"gbif-ecoevorxiv (usageKey {s.get('usageKey')})"}
+    # 3) GBIF-tagged subcorpus ECO-FINO v5 (species_eco_fine_tagged.json, 2026-09-09).
+    #    Excluir patogenos clinicos y modelos de laboratorio (aunque GBIF los valide
+    #    como SPECIES) — no son objetivo de tool-calls ecologicas de campo.
+    ef = ROOT / "docs/results/species_eco_fine_tagged.json"
+    EXCL_CLIN = {
+        "staphylococcus aureus", "pseudomonas aeruginosa", "saccharomyces cerevisiae",
+        "mycobacterium tuberculosis", "klebsiella pneumoniae", "candida albicans",
+        "bacillus subtilis", "caenorhabditis elegans", "acinetobacter baumannii",
+        "streptococcus pneumoniae", "salmonella enterica", "helicobacter pylori",
+        "enterococcus faecalis", "listeria monocytogenes", "plasmodium falciparum",
+        "danio rerio", "staphylococcus epidermidis", "enterococcus faecium",
+        "vibrio cholerae", "toxoplasma gondii", "haemophilus influenzae",
+        "streptococcus mutans", "streptococcus pyogenes",
+        "mus musculus", "porphyromonas gingivalis", "bacillus cereus",
+        "chlamydia trachomatis", "aedes albopictus", "anopheles gambiae",
+        "clostridium difficile", "borrelia burgdorferi", "cryptococcus neoformans",
+        "trypanosoma cruzi", "clostridioides difficile", "campylobacter jejuni",
+        "neisseria meningitidis", "aspergillus niger", "legionella pneumophila",
+        "pseudomonas putida", "mycoplasma pneumoniae", "fusobacterium nucleatum",
+        "schizosaccharomyces pombe", "botrytis cinerea", "salmonella typhimurium",
+        "streptococcus agalactiae", "lactococcus lactis", "pseudomonas fluorescens",
+        "agrobacterium tumefaciens", "clostridium perfringens", "bacteroides fragilis",
+        "serratia marcescens", "enterobacter cloacae", "pan troglodytes",
+        "rattus norvegicus", "arabidopsis thaliana", "aspergillus fumigatus",
+        "xenopus laevis",
+    }
+    if ef.exists():
+        d = json.load(open(ef))
+        for s in d.get("species", []):
+            n = s.get("canonical", "").lower()
+            if n not in EXCL and n not in EXCL_CLIN:
+                sps[n] = {"name": s.get("canonical"),
+                          "source": f"gbif-eco-fino-v5 (usageKey {s.get('usageKey')})"}
     return list(sps.values())
 
 # plantillas de prompt por tool (variadas, naturales, en espanol; solo llamada directa)
