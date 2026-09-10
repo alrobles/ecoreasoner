@@ -29,6 +29,11 @@
 #   CUR_STAGES     JSON, default [[0,2000,16,0.30],[2000,5000,32,0.60],[5000,10000,64,0.95]]
 #                  Nota: contiene comas; al pasarlo via sbatch --export usar
 #                  comillas simples, p. ej. CUR_STAGES='[[0,2000,16,0.30],...]'.
+#   ROLE_MASK      0 | 1 (default 0)
+#   ROLE_CONFIG    JSON para role-aware masking (mismo default que
+#                  train_mdlm_moe_v2.py). El JSON lleva comas: en un env.sh
+#                  ponerlo entre comillas simples DENTRO del .sh, y el slurm lo
+#                  pasa al CLI con comillas dobles: --role_config "$ROLE_CONFIG".
 #   SPAN_LEN       default 64 (fallback cuando CURRICULUM=0)
 #   WHOLE_STAGE    0 | 1
 #   LR             default 2e-4
@@ -69,6 +74,9 @@ if [ -z "${MASK_SCHEDULE_ARGS:-}" ]; then
 fi
 CURRICULUM="${CURRICULUM:-0}"
 CUR_STAGES="${CUR_STAGES:-[[0,2000,16,0.30],[2000,5000,32,0.60],[5000,10000,64,0.95]]}"
+ROLE_CONFIG_DEFAULT='{"connectives":["because","despite","however","therefore","although","thus","since","while","whereas","consequently","nevertheless","nonetheless","accordingly","hence","yet","but","so","if","when","after","before","until"],"relation_verbs":["increases","reduces","decreases","inhibits","promotes","correlates","depends","drives","affects","influences","regulates","mediates","enhances","suppresses","determines","predicts","causes","leads","results","associated","linked","related","modulates","triggers","induces","prevents","limits","constrains","facilitates"],"species_keywords":["panthera","quercus","apis","daphnia","mytilus","giraffa","cervus","populus","saguaro","tigris","ilex","suber","homo","sapiens","acer","pinus","fagus","salix"],"number_weight":2.0,"connective_weight":3.0,"relation_weight":3.0,"entity_weight":2.0,"uppercase_bonus":0.5}'
+ROLE_MASK="${ROLE_MASK:-0}"
+ROLE_CONFIG="${ROLE_CONFIG:-$ROLE_CONFIG_DEFAULT}"
 SPAN_LEN="${SPAN_LEN:-64}"
 WHOLE_STAGE="${WHOLE_STAGE:-1}"
 LR="${LR:-2e-4}"
@@ -110,7 +118,7 @@ finalize() {
     fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "resubmiting ola ($TAG) target=$TARGET_STEPS..."
-        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS_DIR=$PAIRS_DIR;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;CURRICULUM=$CURRICULUM;CUR_STAGES=$CUR_STAGES;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;VOCAB=$VOCAB;HIDDEN=$HIDDEN;LAYERS=$LAYERS;HEADS=$HEADS;FF_MULT=$FF_MULT;N_EXPERTS=$N_EXPERTS;EXPERT_K=$EXPERT_K;SEQ_LEN=$SEQ_LEN;AUTO_RESUBMIT=1" \
+        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS_DIR=$PAIRS_DIR;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;CURRICULUM=$CURRICULUM;CUR_STAGES=$CUR_STAGES;ROLE_MASK=$ROLE_MASK;ROLE_CONFIG=$ROLE_CONFIG;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;VOCAB=$VOCAB;HIDDEN=$HIDDEN;LAYERS=$LAYERS;HEADS=$HEADS;FF_MULT=$FF_MULT;N_EXPERTS=$N_EXPERTS;EXPERT_K=$EXPERT_K;SEQ_LEN=$SEQ_LEN;AUTO_RESUBMIT=1" \
             "$BASE/scripts/moe_v4_micro_v2.slurm"
         echo "ola siguiente enviada."
     else
@@ -151,6 +159,7 @@ apptainer exec --nv --overlay "$OVL":ro "$SIF" \
     --span_len "$SPAN_LEN" \
     $(flag "$WHOLE_STAGE" --whole_stage) \
     $(flag "$CURRICULUM" --curriculum) --cur_stages "$CUR_STAGES" \
+    $(flag "$ROLE_MASK" --role_mask) --role_config "$ROLE_CONFIG" \
     --lr "$LR" --lr_decay "$LR_DECAY" --lr_min_ratio "$LR_MIN_RATIO" \
     --warmup "$WARMUP" --max_steps "$TARGET_STEPS" \
     --grad_clip "$GRAD_CLIP" --ema_decay "$EMA_DECAY" \
