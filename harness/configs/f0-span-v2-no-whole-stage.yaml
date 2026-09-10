@@ -29,7 +29,7 @@ train:
   mask_schedule_args: '{"b_l": 0.05, "b_h": 0.95}'
   span_len: 64
   whole_stage: false
-  data_cache: /beegfs/a474r867/ecoreasoner/data/train_ids_skeleton_v2_fix.npz
+  data_cache: /beegfs/a474r867/ecoreasoner/data/train_ids_skeleton_v2.npz
   lr: 2.0e-4
   lr_decay: cosine
   lr_min_ratio: 0.1
