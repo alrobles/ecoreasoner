@@ -128,7 +128,27 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 10-09 07:30 CDT)
+## 4. ESTADO VIVO (HPC, al 10-09 15:20 CDT)
+
+- **V3.1 CURRICULUM LANZADO (2026-09-10, job 29068111, r23r09n01 RUNNING)**: run
+  `f0-span-v3-curriculum`, receta piloto v2 (span/uniform/whole_stage, corpus
+  esqueleto v2 fix, 10K steps, batch8+accum2, lr 2e-4 cosine warmup 200) +
+  **curriculum de masking** (CURRICULUM=1): `cur_stages=[[0,2000,16,0.30],
+  [2000,5000,32,0.60],[5000,10000,64,0.95]]` con interpolación lineal continua
+  de span_len y b_h (implementación Devin PR #3, mergeada d9c8a4e; test
+  scripts/test_curriculum.py pasa: boundaries exactos + monotonicidad).
+  Log verificado: `curriculum on: steps=3 stages, start(span=16, b_h=0.30)`,
+  loss 11.83→8.16 en primeros 90 steps (~10 steps/min → 10K ≈ 3.5-4h).
+  **Battery al COMPLETE: automática contra pairs_hard_v3** (PAIRS_DIR v3) →
+  L3 comparable directo con V3.0 (0.515). Watchdog: cron `ecoreasoner-v31-watchdog`.
+  **PITFALL lanzamiento**: `sbatch --export='A=...;B=...'` vía ssh NO llega
+  íntegro (las comillas simples se pierden → el `;` parte el comando → solo la
+  primera var llega; `--export-file` tampoco se respeta en este clúster).
+  **ÚNICO método validado**: archivo `runs/f0-v3curriculum-env.sh` con
+  `export VAR=...` (CUR_STAGES entre comillas simples DENTRO del .sh) +
+  `source ... && sbatch --parsable --export=ALL scripts/...`.
+  El run usa el envío correcto; verificar job→log "curriculum on" antes de dar
+  por bueno cualquier relanzamiento.
 
 - **ABLACIONES PILOTO v2 COMPLETAS (4/4, 2026-09-10) — todas STAGE_GRAMMAR**:
   no-whole-stage L2 0.596*** / weight-tying L2 **0.629*** / rope L2 0.596*** /
