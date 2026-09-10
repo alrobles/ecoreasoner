@@ -18,6 +18,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Esquema por defecto del curriculum V3.1 (step_inicio, step_fin, span_len, b_h).
+# span_len y b_h son los valores al INICIO de cada etapa; se interpola
+# linealmente hasta el inicio de la siguiente etapa.
+CUR_STAGES_DEFAULT = '[[0,2000,16,0.30],[2000,5000,32,0.60],[5000,10000,64,0.95]]'
+
 # ---------------- CLI ----------------
 def parse():
     p = argparse.ArgumentParser()
@@ -60,6 +65,12 @@ def parse():
                         "cosine (distribucion sesgada a mas masking)")
     p.add_argument("--mask_schedule_args", default="",
                    help="JSON con args, p.ej. '{\"b_l\":0.1,\"b_h\":0.9}'")
+    p.add_argument("--curriculum", action="store_true",
+                   help="activar curriculum de masking (varia span_len y b_h a lo largo del entrenamiento)")
+    p.add_argument("--cur_stages", default=CUR_STAGES_DEFAULT,
+                   help="JSON con etapas [step_inicio, step_fin, span_len, b_h]. "
+                        "span_len y b_h son los valores al INICIO de la etapa; "
+                        "se interpolan linealmente hasta el inicio de la siguiente.")
     p.add_argument("--whole_stage", action="store_true",
                    help="en datos de esqueleto, enmascarar ETAPAS enteras "
                         "(en vez de spans random)")
@@ -78,6 +89,15 @@ if ARGS.mask_schedule_args:
     ARGS.mask_schedule_args = json.loads(ARGS.mask_schedule_args)
 else:
     ARGS.mask_schedule_args = {}
+if ARGS.cur_stages:
+    try:
+        ARGS.cur_stages = json.loads(ARGS.cur_stages)
+    except Exception as e:
+        raise SystemExit(f"[fatal] --cur_stages no es JSON valido: {e}")
+else:
+    ARGS.cur_stages = []
+if ARGS.curriculum and not ARGS.cur_stages:
+    ARGS.cur_stages = json.loads(CUR_STAGES_DEFAULT)
 if ARGS.stage_labels:
     ARGS.stage_labels = [x.strip() for x in ARGS.stage_labels.split(",") if x.strip()]
 else:
@@ -418,6 +438,40 @@ def build_span_mask(T, n_target, span_len, device="cpu"):
         j = int(torch.randint(0, free.numel(), (1,), device=device))
         masked[int(free[j])] = True
     return masked.nonzero(as_tuple=False).squeeze(-1)
+
+
+def curriculum_state(step, stages):
+    """Devuelve (span_len, b_h) para el step global segun el curriculum.
+
+    Cada etapa = [step_inicio, step_fin, span_len, b_h], donde span_len y b_h
+    son los valores al INICIO de la etapa. La interpolacion lineal dentro de la
+    etapa avanza hasta el inicio de la siguiente; la ultima etapa es constante.
+    - step < inicio primera: usa la primera etapa.
+    - step >= fin ultima: usa la ultima etapa.
+    - etapas contiguas [s,e] se interpretan como [s,e) para la seleccion, pero
+      los valores de inicio/fin coinciden, asi que el curriculum es continuo.
+    """
+    if not stages:
+        return ARGS.span_len, float(ARGS.mask_schedule_args.get("b_h", 1.0))
+    stages = sorted(stages, key=lambda s: s[0])
+    if step < stages[0][0]:
+        s, e, span, frac = stages[0]
+        return int(span), float(frac)
+    if step >= stages[-1][1]:
+        s, e, span, frac = stages[-1]
+        return int(span), float(frac)
+    for i, (s, e, span, frac) in enumerate(stages):
+        if s <= step < e:
+            delta = max(1, e - s)
+            t = (step - s) / delta
+            next_span = stages[i + 1][2] if i + 1 < len(stages) else span
+            next_frac = stages[i + 1][3] if i + 1 < len(stages) else frac
+            cur_span = int(round(span + t * (next_span - span)))
+            cur_frac = float(frac + t * (next_frac - frac))
+            return max(1, cur_span), max(0.0, min(1.0, cur_frac))
+    # fallback: ultima etapa
+    s, e, span, frac = stages[-1]
+    return int(span), float(frac)
 
 
 def sample_mask_fraction(schedule, step, device="cpu"):
@@ -795,9 +849,17 @@ def main():
     nb = len(batches); it = 0
     log(f"masking: schedule={ARGS.mask_schedule} type={ARGS.mask_type} "
         f"whole_stage={ARGS.whole_stage} span_len={ARGS.span_len}")
+    if ARGS.curriculum:
+        s0, f0 = curriculum_state(STEPS_DONE[0], ARGS.cur_stages)
+        log(f"curriculum on: steps={len(ARGS.cur_stages)} stages, "
+            f"start(span={s0}, b_h={f0:.2f})")
     for step in range(STEPS_DONE[0], ARGS.max_steps):
         xb = batches[it % nb].to(DEVICE); it += 1
         B, T = xb.shape
+        eff_span_len = ARGS.span_len
+        if ARGS.curriculum:
+            eff_span_len, cur_b_h = curriculum_state(step, ARGS.cur_stages)
+            ARGS.mask_schedule_args["b_h"] = float(cur_b_h)
         # v2: samplear fraccion de corrupcion POR EJEMPLO (t ~ U(0,1))
         n_masked_per_ex = []
         for _ in range(B):
@@ -813,7 +875,7 @@ def main():
             mp_b = build_mask_indices(xb_b, n_masked_per_ex[b_idx], ARGS.mask_type,
                                       whole_stage=ARGS.whole_stage,
                                       stage_label_ids=STAGE_LABEL_IDS,
-                                      span_len=ARGS.span_len, device=xb.device)
+                                      span_len=eff_span_len, device=xb.device)
             mp_parts.append(mp_b + b_idx * T)
         mp = torch.cat(mp_parts)
         assert int(mp.max()) < B * T, f"mask indices out of bounds: max={int(mp.max())} >= {B*T}"

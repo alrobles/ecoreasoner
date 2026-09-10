@@ -25,7 +25,11 @@
 #   MASK_TYPE      random | span
 #   MASK_SCHEDULE  fixed | uniform | cosine
 #   MASK_SCHEDULE_ARGS  JSON, default '{"b_l":0.05,"b_h":0.95}'
-#   SPAN_LEN       default 64
+#   CURRICULUM     0 | 1 (default 0)
+#   CUR_STAGES     JSON, default [[0,2000,16,0.30],[2000,5000,32,0.60],[5000,10000,64,0.95]]
+#                  Nota: contiene comas; al pasarlo via sbatch --export usar
+#                  comillas simples, p. ej. CUR_STAGES='[[0,2000,16,0.30],...]'.
+#   SPAN_LEN       default 64 (fallback cuando CURRICULUM=0)
 #   WHOLE_STAGE    0 | 1
 #   LR             default 2e-4
 #   LR_DECAY       none | cosine | wsd
@@ -63,6 +67,8 @@ MASK_SCHEDULE="${MASK_SCHEDULE:-uniform}"
 if [ -z "${MASK_SCHEDULE_ARGS:-}" ]; then
     MASK_SCHEDULE_ARGS='{"b_l":0.05,"b_h":0.95}'
 fi
+CURRICULUM="${CURRICULUM:-0}"
+CUR_STAGES="${CUR_STAGES:-[[0,2000,16,0.30],[2000,5000,32,0.60],[5000,10000,64,0.95]]}"
 SPAN_LEN="${SPAN_LEN:-64}"
 WHOLE_STAGE="${WHOLE_STAGE:-1}"
 LR="${LR:-2e-4}"
@@ -104,7 +110,7 @@ finalize() {
     fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "resubmiting ola ($TAG) target=$TARGET_STEPS..."
-        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS_DIR=$PAIRS_DIR;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;VOCAB=$VOCAB;HIDDEN=$HIDDEN;LAYERS=$LAYERS;HEADS=$HEADS;FF_MULT=$FF_MULT;N_EXPERTS=$N_EXPERTS;EXPERT_K=$EXPERT_K;SEQ_LEN=$SEQ_LEN;AUTO_RESUBMIT=1" \
+        sbatch --export="TAG=$TAG;DATA_CACHE=$DATA_CACHE;CONFIG=$CONFIG;TARGET_STEPS=$TARGET_STEPS;PAIRS_DIR=$PAIRS_DIR;PAIRS=$PAIRS;MASK_TYPE=$MASK_TYPE;MASK_SCHEDULE=$MASK_SCHEDULE;SPAN_LEN=$SPAN_LEN;WHOLE_STAGE=$WHOLE_STAGE;CURRICULUM=$CURRICULUM;CUR_STAGES=$CUR_STAGES;LR=$LR;LR_DECAY=$LR_DECAY;LR_MIN_RATIO=$LR_MIN_RATIO;WARMUP=$WARMUP;GRAD_CLIP=$GRAD_CLIP;EMA_DECAY=$EMA_DECAY;WEIGHT_TYING=$WEIGHT_TYING;USE_ROPE=$USE_ROPE;BATCH_SIZE=$BATCH_SIZE;GRAD_ACCUM=$GRAD_ACCUM;VOCAB=$VOCAB;HIDDEN=$HIDDEN;LAYERS=$LAYERS;HEADS=$HEADS;FF_MULT=$FF_MULT;N_EXPERTS=$N_EXPERTS;EXPERT_K=$EXPERT_K;SEQ_LEN=$SEQ_LEN;AUTO_RESUBMIT=1" \
             "$BASE/scripts/moe_v4_micro_v2.slurm"
         echo "ola siguiente enviada."
     else
@@ -132,7 +138,7 @@ print('GPUs:', torch.cuda.device_count())
 assert torch.cuda.device_count() >= 1, 'sin GPU'
 " || { echo 'GPU detect FAIL'; exit 1; }
 
-echo "=== Lanzando micro-run v2 $TAG (mask=$MASK_TYPE schedule=$MASK_SCHEDULE steps=$TARGET_STEPS) $(date -u) ==="
+echo "=== Lanzando micro-run v2 $TAG (mask=$MASK_TYPE schedule=$MASK_SCHEDULE steps=$TARGET_STEPS curriculum=$CURRICULUM) $(date -u) ==="
 
 apptainer exec --nv --overlay "$OVL":ro "$SIF" \
     "$VENV/bin/python" "$BASE/scripts/train_mdlm_moe_v2.py" \
@@ -142,7 +148,9 @@ apptainer exec --nv --overlay "$OVL":ro "$SIF" \
     --batch_size "$BATCH_SIZE" --grad_accum "$GRAD_ACCUM" \
     --mask_type "$MASK_TYPE" --mask_schedule "$MASK_SCHEDULE" \
     --mask_schedule_args "$MASK_SCHEDULE_ARGS" \
-    --span_len "$SPAN_LEN" $(flag "$WHOLE_STAGE" --whole_stage) \
+    --span_len "$SPAN_LEN" \
+    $(flag "$WHOLE_STAGE" --whole_stage) \
+    $(flag "$CURRICULUM" --curriculum) --cur_stages "$CUR_STAGES" \
     --lr "$LR" --lr_decay "$LR_DECAY" --lr_min_ratio "$LR_MIN_RATIO" \
     --warmup "$WARMUP" --max_steps "$TARGET_STEPS" \
     --grad_clip "$GRAD_CLIP" --ema_decay "$EMA_DECAY" \
