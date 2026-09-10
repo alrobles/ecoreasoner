@@ -89,6 +89,7 @@ def interpret(levels):
 
 
 def main():
+    global THRESH, ALPHA
     ap = argparse.ArgumentParser()
     ap.add_argument("--verdict", required=True, help="battery_verdict.json")
     ap.add_argument("--out", default=None, help="interpretation.json")
@@ -96,7 +97,6 @@ def main():
     ap.add_argument("--alpha", type=float, default=ALPHA)
     args = ap.parse_args()
 
-    global THRESH, ALPHA
     THRESH = args.thresh
     ALPHA = args.alpha
 
