@@ -150,6 +150,20 @@ a batch gigante).. **Ganador: span-esqueleto.**
   El run usa el envío correcto; verificar job→log "curriculum on" antes de dar
   por bueno cualquier relanzamiento.
 
+- **V3.2 ROLE-AWARE MASKING LISTO, SIN LANZAR (2026-09-10, Devin PR #4
+  mergeada ba7752b)**: masking ponderado por rol semántico (conectivas
+  causales/adversativas, verbos de relación, números, entidades por mayúsculas
+  + keywords; SIN NER). Aditivo: `--role_mask` default OFF → comportamiento
+  idéntico al V3.1. Interacción curriculum: el curriculum fija span_len/b_h,
+  role_mask decide DÓNDE ubicar los spans (priorizando regiones informativas);
+  con whole_stage pondera la selección de etapas. Verificado por Hermes: test
+  scripts/test_role_mask.py (a) sin flags == V3.1 misma seed, (b) 2.65× tokens
+  de rol enmascarados (random) y 0.62 vs 0.41 (span), (c) compat curriculum,
+  (d) slurm moe_v4_micro_v2.slurm exporta ROLE_MASK/ROLE_CONFIG en resubmit de
+  olas + CLI. Config: harness/configs/f0-span-v3-role.yaml (validada 13/13).
+  **Lanzamiento CONDICIONADO al veredicto V3.1** (§4 criterio: L3 0.52-0.54 →
+  iterar V3.2-V3.4): si V3.1 no despega, V3.2 es la primera iteración a probar.
+
 - **ABLACIONES PILOTO v2 COMPLETAS (4/4, 2026-09-10) — todas STAGE_GRAMMAR**:
   no-whole-stage L2 0.596*** / weight-tying L2 **0.629*** / rope L2 0.596*** /
   50m L2 0.557**. L3 NUNCA significativo (0.47-0.51 ns) en NINGUNA variante.
