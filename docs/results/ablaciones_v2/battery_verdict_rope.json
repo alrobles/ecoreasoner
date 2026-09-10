@@ -1,0 +1,62 @@
+{
+  "levels": [
+    {
+      "level": "L0",
+      "file": "battery_L0.json",
+      "n": 510,
+      "acc": 0.5392,
+      "ci95": [
+        0.4958,
+        0.582
+      ],
+      "p": 0.042038,
+      "sig": "*"
+    },
+    {
+      "level": "L1",
+      "file": "battery_L1.json",
+      "n": 508,
+      "acc": 0.502,
+      "ci95": [
+        0.4586,
+        0.5453
+      ],
+      "p": 0.482309,
+      "sig": "ns"
+    },
+    {
+      "level": "L2",
+      "file": "battery_L2.json",
+      "n": 510,
+      "acc": 0.5961,
+      "ci95": [
+        0.5529,
+        0.6378
+      ],
+      "p": 8e-06,
+      "sig": "***"
+    },
+    {
+      "level": "L3",
+      "file": "battery_L3.json",
+      "n": 460,
+      "acc": 0.4696,
+      "ci95": [
+        0.4244,
+        0.5152
+      ],
+      "p": 0.911866,
+      "sig": "ns"
+    }
+  ],
+  "level_meaning": {
+    "L0": "coherencia tem\u00e1tica (baseline d\u00e9bil)",
+    "L1": "t\u00f3pico controlado a dominio",
+    "L2": "orden/rol de etapa (mismo doc)",
+    "L3": "inferencia de contenido (payload mutado)"
+  },
+  "reading": [
+    "ESTRUCTURA SIN INFERENCIA: distingue el orden de etapas pero no el contenido -> gram\u00e1tica aprendida, inferencia no."
+  ],
+  "alpha": 0.05
+}
