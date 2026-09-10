@@ -128,7 +128,17 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 09-09 21:10 CDT)
+## 4. ESTADO VIVO (HPC, al 10-09 07:30 CDT)
+
+- **ABLACIONES PILOTO v2 COMPLETAS (4/4, 2026-09-10) — todas STAGE_GRAMMAR**:
+  no-whole-stage L2 0.596*** / weight-tying L2 **0.629*** / rope L2 0.596*** /
+  50m L2 0.557**. L3 NUNCA significativo (0.47-0.51 ns) en NINGUNA variante.
+  Lectura: el whole-stage NO es responsable de L2 (conserva 0.596 sin él);
+  weight-tying da el mejor L2 (0.629); 50M no es limitante (0.557) → la ausencia
+  de L3 no se explica por capacidad. Línea dLLM-puro = estructura SIN inferencia
+  (material negativo publicable). Reporte: docs/results/ABLACIONES-V2-RESULTADO.md.
+  Decisión pendiente: (A) archivar línea falsada-en-L3, (B) objetivo contrastivo
+  L3 explícito, (C) focalizar en controller/verificator (Opción D, 98.6%).
 
 - **PILOTO v2 COMPLETADO — VEREDICTO STAGE_GRAMMAR (2026-09-09 20:52)**: job
   28998750 COMPLETED 0:0 en 3:48:38 (10K steps, loss 11.79→6.91, checkpoint-g10000).
