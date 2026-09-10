@@ -128,7 +128,28 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 08-09 21:45 CDT — F2 CERRADO FALSIFY)
+## 4. ESTADO VIVO (HPC, al 09-09 21:10 CDT)
+
+- **PILOTO v2 COMPLETADO — VEREDICTO STAGE_GRAMMAR (2026-09-09 20:52)**: job
+  28998750 COMPLETED 0:0 en 3:48:38 (10K steps, loss 11.79→6.91, checkpoint-g10000).
+  Battery L0-L3: **L0 0.5039 ns / L1 0.4724 ns / L2 0.6118*** / L3 0.5065 ns**.
+  interpretation.json: "El modelo aprendió orden/rol de etapas, pero no el
+  contenido inferencial" → STAGE_GRAMMAR, recomendación ablate_or_scale.
+  NO encaja en el tricótomo §13.4 (FALSIFY exige L2≤0.52; DIRECCIONAL/GO exigen
+  L0/L1≥0.55): es el PRIMER resultado donde la receta v2 (whole-stage span sobre
+  esqueleto) enseña gramática estructural SIN atajo temático (vs F2 que falsó todo;
+  Sanity F2: L0 0.57/L1 0.56/L2 0.47/L3 0.51). L2 0.61 p=0.0 CI95 [0.57,0.65] sólido.
+  Siguiente: ablaciones que Devin preparó (WHOLE_STAGE=0, WEIGHT_TYING=1,
+  USE_ROPE=1, 50M) — lanza Hermes cuando Devin las pase.
+
+- **FASE 3 — subcorpus eco GENUINO listo**: filter domain_fine v5 (17 dominios
+  finos eco) → 142,054 docs, 63,188 candidatos doc×tool, 25 regiones. Tagger GBIF
+  (retry 0 errores): **93 especies reales** (usageKey+conf); 14+ ecológicas de
+  campo reales (Picea abies, Pinus sylvestris, Fagus sylvatica, Daphnia magna,
+  Vulpes vulpes, Cervus elaphus, Quercus robur, Ursus arctos, Rangifer tarandus,
+  Oncorhynchus, Salmo salar, Capreolus...). El domain_fine SÍ separa eco de biomed.
+  Pool listo para el siguiente bloque de tool-calls. Reporte:
+  docs/results/MINERIA-ESPECIES-SUBCORPUS-ECO-V7.md + species_eco_fine_tagged.json.
 
 - **F2-SPANES COMPLETO — FALSIFY** (50,000/50,000, job 28982555 COMPLETED 00:47:38,
   flag COMPLETE 21:34). Veredicto oficial (verdict_f2.json): pairwise_acc final
