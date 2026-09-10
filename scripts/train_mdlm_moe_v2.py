@@ -11,7 +11,7 @@ Receta v2 (2026-09-09):
 
 Run via apptainer SIF (ROCm), 1-2 GPUs. Single-GPU friendly for PoC.
 """
-import argparse, json, math, os, signal, sys, time, shutil, contextlib
+import argparse, json, math, os, re, signal, sys, time, shutil, contextlib
 from pathlib import Path
 
 import torch
@@ -22,6 +22,38 @@ import torch.nn.functional as F
 # span_len y b_h son los valores al INICIO de cada etapa; se interpola
 # linealmente hasta el inicio de la siguiente etapa.
 CUR_STAGES_DEFAULT = '[[0,2000,16,0.30],[2000,5000,32,0.60],[5000,10000,64,0.95]]'
+
+# Config por defecto de role-aware masking V3.2. Puntuacion base = 1.0;
+# cada match anade (weight) a la puntuacion de ese token.
+# El listado es orientativo: conectivas causales/adversativas, verbos de
+# relacion, numeros y entidades (especies / mayusculas). Sin NER.
+_ROLE_CONFIG_DICT = {
+    "connectives": [
+        "because", "despite", "however", "therefore", "although", "thus",
+        "since", "while", "whereas", "consequently", "nevertheless",
+        "nonetheless", "accordingly", "hence", "yet", "but", "so", "if",
+        "when", "after", "before", "until"
+    ],
+    "relation_verbs": [
+        "increases", "reduces", "decreases", "inhibits", "promotes",
+        "correlates", "depends", "drives", "affects", "influences",
+        "regulates", "mediates", "enhances", "suppresses", "determines",
+        "predicts", "causes", "leads", "results", "associated", "linked",
+        "related", "modulates", "triggers", "induces", "prevents", "limits",
+        "constrains", "facilitates"
+    ],
+    "species_keywords": [
+        "panthera", "quercus", "apis", "daphnia", "mytilus", "giraffa",
+        "cervus", "populus", "saguaro", "tigris", "ilex", "suber", "homo",
+        "sapiens", "acer", "pinus", "fagus", "salix"
+    ],
+    "number_weight": 2.0,
+    "connective_weight": 3.0,
+    "relation_weight": 3.0,
+    "entity_weight": 2.0,
+    "uppercase_bonus": 0.5
+}
+ROLE_CONFIG_DEFAULT = json.dumps(_ROLE_CONFIG_DICT, ensure_ascii=False, separators=(',', ':'))
 
 # ---------------- CLI ----------------
 def parse():
@@ -76,6 +108,13 @@ def parse():
                         "(en vez de spans random)")
     p.add_argument("--stage_labels", default="[OBSERVACION],[HIPOTESIS],[PREDICCION],[EVIDENCIA],[CONCLUSION]",
                    help="etiquetas de etapa para --whole_stage")
+    p.add_argument("--role_mask", action="store_true",
+                   help="activar masking ponderado por rol semantico (V3.2). "
+                        "Default OFF: con --role_mask ausente el comportamiento "
+                        "es identico al V3.1.")
+    p.add_argument("--role_config", default=ROLE_CONFIG_DEFAULT,
+                   help="JSON con listas de conectivas, verbos de relacion, "
+                        "especies y pesos para role-aware masking.")
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="*", default=[])
     p.add_argument("--data_cache", default=None,
@@ -98,6 +137,13 @@ else:
     ARGS.cur_stages = []
 if ARGS.curriculum and not ARGS.cur_stages:
     ARGS.cur_stages = json.loads(CUR_STAGES_DEFAULT)
+if ARGS.role_config:
+    try:
+        ARGS.role_config = json.loads(ARGS.role_config)
+    except Exception as e:
+        raise SystemExit(f"[fatal] --role_config no es JSON valido: {e}")
+else:
+    ARGS.role_config = {}
 if ARGS.stage_labels:
     ARGS.stage_labels = [x.strip() for x in ARGS.stage_labels.split(",") if x.strip()]
 else:
@@ -493,6 +539,152 @@ def sample_mask_fraction(schedule, step, device="cpu"):
     return ARGS.mask_p * 0.5
 
 
+# ---------------- role / connective-aware masking (V3.2) ----------------
+# Interaccion con curriculum V3.1: el curriculum fija span_len y b_h por step;
+# role_mask actua DESPUES, decidiendo DONDE colocar esos spans (o que etapas
+# enmascarar) priorizando regiones con conectivas, verbos de relacion, numeros
+# y entidades. Con --role_mask ausente el camino es identico al V3.1.
+
+_NUMBER_RE = re.compile(r"^[+-]?(\d+([.,]\d+)?|\d*\.\d+)(\s*%)?$")
+_ROLE_SCORE_CACHE = {}
+
+
+def _normalize_token_text(text):
+    """Quita prefijos comunes de subword (SentencePiece, BPE, RoBERTa)."""
+    if not isinstance(text, str):
+        return ""
+    text = text.strip()
+    for prefix in ("▁", "Ġ", "##", "Ċ"):
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+    return text
+
+
+def _token_role_score(text, cfg):
+    """Puntuacion base 1.0 + bonus aditivos por categorias informativas."""
+    if not text:
+        return 1.0
+    t = text
+    lower = t.lower()
+    score = 1.0
+
+    if lower in cfg.get("connectives", []):
+        score += float(cfg.get("connective_weight", 0.0))
+    if lower in cfg.get("relation_verbs", []):
+        score += float(cfg.get("relation_weight", 0.0))
+    if lower in cfg.get("species_keywords", []):
+        score += float(cfg.get("entity_weight", 0.0))
+    if _NUMBER_RE.match(t):
+        score += float(cfg.get("number_weight", 0.0))
+    # Heuristica de nombres propios / entidades: primera letra mayuscula,
+    # no esta todo en mayusculas, y no es un simbolo aislado.
+    if (t and t[0].isupper() and not t.isupper() and
+            t[0].isalpha() and len(t) >= 2):
+        score += float(cfg.get("uppercase_bonus", 0.0))
+    return score
+
+
+def _all_token_strings(tok, vocab):
+    """Devuelve la lista de strings representativos de cada id del vocabulario."""
+    if hasattr(tok, "convert_ids_to_tokens"):
+        try:
+            return tok.convert_ids_to_tokens(list(range(vocab)))
+        except Exception:
+            pass
+    if hasattr(tok, "decode"):
+        return [tok.decode([i], skip_special_tokens=False) for i in range(vocab)]
+    return [f"<tok{i}>" for i in range(vocab)]
+
+
+def build_role_score_table(tok, cfg, device="cpu"):
+    """Precomputa un tensor [vocab] con el peso semantico de cada token."""
+    vocab = getattr(tok, "vocab_size", 0)
+    if vocab == 0:
+        return torch.ones(0, device=device)
+    scores = torch.ones(vocab, dtype=torch.float32, device=device)
+    for i, s in enumerate(_all_token_strings(tok, vocab)):
+        text = _normalize_token_text(s)
+        scores[i] = _token_role_score(text, cfg)
+    return scores
+
+
+def get_token_role_scores(tok, ids, cfg=None):
+    """Dado un batch de ids [B,T] devuelve scores [B,T] usando cache por cfg."""
+    if cfg is None:
+        cfg = ARGS.role_config if (hasattr(ARGS, "role_config") and
+                                   isinstance(ARGS.role_config, dict)) else {}
+    key = (id(tok), json.dumps(cfg, sort_keys=True, ensure_ascii=False))
+    if key not in _ROLE_SCORE_CACHE:
+        _ROLE_SCORE_CACHE[key] = build_role_score_table(tok, cfg, device="cpu")
+    table = _ROLE_SCORE_CACHE[key]
+    dev = ids.device if torch.is_tensor(ids) else "cpu"
+    return table.to(dev)[ids]
+
+
+def build_role_weighted_random_mask(T, n_target, token_scores, device="cpu"):
+    """Mascara individual ponderada por token_scores."""
+    T = int(T)
+    n = max(0, min(int(n_target), T))
+    if n == 0:
+        return torch.tensor([], dtype=torch.long, device=device)
+    weights = token_scores.to(device).float().clamp(min=0)
+    if weights.sum() <= 0:
+        weights = torch.ones_like(weights)
+    probs = weights / weights.sum()
+    return torch.multinomial(probs, n, replacement=False)
+
+
+def build_role_weighted_span_mask(T, n_target, span_len, token_scores, device="cpu"):
+    """Spans contiguos cuyos centros se muestrean proporcional al 'bonus'
+    semantico de la ventana (suma de scores-1 de las posiciones libres).
+    Esto prioriza regiones con conectivas, relaciones, numeros y entidades.
+    """
+    T = int(T)
+    span_len = max(1, min(int(span_len), T))
+    n_spans = max(1, int(n_target) // span_len)
+    masked = torch.zeros(T, dtype=torch.bool, device=device)
+    # bonus sobre posiciones aun libres
+    bonus = (token_scores.to(device).float() - 1.0).clamp(min=0)
+
+    for _ in range(n_spans * 6):
+        if int(masked.sum()) >= n_target or masked.all():
+            break
+        free_bonus = bonus * (~masked).float()
+        n_starts = max(1, T - span_len + 1)
+        if n_starts == 1:
+            window_weights = free_bonus.sum().unsqueeze(0)
+        else:
+            # convolucion 1D: suma de free_bonus en cada ventana de span_len
+            fb = free_bonus.unsqueeze(0).unsqueeze(0)  # [1,1,T]
+            k = torch.ones(1, 1, span_len, device=device)
+            window_weights = F.conv1d(fb, k).squeeze()
+        # Si todas las ventanas tienen bonus 0, caemos a uniforme.
+        if window_weights.sum() <= 0:
+            start = int(torch.randint(0, n_starts, (1,), device=device))
+        else:
+            probs = window_weights / window_weights.sum()
+            start = int(torch.multinomial(probs, 1).item())
+        masked[start:start + span_len] = True
+
+    # cerrar deficit con tokens individuales, preferentemente de alto score
+    while int(masked.sum()) < n_target and not masked.all():
+        free = (~masked).nonzero(as_tuple=False).squeeze(-1)
+        fscores = token_scores[free]
+        if fscores.sum() > 0:
+            j = int(torch.multinomial(fscores / fscores.sum(), 1).item())
+        else:
+            j = int(torch.randint(0, free.numel(), (1,), device=device))
+        masked[int(free[j])] = True
+    return masked.nonzero(as_tuple=False).squeeze(-1)
+
+
+def build_role_weighted_mask(T, n_target, mask_type, span_len, token_scores, device="cpu"):
+    """Entry de masking con pesos por token."""
+    if mask_type == "random":
+        return build_role_weighted_random_mask(T, n_target, token_scores, device=device)
+    return build_role_weighted_span_mask(T, n_target, span_len, token_scores, device=device)
+
+
 def _find_stage_boundaries(seq, stage_label_ids):
     """Devuelve listas de (start, end) de contenido de cada etapa.
 
@@ -520,7 +712,7 @@ def _find_stage_boundaries(seq, stage_label_ids):
     return boundaries
 
 
-def build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type="span", span_len=64, device="cpu"):
+def build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type="span", span_len=64, device="cpu", token_scores=None):
     """Enmascara ETAPAS COMPLETAS de esqueletos (Fase B.2).
 
     xb: [batch, T] token ids.
@@ -543,10 +735,19 @@ def build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type="span", span
         lens = torch.tensor([e - s for s, e in boundaries], device=device, dtype=torch.float32)
         total = int(lens.sum().item())
         target = min(n_target, total)
-        # samplear etapas proporcional a su longitud (o uniforme) hasta target
+        # samplear etapas proporcional a longitud + bonus semantico (V3.2)
         if lens.sum().item() <= 0:
             continue
-        probs = lens / lens.sum()
+        if token_scores is not None:
+            ts = token_scores[b] if token_scores.dim() == 2 else token_scores
+            stage_bonuses = torch.tensor(
+                [float(ts[s:e].sum().item() - (e - s)) for s, e in boundaries],
+                device=device, dtype=torch.float32,
+            )
+            probs = (lens + stage_bonuses).clamp(min=1e-3)
+        else:
+            probs = lens
+        probs = probs / probs.sum()
         chosen = set()
         covered = 0
         while covered < target and len(chosen) < len(boundaries):
@@ -570,11 +771,25 @@ def build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type="span", span
     return torch.cat(all_indices)
 
 
-def build_mask_indices(xb, n_target, mask_type, whole_stage=False, stage_label_ids=None, span_len=64, device="cpu"):
-    """Entry-point: devuelve indices planos [0, B*T) a enmascarar por batch."""
+def build_mask_indices(xb, n_target, mask_type, whole_stage=False, stage_label_ids=None, span_len=64, device="cpu", token_scores=None):
+    """Entry-point: devuelve indices planos [0, B*T) a enmascarar por batch.
+
+    Si token_scores no es None y --role_mask esta activo, se usa role-aware
+    masking. El curriculum fija span_len y b_h por step; role_mask decide la
+    ubicacion de los spans (o la seleccion de etapas con whole_stage)."""
+    use_role = (token_scores is not None) and getattr(ARGS, "role_mask", False)
     if whole_stage and stage_label_ids:
-        return build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type=mask_type, span_len=span_len, device=device)
+        return build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type=mask_type, span_len=span_len, device=device, token_scores=token_scores)
     B, T = xb.shape
+    if use_role:
+        if token_scores.dim() == 1:
+            token_scores = token_scores.unsqueeze(0)
+        parts = []
+        for b in range(B):
+            idx = build_role_weighted_mask(T, n_target, mask_type, span_len,
+                                           token_scores[b], device=device)
+            parts.append(idx + b * T)
+        return torch.cat(parts)
     if mask_type == "random":
         # cada ejemplo con sus propias posiciones
         parts = [torch.randperm(T, device=device)[:n_target] + b * T for b in range(B)]
@@ -848,14 +1063,22 @@ def main():
     MASK = ARGS.vocab
     nb = len(batches); it = 0
     log(f"masking: schedule={ARGS.mask_schedule} type={ARGS.mask_type} "
-        f"whole_stage={ARGS.whole_stage} span_len={ARGS.span_len}")
+        f"whole_stage={ARGS.whole_stage} span_len={ARGS.span_len} "
+        f"role_mask={ARGS.role_mask}")
     if ARGS.curriculum:
         s0, f0 = curriculum_state(STEPS_DONE[0], ARGS.cur_stages)
         log(f"curriculum on: steps={len(ARGS.cur_stages)} stages, "
             f"start(span={s0}, b_h={f0:.2f})")
+    if ARGS.role_mask:
+        log(f"role_mask on: conectivas/relaciones/numeros/entidades "
+            f"(config keys={list(ARGS.role_config.keys())})")
     for step in range(STEPS_DONE[0], ARGS.max_steps):
         xb = batches[it % nb].to(DEVICE); it += 1
         B, T = xb.shape
+        # scores semanticos por token (cacheados); solo se calculan con --role_mask
+        role_scores = None
+        if ARGS.role_mask:
+            role_scores = get_token_role_scores(tok, xb)
         eff_span_len = ARGS.span_len
         if ARGS.curriculum:
             eff_span_len, cur_b_h = curriculum_state(step, ARGS.cur_stages)
@@ -875,7 +1098,8 @@ def main():
             mp_b = build_mask_indices(xb_b, n_masked_per_ex[b_idx], ARGS.mask_type,
                                       whole_stage=ARGS.whole_stage,
                                       stage_label_ids=STAGE_LABEL_IDS,
-                                      span_len=eff_span_len, device=xb.device)
+                                      span_len=eff_span_len, device=xb.device,
+                                      token_scores=role_scores[b_idx:b_idx+1] if role_scores is not None else None)
             mp_parts.append(mp_b + b_idx * T)
         mp = torch.cat(mp_parts)
         assert int(mp.max()) < B * T, f"mask indices out of bounds: max={int(mp.max())} >= {B*T}"
