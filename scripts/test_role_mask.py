@@ -7,9 +7,12 @@ Comprueba:
       significativamente mayor que la de tokens neutrales (random y span).
   (c) compatibilidad con curriculum activo: role_mask respeta span_len/b_h
       del curriculum y sigue priorizando tokens de rol.
+  (d) el slurm moe_v4_micro_v2.slurm exporta ROLE_MASK/ROLE_CONFIG en la
+      cadena de resubmit y pasa --role_mask/--role_config al CLI.
 """
 import importlib.util
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -210,6 +213,27 @@ def test_curriculum_compatibility(mod, tok, xb):
     print("[ok] (c) role_mask compatible con curriculum (span_len/b_h variables)")
 
 
+def test_slurm_wiring():
+    """Comprueba que el slurm propaga ROLE_MASK/ROLE_CONFIG a resubmit y CLI."""
+    slurm = REPO / "scripts" / "moe_v4_micro_v2.slurm"
+    assert slurm.exists(), f"no se encuentra {slurm}"
+    text = slurm.read_text()
+    flat = text.replace("\\\n", " ")
+
+    resubmit = re.search(r'sbatch --export="([^"]*)"', flat)
+    assert resubmit, "no se encontro la cadena sbatch --export de resubmit"
+    export_str = resubmit.group(1)
+    assert "ROLE_MASK=" in export_str, "resubmit no exporta ROLE_MASK"
+    assert "ROLE_CONFIG=" in export_str, "resubmit no exporta ROLE_CONFIG"
+
+    cli = re.search(r'train_mdlm_moe_v2\.py.*?--output "\$OUT" &', flat, re.DOTALL)
+    assert cli, "no se encontro el bloque CLI de entrenamiento"
+    cli_block = cli.group(0)
+    assert "--role_mask" in cli_block, "CLI no incluye --role_mask"
+    assert "--role_config" in cli_block, "CLI no incluye --role_config"
+    print("[ok] (d) slurm wiring incluye ROLE_MASK/ROLE_CONFIG en resubmit y CLI")
+
+
 def main():
     mod = load_trainer()
     tok, xb = make_inputs()
@@ -231,6 +255,9 @@ def main():
     mod.ARGS.curriculum = True
     mod.ARGS.cur_stages = json.loads(mod.CUR_STAGES_DEFAULT)
     test_curriculum_compatibility(mod, tok, xb)
+
+    # (d) wiring del slurm
+    test_slurm_wiring()
 
     # cleanup
     if OUT.exists():
