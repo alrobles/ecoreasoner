@@ -55,7 +55,7 @@ CKPT_FINAL=$(ls -d "$OUTPUT"/checkpoint-g* | sort -V | tail -1)/model.pt
 apptainer exec --nv --overlay "$OVL":ro "$SIF" /bb/bwvenv/bin/python \
     "$BASE/harness/suite_smoke_v2.py" \
     --ckpt "$CKPT_FINAL" --config "$CONFIG" \
-    --pairs-dir /beegfs/a474r867/ecoreasoner/runs/pairs_hard_v3 \
+    --pairs-dir /beegfs/a474r867/ecoreasoner/runs/pairs_hard_v3_eval \
     --out-dir "$OUTPUT/battery" --device cuda
 
 apptainer exec --nv --overlay "$OVL":ro "$SIF" /bb/bwvenv/bin/python \
