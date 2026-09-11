@@ -128,7 +128,22 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 10-09 15:20 CDT)
+## 4. ESTADO VIVO (HPC, al 11-09 00:57 CDT)
+
+- **V3.3 CONTRASTIVO CERRADO — NO-GO FINAL (2026-09-11)**: con el fix
+  anti-contaminación (split por contexto 373/93, mask_id del tokenizer, guard
+  de memorización; auditoría en docs/results/AUDITORIA-V3.3-CONTAMINACION.md),
+  el training (job 29184168) completó y eval_acc_holdout ranking = 0.7742.
+  Pero la battery LIMPIA (eval set pairs_hard_v3_eval seed 9999, 96.6% ctx
+  nuevos; jobs 29184174/75) da L0 0.485 ns / L1 0.506 ns / L2 0.594*** /
+  **L3 0.516 ns (p=0.26)**. La señal ranking NO transfiere al mecanismo denoise
+  de la battery → artefacto del mecanismo de scoring del fine-tune, no
+  inferencia. Según criterio del doc (<0.52): **NO-GO — familia dLLM CERRADA**
+  (9 runs, L3 nunca significativo). Indicación: archivar dLLM-puro como
+  negativo publicable y pivotar cómputo a controller/verificator (Opción D,
+  match_args 98.2-98.6%). Datos en docs/results/v3_contrastive/.
+  V3.2 role (job 29184149) aún corriendo como cierre de familia; su veredicto
+  no cambiará la decisión salvo sorpresa mayúscula.
 
 - **V3.1 CURRICULUM LANZADO (2026-09-10, job 29068111, r23r09n01 RUNNING)**: run
   `f0-span-v3-curriculum`, receta piloto v2 (span/uniform/whole_stage, corpus
