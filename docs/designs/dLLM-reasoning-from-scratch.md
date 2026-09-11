@@ -32,7 +32,7 @@
 | weight-tying | 0.50 ns | 0.48 ns | **0.63*** | 0.50 ns | STAGE_GRAMMAR |
 | RoPE | 0.54 * | 0.50 ns | **0.60*** | 0.47 ns | STAGE_GRAMMAR |
 | 50M | 0.50 ns | 0.46 ns | **0.56** | 0.48 ns | STAGE_GRAMMAR |
-| V3.1 curriculum | — | — | — | — | en evaluación |
+| V3.1 curriculum | 0.54 * | 0.49 ns | **0.63*** | 0.50 ns | **STAGE_GRAMMAR** |
 | V3.3 contrastivo | — | — | — | — | en evaluación (job 29183112) |
 
 ### Qué sabemos
@@ -42,6 +42,8 @@
 3. **El orden de etapas (L2) se aprende robustamente**, pero el contenido (L3) no.
 4. **La batería v3 cerró el escape del test**; los negativos son semánticamente duros.
 5. **El corpus skeleton puede ser demasiado abstracto** para relaciones ecológicas concretas.
+6. **V3.1 (curriculum + role-aware) confirma el patrón STAGE_GRAMMAR**: L3 = 0.5043
+   (ns), a pesar de 10K steps y loss ~7.3. La curriculum no rompió el techo.
 
 ### Diagnóstico raíz
 
