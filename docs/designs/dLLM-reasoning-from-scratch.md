@@ -1,9 +1,9 @@
 # dLLM reasoning from scratch — Replantamiento
 
-> Fecha: 2026-09-10 (sesión post-V3.1/V3.2).
+> Fecha: 2026-09-10.
 > Contexto: el dLLM puro ha fallado 6+ veces en L3 (STAGE_GRAMMAR). V3.3
-> (contrastivo) está corriendo como último intento de la familia MLM-ranking.
-> Este documento replantea cómo un dLLM podría razonar desde cero.
+> (contrastivo) está corriendo como último intento de la familia MLM-ranking
+> (job 29183112). Este documento replantea cómo un dLLM podría razonar desde cero.
 
 ---
 
@@ -29,6 +29,14 @@
 4. **La batería v3 cerró el escape del test**; los negativos son semánticamente duros.
 5. **El corpus skeleton puede ser demasiado abstracto** para relaciones ecológicas concretas.
 
+### Diagnóstico raíz
+
+El problema es la **señal de entrenamiento**, no la arquitectura. El objetivo MLM
+optimiza perplejidad puntuual: predice un token enmascarado dado el resto. Para
+eso, el modelo solo necesita estadísticas de coocurrencia local. No necesita
+saber que `increased` es científicamente correcto y `decreased` incorrecto en un
+contexto dado; solo necesita saber cuál token es más probable localmente.
+
 ---
 
 ## 2. Cuatro opciones de replanteamiento
@@ -38,12 +46,20 @@
 Hipótesis: el problema no es el modelo ni el masking, sino que la pérdida no
 pide explícitamente que el modelo discrimine inferencias válidas de inválidas.
 
-Candidatos:
-- Ranking contrastivo sobre pares (V3.3 ya en vuelo).
-- Outcome / process supervision (PRMs).
-- Verifiers entrenados con pares sintéticos.
-- Counterfactual distillation.
-- Curriculum de dificultad de razonamiento (fácil → difícil).
+| Paper | Clave | Relevancia |
+|---|---|---|
+| d1 (arXiv 2504.12216) | masked SFT + diffu-GRPO para dLLMs | Post-entrenamiento con RL para razonar. Costoso (rollouts online). |
+| PADRE (EACL 2026, arXiv 2605.05226) | pseudo-likelihood para dLLM reasoning | Alternativa a GRPO, más estable; sigue siendo post-entrenamiento. |
+| ReNCE (arXiv 2601.22432) | NCE sobre K soluciones correctas/incorrectas | Simple, sin red crítica; aplica a pares de razonamiento. |
+| Math-Shepherd (arXiv 2312.08935) | PRM sin anotación humana | Verificador de proceso a partir de rollouts y recompensas verificables. |
+| Counterfactual Distillation (EMNLP 2024) | generar contrafactuales con LLM para SFT | Mejora SLM; datos arquitectura-agnósticos. |
+| Beyond Random Sampling (EACL 2026) | curriculum learning para pretraining | Ordenar datos por dificultad; ortogonal. |
+
+**Hipótesis:** MLM estándar (Sahoo et al. 2024) equivale a una mezcla de pérdidas
+puntuales sin supervisión de secuencia/respuesta. El objetivo más prometedor para
+nuestra escala es **contrastivo/ranking sobre pares correcto/incorrecto**, con
+curriculum de dificultad. Process/outcome supervision es teóricamente superior
+pero más costoso.
 
 ### B. Cambiar la representación
 
@@ -51,88 +67,89 @@ Hipótesis: la granularidad token-level espeja la tarea. Necesitamos
 representaciones semánticas intermedias (latentes, grafos, bloques de
 razonamiento).
 
-Candidatos:
-- Latent thought tokens / LaDiR.
-- Diffusion sobre variables semánticas.
-- Graph-conditioned diffusion.
-- Syntax/structure-aware dLLM.
+| Paper | Clave | Relevancia |
+|---|---|---|
+| LaDiR (arXiv 2510.04573) | VAE + latent diffusion sobre thought tokens | Razonamiento en bloques semánticos; costoso (VAE+diffusion). |
+| Coconut (arXiv 2412.06769) | razonar en last hidden state continuo | Latent feedback; inestable, requiere LLM base capaz. |
+| DoT (NeurIPS 2024, arXiv 2402.07754) | diffusion de thoughts en hidden space | Diffusión continua; no masked discrete. |
+| VDLM (arXiv 2602.15870) | masked diffusion sobre embeddings de variables semánticas | Variable diffusion; conceptualmente aplicable. |
+| TreeDiff (arXiv 2508.01473) | masking sintáctico por AST para código | Estructura de corrupción; adaptar a árboles de razonamiento. |
+| LogicDiff (arXiv 2603.26771) | desenmascarar por rol lógico en MDLM | Inference-time; mejora razonamiento sin reentrenar. |
+
+**Hipótesis:** La granularidad token-level diluye la señal. Operar sobre unidades
+semánticas (bloques de razonamiento, variables) puede ayudar, pero un VAE
+completo es riesgoso a 155M/300K docs. El camino más barato es **MDLM con
+corrupción estructurada por rol lógico** (inspirado en LogicDiff/TreeDiff).
 
 ### C. Arquitecturas híbridas
 
 Hipótesis: un solo modelo no puede ser a la vez generador fluido y verificador
 preciso. Separar componentes.
 
-Candidatos:
-- dLLM generador + verificador/torre discriminativa.
-- LLM² / System 1 + System 2.
-- Decomposer + solver + verifier.
-- Generative verifiers (GenRM).
-- Controller/verificator (Opción D del proyecto).
+| Paper | Clave | Relevancia |
+|---|---|---|
+| LLM² (arXiv 2412.20372) | LLM generador + verifier System 2 | Mejora Llama3-1B GSM8K 50.3→57.8; dos componentes. |
+| LM² (EMNLP 2024) | decomposer + solver + verifier | Modular, pero tres modelos; pesado. |
+| GenRM (arXiv 2408.15240) | verificador generativo entrenado con NTP | Mejora verificadores; compatible con LLM. |
+| RL Tango (arXiv 2505.15034) | entrenar generador y verificador juntos con RL | Co-evolución; inestable/costoso. |
+| Think First, Diffuse Fast (arXiv 2603.13243) | AR pequeño planifica, dLLM genera | Training-free híbrido; AR razonador + dLLM fluidez. |
+| STAR-LDM (arXiv 2602.20528) | AR + difusión latente de planificación | Planificación semántica antes de decodificación. |
+
+**Hipótesis:** El razonamiento científico se beneficia de separar generación de
+verificación. Para nuestros recursos, la opción más viable es **two-tower con
+backbone compartido de 155M usado como generador y verificador generativo
+(GenRM/LLM² style)**.
 
 ### D. Cambiar los datos
 
 Hipótesis: no hay suficientes repeticiones de relaciones causales con variación
 léxica. Necesitamos corpus densos, contrafactuales, o anotaciones estructuradas.
 
-Candidatos:
-- Corpus eco-fino con relaciones reales (especies, regiones, GBIF).
-- Generación sintética de argumentos ecologicos controlados.
-- Counterfactual augmentation (DISCO, etc.).
-- Curriculum de datos por relación (repetir relación con variación léxica).
-- Hard negatives curriculares.
+| Paper | Clave | Relevancia |
+|---|---|---|
+| Argument-Annotated Corpus (W18-5206) | ADUs y relaciones support/attack en papers | Esquema de anotación aplicable; corpus manual pequeño. |
+| DISCO (ACL 2023, arXiv 2212.10534) | generar contrafactuales con LLM a escala | +6% robustez, +10% consistencia en NLI. |
+| TinyStories (arXiv 2305.07759) | corpus sintético denso para SLMs | Modelos <10M aprenden estructura con datos controlados. |
+| Don't Stop Pretraining (ACL 2020) | DAPT/TAPT mejora dominio científico | Refuerzo, no solución primaria. |
+| SCoTD (ACL 2023, arXiv 2306.14050) | CoT distillation para modelos 125M-1.3B | 155M es viable con datos denso en CoT. |
+| Plausible Negative Samples (arXiv 2602.03516) | negativos casi correctos para DPO | Hard negatives son el ingrediente clave. |
+
+**Hipótesis:** El problema es densidad/señal. El corpus skeleton aumenta densidad
+pero sigue siendo un único camino. Necesitamos **múltiples ejemplos
+contrastivos por transición inferencial**. La opción más barata es usar el
+esqueleto existente + pares hard-negative (L2/L3) con objetivo contrastivo.
 
 ---
 
-## 3. Fuentes preliminares (a expandir con subagentes)
+## 3. Evaluación de viabilidad por opción
 
-### A. Objetivos de entrenamiento
-
-- **MERIt** (arXiv 2203.00357): meta-path guided contrastive learning para
-  logical reasoning. Genera pares de instancias positivas/negativas editando
-  relaciones en meta-paths.
-- **Let's Verify Step by Step** (OpenAI, arXiv 2305.20050): process supervision
-  vence outcome supervision en MATH.
-- **LLM²** (arXiv 2412.20372): generator + process-based verifier, mejora
-  Llama3-1B en GSM8K de 50.3 a 57.8.
-- **Teaching Small Models to Reason through Counterfactual Distillation**
-  (EMNLP 2024): genera counterfactuals con LLM y enseña SLM.
-
-### B. Representaciones estructuradas / latentes
-
-- **LaDiR** (arXiv 2510.04573): latent diffusion sobre thought tokens. Mejora
-  razonamiento matemático y planning.
-- **UTGDiff** (arXiv 2408.09896): graph-conditioned diffusion para moléculas.
-- **Form follows Function** (arXiv 2311.00444): LLM fine-tuneado para generar
-  grafos desde texto funcional.
-
-### C. Arquitecturas híbridas
-
-- **LLM²** (arXiv 2412.20372): System 1 (LLM) + System 2 (verifier).
-- **LM²** (EMNLP 2024): decomposer + solver + verifier.
-- **Generative Verifiers** (arXiv 2408.15240): entrenar verificadores con NTP.
-- **LLaDA / iLLaDA**: dLLM como base, SFT/RL para tareas.
-
-### D. Datos / contrafactuales
-
-- **DISCO** (ACL 2023): distilling counterfactuals with LLMs.
-- **Dually Self-Improved Counterfactual Data Augmentation** (ACL 2025).
-- **Reasoning Elicitation via Counterfactual Feedback** (ICLR 2025).
-- **Domain-adaptive pretraining** (INDUS, MatSci, OmniScience).
+| Opción | Costo GPU | Costo datos | Riesgo | Primer paso recomendado |
+|---|---|---|---|---|
+| A. Contrastivo/ranking | Bajo (4-10h) | Bajo (pares existentes) | Puede seguir sin señal si los pares son débiles | V3.3 (en vuelo) |
+| B. MDLM + masking estructurado | Medio (6-12h) | Bajo (mismos datos) | Role labeling puede ser imperfecto | LogicRole MDLM |
+| C. Two-tower GenRM | Medio (8-16h) | Medio (pares verificación) | Verificador puede aprender atajos | Generador + verifier 155M |
+| D. Datos contrafactuales denso | Alto (generación) | Alto (LLM/API) | Calidad de contrafactuales | DISCO sobre esqueletos |
 
 ---
 
-## 4. Espacio para rondas DiDal
+## 4. Secuencia de experimentos propuesta (Go/No-Go)
 
-Las rondas DiDal se ejecutarán como discusión multiagente sobre cada opción,
-con roles:
+### Fase actual (inmediata)
+1. **V3.3 contrastivo** (job 29183112). Si L3 ≥ 0.55 → GO, escalar.
+2. Esperar **V3.1 curriculum** verdict.
 
-- **narrative**: argumenta a favor de la opción, plantea caso de uso.
-- **critic**: expone obstáculos técnicos, costos y riesgos.
-- **evidence**: verifica afirmaciones contra literatura/fuentes.
-- **orchestrator**: sintetiza veredicto y recomendación operativa.
+### Si V3.3 y V3.1 fallan (L3 < 0.52)
+3. **Opción B mínima: MDLM con masking estructurado por rol lógico**. Modificar
+   `build_mask_indices` para enmascarar/proteger conectivas, verbos de relación,
+   entidades y números. 1 run de 10K steps.
+4. **Opción C mínima: two-tower generador+verificador**. Usar el mismo backbone
+   155M como generador y verificador generativo sobre pares L3. 1 run de 3K-5K
+   steps.
 
-Resultado esperado: para cada opción un veredicto
-`revise / go / archive` y un experimento concreto con Go/No-Go.
+### Si B y C fallan
+5. **Opción D controlada**: generar contrafactuales con LLM sobre esqueletos
+   (estilo DISCO/PNS) y entrenar con ranking. 1 run.
+6. Si D falla → **archivar dLLM-puro**, pivotar a controller/verificator.
 
 ---
 
@@ -145,3 +162,33 @@ Resultado esperado: para cada opción un veredicto
    variables?
 4. ¿Qué corpus y qué densidad de relaciones necesitamos?
 5. Si V3.3 contrastivo falla, ¿cuál es el siguiente paso mínimo viable?
+
+---
+
+## 6. DiDal — Rondas de discusión multiagente
+
+### Rol de cada participante
+
+- **narrative**: defiende la opción, argumenta por qué es la solución.
+- **critic**: expone obstáculos, costos, riesgos y atajos.
+- **evidence**: verifica afirmaciones contra literatura y datos del proyecto.
+- **orchestrator**: sintetiza, asigna `go / revise / archive`, propone experimento.
+
+### Ronda 1 — Investigación independiente (completada)
+
+Cuatro agentes exploraron opciones A, B, C, D por separado. Sus informes
+fueron integrados en las secciones 2-4 de este documento.
+
+### Ronda 2 — Cross-critique (pendiente)
+
+Cada agente revisa las otras tres opciones y emite un veredicto:
+- ¿Es compatible con 155M/300K docs/1 GPU?
+- ¿Qué problema resuelve que las otras no?
+- ¿Cuál es el riesgo principal?
+
+### Ronda 3 — Refinamiento final (pendiente)
+
+El orquestador integra los veredictos y propone una **ruta única** con:
+- Próximo experimento.
+- Criterio de Go/No-Go.
+- Plan B si falla.
