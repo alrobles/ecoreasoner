@@ -53,9 +53,12 @@ train:
 
 eval:
   pairs_dir: /beegfs/a474r867/ecoreasoner/runs/pairs_hard_v3
+  mask_p: 0.15
+  n_pairs: 256
   steps: 8
   max_new: 128
   temp: 1.0
+  batch: 8
 
 out:
   dir: /beegfs/a474r867/ecoreasoner/runs

@@ -1,0 +1,11 @@
+{
+  "steps": 3000,
+  "train_pairs": 373,
+  "eval_pairs": 93,
+  "last_train_loss": 1.4567286968231201,
+  "last_train_acc": 1.0,
+  "eval_acc_holdout": 0.7742,
+  "eval_loss_holdout": 1.5457,
+  "memorization": false,
+  "verdict": "GO_CANDIDATE"
+}
