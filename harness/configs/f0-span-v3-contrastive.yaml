@@ -1,0 +1,62 @@
+# f0-span-v3-contrastive.yaml — Fine-tuning contrastivo L3 sobre piloto v2.
+# No entrena desde cero; carga checkpoint v2 y ajusta con ranking de pares.
+
+job:
+  name: f0-span-v3-contrastive
+  partition: sixhour
+  gres: gpu:pro6000:1
+  cpus: 16
+  mem: 80G
+  time: "02:00:00"
+  overlay: /beegfs/a474r867/ecoreasoner/blackwell-torch.overlay
+  venv: /bb/bwvenv/bin/python
+  output: /beegfs/a474r867/ecoreasoner/runs/f0-span-v3-contrastive/job-%j.out
+
+model:
+  vocab: 126080
+  hidden: 512
+  layers: 8
+  heads: 8
+  ff_mult: 4
+  seq_len: 768
+  n_experts: 1
+  k: 1
+  use_rope: false
+  weight_tying: false
+
+# Checkpoint base para fine-tuning
+base:
+  ckpt: /beegfs/a474r867/ecoreasoner/runs/f0-span-esqueleto-v2-piloto/checkpoint-g10000/model.pt
+  # alternativa: si V3.1/V3.2 funciona, usar su checkpoint final
+  # ckpt: /beegfs/a474r867/ecoreasoner/runs/f0-span-v3-curriculum/checkpoint-g-final/model.pt
+
+train:
+  # parejas de entrenamiento
+  pairs: /beegfs/a474r867/ecoreasoner/runs/pairs_hard_v3/pairs_L3.jsonl
+  # cache para MLM auxiliar (mantiene fluidez y vocabulario)
+  data_cache: /beegfs/a474r867/ecoreasoner/data/train_ids_skeleton_v2.npz
+  max_steps: 3000
+  batch_size: 8
+  lr: 1.0e-4
+  lr_decay: cosine
+  lr_min_ratio: 0.1
+  warmup: 100
+  grad_clip: 1.0
+  alpha: 0.2           # peso MLM auxiliar
+  margin: 0.0          # softplus ranking
+  mask_schedule: uniform
+  mask_schedule_args: '{"b_l": 0.05, "b_h": 0.95}'
+  mask_p: 0.15
+  span_len: 64
+  whole_stage: false
+  seed: 7331
+
+eval:
+  pairs_dir: /beegfs/a474r867/ecoreasoner/runs/pairs_hard_v3
+  steps: 8
+  max_new: 128
+  temp: 1.0
+
+out:
+  dir: /beegfs/a474r867/ecoreasoner/runs
+  tag: f0-span-v3-contrastive
