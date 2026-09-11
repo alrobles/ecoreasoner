@@ -5,6 +5,20 @@
 > (contrastivo) está corriendo como último intento de la familia MLM-ranking
 > (job 29183112). Este documento replantea cómo un dLLM podría razonar desde cero.
 
+## Resumen ejecutivo
+
+- **Diagnóstico:** el dLLM aprende estructura de etapas (L2) pero no contenido
+  inferencial (L3). La causa probable es la **señal de entrenamiento**, no la
+  arquitectura.
+- **V3.3 lanzado** (job 29183112) como experimento paralelo. Es la intervención
+  más directa: cambiar MLM por ranking contrastivo sobre pares correcto/incorrecto.
+- **DiDal completado** (3 rondas, 4 críticos + orquestador).
+- **Ruta única:**
+  1. V3.3 → si L3 ≥ 0.55: GO, escalar.
+  2. Si 0.52 ≤ L3 < 0.55: V3.2 role-aware + curriculum.
+  3. Si L3 < 0.52 en ambos: archivar dLLM-puro, pivotar a controller/verificator.
+- **Veredicto DiDal por opción:** A = GO, B = REVISE, C = ARCHIVE, D = REVISE/GO condicional.
+
 ---
 
 ## 1. Diagnóstico consolidado
@@ -179,16 +193,45 @@ esqueleto existente + pares hard-negative (L2/L3) con objetivo contrastivo.
 Cuatro agentes exploraron opciones A, B, C, D por separado. Sus informes
 fueron integrados en las secciones 2-4 de este documento.
 
-### Ronda 2 — Cross-critique (pendiente)
+### Ronda 2 — Cross-critique (completada)
 
-Cada agente revisa las otras tres opciones y emite un veredicto:
-- ¿Es compatible con 155M/300K docs/1 GPU?
-- ¿Qué problema resuelve que las otras no?
-- ¿Cuál es el riesgo principal?
+Cada agente revisó las otras tres opciones y emitió veredicto.
 
-### Ronda 3 — Refinamiento final (pendiente)
+| Crítico | Opción defendida | Veredicto | Crítica central a las otras |
+|---|---|---|---|
+| A | A | GO | B no cambia la pérdida, C duplica complejidad, D es caro y no cambia objetivo. |
+| B | B | GO condicional | A sigue en token-level, C divide capacidad, D no aumenta ejemplos. |
+| C | C | GO condicional | A mantiene modelo monolítico, B depende de role-labeler, D no cura arquitectura. |
+| D | D | GO condicional | A y C dependen de pares débiles, B no aumenta densidad de relaciones. |
 
-El orquestador integra los veredictos y propone una **ruta única** con:
-- Próximo experimento.
-- Criterio de Go/No-Go.
-- Plan B si falla.
+Puntos convergentes:
+- El problema es la señal de entrenamiento (L3 ausente, L2 robusto).
+- V3.3 (contrastivo) es el experimento más directo y barato.
+- Si L3 < 0.52, la línea dLLM-pura debe archivarse o pivotar.
+
+Disputa central: ¿la causa es el **objetivo** (A), la **representación** (B), la
+**arquitectura** (C) o los **datos** (D)?
+
+### Ronda 3 — Refinamiento final (completada)
+
+**Orquestador — Recomendación final:**
+
+| Opción | Veredicto | Prioridad |
+|---|---|---|
+| A. Contrastivo/ranking | **GO condicional** | 1 (inmediata) |
+| B. MDLM + masking por rol lógico | **REVISE** | 2 (si A es direccional) |
+| C. Two-tower generador+verificador | **ARCHIVE** | — |
+| D. Datos contrafactuales | **REVISE/GO condicional** | 3 (reserva) |
+
+**Ruta única propuesta:**
+
+1. **V3.3 contrastivo** (job 29183112, ya en vuelo).
+   - **GO** si L3 ≥ 0.55, L2 ≥ 0.55, rank_acc > 0.60 → escalar a 10K steps.
+   - **DIRECCIONAL** si 0.52 ≤ L3 < 0.55 → V3.2 role-aware + curriculum.
+   - **NO-GO** si L3 < 0.52 → V3.2 como última prueba; si falla, pivotar.
+2. **V3.2 role-aware + curriculum** (si A es direccional/falla).
+   - **GO** si L3 ≥ 0.55 con ganancia ≥ +0.04 sobre baseline y L2 ≥ 0.58.
+   - **NO-GO** si L3 < 0.52 → archivar dLLM-puro.
+3. **Pivot a controller/verificator** si A+B fallan.
+   - Usar el verificador ya validado (98.2% match_args) como solución productiva.
+   - Opción D (contrafactuales) solo si queda presupuesto y se filtra calidad ≥ 80%.
