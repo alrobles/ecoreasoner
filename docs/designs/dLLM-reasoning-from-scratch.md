@@ -1,9 +1,10 @@
 # dLLM reasoning from scratch — Replantamiento
 
 > Fecha: 2026-09-10.
-> Contexto: el dLLM puro ha fallado 6+ veces en L3 (STAGE_GRAMMAR). V3.3
-> (contrastivo) está corriendo como último intento de la familia MLM-ranking
-> (job 29183112). Este documento replantea cómo un dLLM podría razonar desde cero.
+> Contexto: el dLLM puro ha fallado 7/7 veces en L3 (STAGE_GRAMMAR). V3.3
+> (contrastivo) está corriendo como cambio de paradigma del objetivo de
+> entrenamiento (ranking sobre pares L3), no como otra iteración de MLM.
+> Este documento replantea cómo un dLLM podría razonar desde cero.
 
 ## Resumen ejecutivo
 
@@ -11,12 +12,21 @@
   inferencial (L3). La causa probable es la **señal de entrenamiento**, no la
   arquitectura.
 - **V3.3 lanzado** (job 29183112) como experimento paralelo. Es la intervención
-  más directa: cambiar MLM por ranking contrastivo sobre pares correcto/incorrecto.
-- **DiDal completado** (3 rondas, 4 críticos + orquestador).
+  más directa: cambiar el paradigma de MLM a ranking contrastivo sobre pares
+  correcto/incorrecto. **Nota metodológica:** V3.3 es *fine-tuning* sobre un
+  base entrenado con MLM; no entrena un dLLM "desde cero" con ranking. La
+  pregunta "razonar desde cero" queda abierta y requiere entrenar un modelo
+  con objetivo contrastivo desde inicialización aleatoria.
+- **DiDal completado** (3 rondas: 1 exploración, 2 defensa de opciones, 3
+  síntesis por orquestador. La ronda 2 no es consenso independiente; cada
+  crítico defendió su opción asignada).
 - **Ruta única:**
-  1. V3.3 → si L3 ≥ 0.55: GO, escalar.
-  2. Si 0.52 ≤ L3 < 0.55: V3.2 role-aware + curriculum.
-  3. Si L3 < 0.52 en ambos: archivar dLLM-puro, pivotar a controller/verificator.
+  1. V3.1 curriculum **ya falló** (L3 0.5043 ns). V3.3 es el último
+     experimento de la familia.
+  2. V3.3 → si L3 ≥ 0.55: GO, escalar.
+  3. Si 0.52 ≤ L3 < 0.55: considerar V3.2 role-aware + curriculum como cierre,
+     pero sin esperar que rompa el techo; si tampoco cruza 0.55, archivar.
+  4. Si L3 < 0.52 en V3.3: archivar dLLM-puro, pivotar a controller/verificator.
 - **Veredicto DiDal por opción:** A = GO, B = REVISE, C = ARCHIVE, D = REVISE/GO condicional.
 
 ---
@@ -44,6 +54,11 @@
 5. **El corpus skeleton puede ser demasiado abstracto** para relaciones ecológicas concretas.
 6. **V3.1 (curriculum + role-aware) confirma el patrón STAGE_GRAMMAR**: L3 = 0.5043
    (ns), a pesar de 10K steps y loss ~7.3. La curriculum no rompió el techo.
+7. **Veredicto concluyente parcial (pre-V3.3):** con 7/7 runs mostrando L2
+   robusto (0.56-0.63***) y L3 nunca significativo (0.47-0.51), el dLLM puro
+   con objetivo MLM/masking a 155M, corpus esqueleto y 10K steps está
+   **falsado como línea productiva**. V3.3 (ranking contrastivo) es el último
+   experimento legítimo de la familia.
 
 ### Diagnóstico raíz
 
@@ -151,21 +166,35 @@ esqueleto existente + pares hard-negative (L2/L3) con objetivo contrastivo.
 ## 4. Secuencia de experimentos propuesta (Go/No-Go)
 
 ### Fase actual (inmediata)
-1. **V3.3 contrastivo** (job 29183112). Si L3 ≥ 0.55 → GO, escalar.
-2. Esperar **V3.1 curriculum** verdict.
+1. **V3.1 curriculum** ya cerró con **L3 = 0.5043 (ns)**. Confirma STAGE_GRAMMAR.
+2. **V3.3 contrastivo** (job 29183112) es el último experimento de la familia
+   dLLM-puro. Aplicar veredicto frío al COMPLETE.
 
-### Si V3.3 y V3.1 fallan (L3 < 0.52)
-3. **Opción B mínima: MDLM con masking estructurado por rol lógico**. Modificar
-   `build_mask_indices` para enmascarar/proteger conectivas, verbos de relación,
-   entidades y números. 1 run de 10K steps.
-4. **Opción C mínima: two-tower generador+verificador**. Usar el mismo backbone
-   155M como generador y verificador generativo sobre pares L3. 1 run de 3K-5K
-   steps.
+### Veredicto de V3.3
 
-### Si B y C fallan
-5. **Opción D controlada**: generar contrafactuales con LLM sobre esqueletos
-   (estilo DISCO/PNS) y entrenar con ranking. 1 run.
-6. Si D falla → **archivar dLLM-puro**, pivotar a controller/verificator.
+| L3 de V3.3 | Decisión | Próximo paso |
+|---|---|---|
+| **≥ 0.55** | GO | El cambio de objetivo a ranking funciona. Escala a 10K steps y/o entrena desde cero con ranking. |
+| **0.52 – 0.54** | DIRECCIONAL | Puede haber señal débil. V3.2 role-aware + curriculum como **cierre de familia**, no como nueva apuesta. Si tampoco cruza 0.55 → archivar. |
+| **< 0.52** | NO-GO | **Archivar dLLM-puro** como negativo publicable. Pivotar a controller/verificator. |
+
+### Criterios metodológicos estrictos para declarar GO en V3.3
+
+- Evaluar con **batería hold-out** generada post-entrenamiento; no usar los 64
+  pares de evaluación interna del trainer como métrica final.
+- Exigir que la mejora en L3 provenga de pares de **tema/especie no visto** en
+  entrenamiento, para descartar atajos del generador `build_pairs_hard_v3`.
+- Inspeccionar `l3_subtype`: la mejora debe distribuirse entre direction,
+  numerical, mechanism, etc., no concentrarse en un subtipo.
+- Reportar `rank_acc` del trainer, pero no confundirlo con L3 de la batería.
+
+### Si V3.3 es NO-GO
+
+- **No lanzar V3.2 con expectativa de salvación.** V3.2 ya está en vuelo como
+  cierre adicional; si falla, no justifica más iteraciones.
+- **Archivar dLLM-puro:** 7/7 runs con el mismo patrón es evidencia suficiente.
+- **Pivotar a controller/verificator:** el sistema ya entrega 98.2-98.6%
+  match_args con replicación 500.
 
 ---
 
@@ -197,7 +226,9 @@ fueron integrados en las secciones 2-4 de este documento.
 
 ### Ronda 2 — Cross-critique (completada)
 
-Cada agente revisó las otras tres opciones y emitió veredicto.
+Cada agente defendió su opción asignada y criticó las otras tres. Esta ronda
+es un ejercicio de defensa cruzada, no un consenso independiente: los
+veredictos "GO" condicionales están sesgados hacia la opción propia.
 
 | Crítico | Opción defendida | Veredicto | Crítica central a las otras |
 |---|---|---|---|
@@ -234,6 +265,25 @@ Disputa central: ¿la causa es el **objetivo** (A), la **representación** (B), 
 2. **V3.2 role-aware + curriculum** (si A es direccional/falla).
    - **GO** si L3 ≥ 0.55 con ganancia ≥ +0.04 sobre baseline y L2 ≥ 0.58.
    - **NO-GO** si L3 < 0.52 → archivar dLLM-puro.
-3. **Pivot a controller/verificator** si A+B fallan.
+3. **Pivot a controller/verificator** si V3.3 falla.
    - Usar el verificador ya validado (98.2% match_args) como solución productiva.
-   - Opción D (contrafactuales) solo si queda presupuesto y se filtra calidad ≥ 80%.
+
+---
+
+## 7. Nota sobre MVP y escalabilidad futura
+
+El objetivo inmediato es un **mínimo prototipo viable** que demuestre una señal
+real de razonamiento inferencial (L3 ≥ 0.55). Si se logra, la receta se vuelve
+argumento para conseguir fondos y más tarjetas. Si no, el material acumulado
+(7 runs controlados, batería v3, ablaciones) es un **negativo publicable** que
+justifica el pivot.
+
+No tiene sentido escalar a 350M/1B o a multi-GPU si el dLLM puro no produce
+señal a 155M con un objetivo que ataca directamente L3. Más hardware no cura
+una pérdida que no premia la inferencia. El hardware adicional debe reservarse
+para:
+- Reentrenar desde cero con ranking contrastivo si V3.3 da GO.
+- Probar representación estructurada (multi-resolution, HDLM, VDLM) con datos
+  y FLOPs adecuados.
+- Escalar el controller/verificator si el dLLM se convierte en componente
+  generador de un sistema híbrido.
