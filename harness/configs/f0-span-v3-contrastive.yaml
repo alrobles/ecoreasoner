@@ -60,3 +60,5 @@ eval:
 out:
   dir: /beegfs/a474r867/ecoreasoner/runs
   tag: f0-span-v3-contrastive
+
+seed: 7331
