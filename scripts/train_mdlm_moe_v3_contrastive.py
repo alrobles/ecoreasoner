@@ -111,6 +111,27 @@ def load_pairs(pairs_path, max_len=768, n_max=None):
     return rows
 
 
+def train_eval_split(pairs, eval_frac=0.2, seed=7331):
+    """Split por CONTEXTO (no por fila): los pares que comparten ctx van todos
+    al mismo lado, garantizando que eval nunca vea un contexto de train.
+
+    Los ctx de pairs_hard_v3 son unicos (verificado 0 duplicados en disco),
+    pero el split por ctx es la unica forma a prueba de futuros generadores
+    que reusen contextos.
+    """
+    by_ctx = {}
+    for i, p in enumerate(pairs):
+        by_ctx.setdefault(tuple(p["ctx"]), []).append(i)
+    ctx_list = list(by_ctx.keys())
+    rng = random.Random(seed)
+    rng.shuffle(ctx_list)
+    n_eval_ctx = max(1, int(len(ctx_list) * eval_frac))
+    eval_ctx = set(ctx_list[:n_eval_ctx])
+    train_idx = [i for ctx, idxs in by_ctx.items() if ctx not in eval_ctx for i in idxs]
+    eval_idx = [i for ctx, idxs in by_ctx.items() if ctx in eval_ctx for i in idxs]
+    return [pairs[i] for i in train_idx], [pairs[i] for i in eval_idx]
+
+
 def collate_ranking(batch, mask_id, seq_len, pad_id=0, device="cuda"):
     """Devuelve seqs, targets, pos_mask, lens para un batch de pares.
 
@@ -285,12 +306,17 @@ def main():
     if not pairs:
         sys.exit("[fatal] sin pares")
 
-    # Subset de evaluacion para monitorear (sin entrenar)
-    eval_pairs = pairs[:min(64, len(pairs))]
-    train_pairs = pairs
+    # Split por CONTEXTO (AUDITORIA v3.3): eval NUNCA ve ctx de train.
+    train_pairs, eval_pairs = train_eval_split(pairs, eval_frac=0.2, seed=a.seed)
+    log(f"Split por contexto: train={len(train_pairs)} eval={len(eval_pairs)}", out)
 
     log("Cargando cache MLM...", out)
     tok = base._load_tokenizer()  # reutiliza tokenizer de v2
+    # mask_id = slot MASK real del tokenizer; validar contra YAML.
+    if hasattr(tok, "vocab_size") and tok.vocab_size != mcfg["vocab"]:
+        log(f"[warn] tok.vocab_size={tok.vocab_size} != yaml vocab={mcfg['vocab']}; "
+            f"usando tok.vocab_size (Embedding es vocab+1)", out)
+    mask_id = tok.vocab_size if hasattr(tok, "vocab_size") else mcfg["vocab"]
     mlm_batches = build_mlm_batches(a.data_cache, a.batch_size, mcfg["seq_len"], tok, random, device)
     log(f"Batches MLM: {len(mlm_batches)}", out)
 
@@ -314,6 +340,9 @@ def main():
     it_mlm = 0
     last = time.time()
     best_acc = 0.0
+    mem_hits = 0  # contador de chequeos consecutivos de memorizacion (AUDITORIA)
+    loss = torch.zeros(())
+    racc = 0.0
     while step < a.max_steps:
         # Ranking batch
         batch = [rng.choice(train_pairs) for _ in range(a.batch_size)]
@@ -355,14 +384,28 @@ def main():
             torch.save({"model": model.state_dict(), "step": step}, save_dir / "model.pt")
             log(f"checkpoint guardado: {save_dir}", out)
 
-        # Evaluacion rapida con pares de evaluacion
+        # Evaluacion rapida con pares holdout (AUDITORIA v3.3: eval real)
         if step % (a.save_every // 2) == 0 and step > 0:
             model.eval()
             with torch.no_grad():
                 seqs_e, targets_e, pos_mask_e, _ = collate_ranking(eval_pairs[:16], mask_id, mcfg["seq_len"], pad_id, device)
-                log_e, _, _ = ranking_loss(model(seqs_e), targets_e, pos_mask_e, a.margin)
+                log_e, eval_acc, eval_ce = ranking_loss(model(seqs_e), targets_e, pos_mask_e, a.margin)
+                # guard de memorizacion: train cerca de 1.0 y eval sin senal
+                if racc > 0.95 and eval_acc < 0.60:
+                    log(f"[warn] POSIBLE MEMORIZACION: train_acc={racc:.3f} eval_acc={eval_acc:.3f} "
+                        f"(holdout, ctx NO vistos)", out)
+                    mem_hits += 1
+                else:
+                    mem_hits = 0
+                if mem_hits >= 4:
+                    log(f"[fatal] memorizacion confirmada (4 chequeos seguidos): archivar run "
+                        f"como INVALIDO, NO interpretar acc de battery", out)
+                    (out / "MEMORIZATION.flag").write_text(
+                        f"train_acc={racc:.4f} eval_acc={eval_acc:.4f} step={step}\n")
+                    # no paramos: dejamos terminar para estudiar, pero el flag ya
+                    # invalida el run a ojos de cualquier watchdog/lector.
             model.train()
-            log(f"  eval rank_loss={log_e.item():.4f}", out)
+            log(f"  eval rank_loss={log_e.item():.4f} eval_acc={eval_acc:.3f} (holdout)", out)
 
         step += 1
 
@@ -370,8 +413,40 @@ def main():
     final_dir = out / "checkpoint-g-final"
     final_dir.mkdir(exist_ok=True)
     torch.save({"model": model.state_dict(), "step": step}, final_dir / "model.pt")
+
+    # Eval final completa sobre TODO el holdout (AUDITORIA v3.3)
+    model.eval()
+    with torch.no_grad():
+        eval_acc_all = 0.0
+        eval_loss_all = 0.0
+        for i in range(0, len(eval_pairs), a.batch_size):
+            chunk = eval_pairs[i:i + a.batch_size]
+            seqs_e, targets_e, pos_mask_e, _ = collate_ranking(
+                chunk, mask_id, mcfg["seq_len"], pad_id, device)
+            l, acc, _ = ranking_loss(model(seqs_e), targets_e, pos_mask_e, a.margin)
+            eval_acc_all += acc * len(chunk)
+            eval_loss_all += l.item() * len(chunk)
+        eval_acc_all = eval_acc_all / len(eval_pairs)
+        eval_loss_all = eval_loss_all / len(eval_pairs)
+    log(f"EVAL FINAL (holdout {len(eval_pairs)} pares, ctx NO vistos): "
+        f"acc={eval_acc_all:.4f} loss={eval_loss_all:.4f}", out)
+
+    summary = {
+        "steps": step,
+        "train_pairs": len(train_pairs),
+        "eval_pairs": len(eval_pairs),
+        "last_train_loss": loss.item(),
+        "last_train_acc": racc,
+        "eval_acc_holdout": round(eval_acc_all, 4),
+        "eval_loss_holdout": round(eval_loss_all, 4),
+        "memorization": bool(mem_hits >= 4),
+        "verdict": "MEMORIZATION" if (racc > 0.95 and eval_acc_all < 0.60)
+                   else "GO_CANDIDATE" if eval_acc_all >= 0.55 else "NO_SIGNAL",
+    }
+    (out / "eval_summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
+    log(f"VEREDICTO: {summary['verdict']} (train_acc={racc:.3f} eval_acc={eval_acc_all:.3f})", out)
     # flag
-    (out / "training_complete.flag").write_text(f"steps: {step}\n")
+    (out / "training_complete.flag").write_text(f"COMPLETE steps={step} verdict={summary['verdict']}\n")
     log(f"COMPLETO: {step} steps -> {final_dir}", out)
 
 
