@@ -60,7 +60,16 @@ def resolve_gbif_occurrence(args):
         return "partial", f"gbif: {sci} usageKey {uk} (occurrence/search error: {type(e).__name__}: {e})"
 
 def _kuhpc_ls(remote_dir):
-    """Lista un dir remoto en HPC (devuelve lista o None si no existe)."""
+    """Lista un dir remoto en HPC (devuelve lista o None si no existe).
+
+    Primero intenta leer localmente (beegfs montado en el nodo); si falla,
+    cae a ssh kuhpc.
+    """
+    try:
+        if os.path.isdir(remote_dir):
+            return [x for x in os.listdir(remote_dir) if x.strip()]
+    except Exception:
+        pass
     try:
         r = subprocess.run(["ssh", "-o", "BatchMode=yes", "kuhpc",
                             f"ls {remote_dir} 2>/dev/null"],
@@ -74,6 +83,9 @@ BIOCLIM_STACK_CANDIDATES = [
     "/beegfs/a474r867/stage1_global_hybrid/bioclim_separate_1km_global_1986-2025",
     "/beegfs/a474r867/stage1_global_hybrid/bioclim_separate_1km_global_1950-2025",
     "/beegfs/a474r867/stage1_global_hybrid/bioclim",
+    "/beegfs/a474r867/stage1_conus_hybrid_bioclim_pr_temporal",
+    "/beegfs/a474r867/stage1_conus_hybrid_bioclim_final_combined",
+    "/beegfs/a474r867/stage1_conus_hybrid_bioclim_final_combined_pre_coastal",
     "/beegfs/a474r867/keras/bioclim/chelsa",
     "/beegfs/a474r867/ecoreasoner/data/bioclim",
 ]
@@ -84,19 +96,30 @@ def resolve_bioclim_download(args):
     year = str(args.get("year") or "").strip() or "?"
     for cand in BIOCLIM_STACK_CANDIDATES:
         lst = _kuhpc_ls(cand)
-        if lst:
-            # stack global: dirs por año (1986..2025), dentro 19 capas bio*
-            if len(lst) > 3 and all(x.isdigit() for x in lst[:3]):
-                year_ok = year in lst
-                inner = _kuhpc_ls(f"{cand}/{lst[0]}") or []
-                layers = [x for x in inner if "bio" in x.lower()][:25]
-                return "ok", (f"bioclim: region={region} year={year} -> stack REAL {cand}: "
-                              f"{len(lst)} años [{lst[0]}..{lst[-1]}], year={year} "
-                              f"{'presente' if year_ok else 'NO presente'}; "
-                              f"capas en {lst[0]}: {len(layers)} (primeras: {layers[:6]})")
-            layers = [x for x in lst if "bio" in x.lower()][:25]
+        if not lst:
+            continue
+        # stack global: dirs por año (1986..2025), dentro 19 capas bio*
+        if len(lst) > 3 and all(x.isdigit() for x in lst[:3]):
+            year_ok = year in lst
+            inner = _kuhpc_ls(f"{cand}/{lst[0]}") or []
+            layers = [x for x in inner if "bio" in x.lower()][:25]
             return "ok", (f"bioclim: region={region} year={year} -> stack REAL {cand}: "
-                          f"{len(lst)} ítems, {len(layers)} capas bio* (primeras: {layers[:6]})")
+                          f"{len(lst)} años [{lst[0]}..{lst[-1]}], year={year} "
+                          f"{'presente' if year_ok else 'NO presente'}; "
+                          f"capas en {lst[0]}: {len(layers)} (primeras: {layers[:6]})")
+        # stack raster multibanda .tif: año en el nombre
+        tifs = [x for x in lst if x.lower().endswith(".tif") and "bioclim" in x.lower()]
+        if tifs:
+            years = sorted({x.split("_")[-1].replace(".tif", "") for x in tifs if x.split("_")[-1].replace(".tif", "").isdigit()})
+            year_ok = year in years
+            return ("partial" if not year_ok else "ok"), (
+                f"bioclim: region={region} year={year} -> stack REAL {cand}: "
+                f"{len(tifs)} archivos .tif, años {years[:5]}...{years[-5:]}, "
+                f"year={year} {'presente' if year_ok else 'NO presente'} "
+                f"(stack es CONUS/global; para regiones libres requiere recorte posterior)")
+        layers = [x for x in lst if "bio" in x.lower()][:25]
+        return "ok", (f"bioclim: region={region} year={year} -> stack REAL {cand}: "
+                      f"{len(lst)} ítems, {len(layers)} capas bio* (primeras: {layers[:6]})")
     return "fail", (f"bioclim: region={region} year={year} -> stack no localizado en HPC "
                     f"(candidatos: {BIOCLIM_STACK_CANDIDATES}); recurso oficial: https://chelsa-climate.org")
 
