@@ -57,6 +57,10 @@ def build_export(cfg, target_steps, batch, grad_accum, pairs_dir):
         "N_EXPERTS": str(m.get("n_experts", 1)),
         "EXPERT_K": str(m.get("k", 1)),
         "SEQ_LEN": str(m["seq_len"]),
+        "CURRICULUM": str(_b2i(t.get("curriculum", False))),
+        "CUR_STAGES": json.dumps(t.get("cur_stages", [])),
+        "ROLE_MASK": str(_b2i(t.get("role_mask", False))),
+        "ROLE_CONFIG": json.dumps(t.get("role_config", {})),
     }
 
 
