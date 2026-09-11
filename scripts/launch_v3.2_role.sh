@@ -6,6 +6,9 @@ set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
 ENV=/tmp/v3.2_role_env.sh
 
+# escribir env en beegfs via ssh porque /beegfs no esta montado localmente
+ssh -o BatchMode=yes kuhpc "mkdir -p $BASE/scripts" || true
+
 cat > "$ENV" <<'EOF'
 TAG=f0-span-v3-role
 DATA_CACHE=/beegfs/a474r867/ecoreasoner/data/train_ids_skeleton_v2.npz
@@ -42,8 +45,8 @@ EXPERT_K=1
 SEQ_LEN=768
 EOF
 
-cp "$ENV" "$BASE/scripts/.v3.2_role_env.sh"
+scp "$ENV" kuhpc:"$BASE/scripts/.v3.2_role_env.sh"
 
-JOB=$(sbatch --parsable --export=ALL,FILE="$BASE/scripts/.v3.2_role_env.sh" "$BASE/scripts/moe_v4_micro_v2.slurm")
+JOB=$(ssh -o BatchMode=yes kuhpc "sbatch --parsable --export=ALL,FILE=\"$BASE/scripts/.v3.2_role_env.sh\" \"$BASE/scripts/moe_v4_micro_v2.slurm\"")
 echo "V3.2 role-aware lanzado: job $JOB"
 echo "env guardado en $BASE/scripts/.v3.2_role_env.sh"
