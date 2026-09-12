@@ -22,13 +22,13 @@ Uso:
   python3 augment_inferential_stage.py --input train_skeleton_train.jsonl \
       --n 40000 --out skeleton_aug_v1.jsonl --seed 731
 """
-import argparse, json, os, re, subprocess, sys, time, urllib.request
+import argparse, glob, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 
 STAGE_RE = re.compile(r"\[(OBSERVACION|HIPOTESIS|PREDICCION|EVIDENCIA|CONCLUSION)\]")
 OUT_MARK = re.compile(
-    r"[\[\(\*_\-\s•#]*"
+    r"(?:^|\n)[ \t>*_\-•#]*[\[\(\*_]*"
     r"(HIP[OÓ]T[ÉE]SIS|HYPOTHESIS|PREDICCI[OÓ]N|PREDICTION)"
-    r"[\]\)\*_\s:.\-]*", re.I)
+    r"[\]\)\*:.\-]+[ \t]*", re.I)
 
 SYSTEM = """You complete scientific argument skeletons. Given OBSERVATION, EVIDENCE and CONCLUSION, write the two missing inferential stages.
 
@@ -71,30 +71,62 @@ def resolve_ollama_url():
     return None
 
 
-def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240):
-    """Devuelve (texto, net_err). net_err=True => el serve esta caido:
-    NO marcar el pid como done, no hubo intento real."""
-    payload = json.dumps({
-        "model": model,
+def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240,
+                 api_key=None, models=None, max_tokens=1200, pace=0.0,
+                 _last=[0.0]):
+    """Devuelve (texto, estado). estado: None=ok, "net"=red/serve caido,
+    "rate"=429 (no reintentar en caliente: las llamadas fallidas tambien
+    descuentan la cuota diaria de OpenRouter)."""
+    body = {
         "messages": [
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": USER_TMPL.format(obs=obs, evid=evid, conc=conc)},
         ],
-        "temperature": 0.3, "max_tokens": 1200, "think": False,
-    }).encode()
-    last = "?"
+        "temperature": 0.3, "max_tokens": max_tokens,
+    }
+    if models:  # openrouter: fallback server-side entre variantes :free
+        body["models"] = models
+    else:
+        body["model"] = model
+        body["think"] = False  # param ollama-only
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+        headers["X-Title"] = "ecoreasoner-b2-aug"
+    payload = json.dumps(body).encode()
     for _ in range(retries):
+        if pace:
+            dt = time.time() - _last[0]
+            if dt < pace:
+                time.sleep(pace - dt)
         try:
-            req = urllib.request.Request(url, data=payload,
-                                         headers={"Content-Type": "application/json"},
+            req = urllib.request.Request(url, data=payload, headers=headers,
                                          method="POST")
+            _last[0] = time.time()
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 r = json.loads(resp.read().decode())
-            return r["choices"][0]["message"]["content"], False
-        except Exception as e:
-            last = str(e)[:120]
+            return r["choices"][0]["message"]["content"], None
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                ra = e.headers.get("Retry-After")
+                return None, ("rate", ra)
             time.sleep(3)
-    return None, True
+        except Exception:
+            time.sleep(3)
+    return None, ("net", None)
+
+
+def openrouter_quota(api_key):
+    """GET /api/v1/key -> usage diario restante (best-effort)."""
+    try:
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/key",
+            headers={"Authorization": f"Bearer {api_key}"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            d = json.loads(resp.read().decode())["data"]
+        return d.get("usage_daily"), d.get("limit")
+    except Exception:
+        return None, None
 
 
 def jaccard(a, b):
@@ -116,11 +148,13 @@ def parse_out(text):
         nl = seg.find("\n")
         same_line = (seg[:nl] if nl != -1 else seg).strip()
         if same_line:
-            parts[k] = same_line
+            parts.setdefault(k, same_line)
         else:
             block = seg.strip().split("\n\n", 1)[0]
             lines = [l for l in block.splitlines() if not STAGE_RE.match(l.strip())]
-            parts[k] = "\n".join(lines).strip() or None
+            val = "\n".join(lines).strip()
+            if val:
+                parts.setdefault(k, val)
     return parts.get("HIPOTESIS"), parts.get("PREDICCION")
 
 
@@ -147,6 +181,22 @@ def main():
     ap.add_argument("--every", type=int, default=1, help="procesar 1 de cada N docs")
     ap.add_argument("--shard", type=int, default=0)
     ap.add_argument("--nshards", type=int, default=1)
+    ap.add_argument("--backend", default=os.environ.get("BACKEND", "ollama"),
+                    choices=["ollama", "openrouter"])
+    ap.add_argument("--models", default=os.environ.get("OR_MODELS", ""),
+                    help="CSV de slugs openrouter (fallback server-side)")
+    ap.add_argument("--reverse", action="store_true",
+                    default=bool(int(os.environ.get("REVERSE", "0"))),
+                    help="recorrer candidatos al reves (workers secundarios)")
+    ap.add_argument("--pace", type=float,
+                    default=float(os.environ.get("PACE", "0")),
+                    help="seg minimos entre llamadas (rate limit client-side)")
+    ap.add_argument("--max-tokens", type=int,
+                    default=int(os.environ.get("MAX_TOKENS", "1200")))
+    ap.add_argument("--claims", default=os.environ.get("CLAIMS", ""),
+                    help="dir de claims compartidos entre workers (dedup)")
+    ap.add_argument("--done-glob", default=os.environ.get("DONE_GLOB", ""),
+                    help="glob de .done hermanos a respetar (dedup cross-worker)")
     args = ap.parse_args()
 
     import random
@@ -164,22 +214,41 @@ def main():
         docs.append(r)
     rng.shuffle(docs)
     docs = [d for i, d in enumerate(docs) if i % args.nshards == args.shard]
+    if args.reverse:
+        docs = docs[::-1]
     print(f"[aug] candidatos={len(docs)}", flush=True)
 
     done_path = args.out + ".done"
     done = set()
-    if os.path.exists(done_path):
-        done = set(open(done_path).read().split())
+    for f in glob.glob(args.done_glob or done_path):
+        if os.path.exists(f):
+            done.update(open(f).read().split())
     f_out = open(args.out, "a")
     f_done = open(done_path, "a")
 
-    url = resolve_ollama_url()
-    if not url:
-        print("[aug] FATAL: no hay ollama-v4serve RUNNING", flush=True)
-        sys.exit(2)
-    print(f"[aug] teacher={args.model} url={url}", flush=True)
+    claim_dir = args.claims or (args.out + ".claims")
+    os.makedirs(claim_dir, exist_ok=True)
 
-    n_ok = n_fail = consec_net = 0
+    if args.backend == "openrouter":
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            print("[aug] FATAL: OPENROUTER_API_KEY no definida", flush=True)
+            sys.exit(2)
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        models = [m.strip() for m in args.models.split(",") if m.strip()]
+        used, lim = openrouter_quota(api_key)
+        print(f"[aug] openrouter usage_daily={used} limit={lim} "
+              f"models={models}", flush=True)
+    else:
+        url = resolve_ollama_url()
+        if not url:
+            print("[aug] FATAL: no hay ollama-v4serve RUNNING", flush=True)
+            sys.exit(2)
+        api_key, models = None, None
+    print(f"[aug] teacher={args.model} backend={args.backend} url={url}",
+          flush=True)
+
+    n_ok = n_fail = consec_net = n_rate = 0
     t0 = time.time()
     for k, r in enumerate(docs):
         pid = r.get("pid", f"doc{k}")
@@ -195,15 +264,42 @@ def main():
         if not obs or not evid or not conc:
             f_done.write(pid + "\n"); f_done.flush()
             continue
-        raw, net_err = call_teacher(url, obs, evid, conc, args.model)
-        if net_err:
+        # claim atomico: otro worker (otro shard/backend) no lo repite
+        cpath = os.path.join(claim_dir, pid.replace("/", "_"))
+        try:
+            fd = os.open(cpath, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+        except FileExistsError:
+            continue
+
+        raw, status = call_teacher(url, obs, evid, conc, args.model,
+                                   api_key=api_key, models=models,
+                                   max_tokens=args.max_tokens, pace=args.pace)
+        if status is not None:
+            try:
+                os.unlink(cpath)  # sin intento real: liberar para otro worker
+            except OSError:
+                pass
+            kind, ra = status
+            if kind == "rate":
+                n_rate += 1
+                wait = min(float(ra), 300.0) if ra else 60.0
+                print(f"[aug] 429 x{n_rate} retry-after={wait:.0f}s", flush=True)
+                if n_rate >= 4:
+                    # QUOTA_EXHAUSTED: el grep del slurm lo toma como fin
+                    # limpio -> NO resubmit (reintentar quemaria cuota diaria)
+                    print("[aug] QUOTA_EXHAUSTED 429 x4 -> fin sin resubmit",
+                          flush=True)
+                    sys.exit(3)
+                time.sleep(wait)
+                continue
             consec_net += 1
             if consec_net >= 5:
                 print(f"[aug] FATAL: teacher inalcanzable x{consec_net}, "
                       "salir para resubmit (pids NO marcados)", flush=True)
                 sys.exit(2)
             continue
-        consec_net = 0
+        consec_net = n_rate = 0
         hip, pred = parse_out(raw or "")
         if valid(hip, pred, conc):
             new_text = (f"[OBSERVACION] {segs['OBSERVACION']}\n"

@@ -20,19 +20,25 @@ SHARD=${SHARD:-0}
 NSHARDS=${NSHARDS:-1}
 OUTFILE="${OUT}_s${SHARD}"
 
-echo "=== b2-augment $(date -u) in=$IN out=$OUTFILE n=$N shard=$SHARD/$NSHARDS ==="
+BACKEND=${BACKEND:-ollama}
+CLAIMS=${CLAIMS:-${OUT}.claims}
+DONE_GLOB=${DONE_GLOB:-${OUT}*.done}
+echo "=== b2-augment $(date -u) in=$IN out=$OUTFILE n=$N shard=$SHARD/$NSHARDS backend=$BACKEND ==="
 
-# esperar a que haya un v4serve RUNNING (max 20 min)
+# esperar a que haya un v4serve RUNNING (max 20 min) — solo backend ollama
+if [ "$BACKEND" = "ollama" ]; then
 for i in $(seq 1 40); do
     if squeue -u "$USER" -n ollama-v4serve -t R -h | grep -q .; then
         echo "v4serve activo"; break
     fi
     echo "esperando v4serve... ($i)"; sleep 30
 done
+fi
 
 python3 -u "$BASE/scripts/augment_inferential_stage.py" \
     --input "$IN" --out "$OUTFILE" --n "$N" --model "$MODEL" \
-    --shard "$SHARD" --nshards "$NSHARDS" || true
+    --shard "$SHARD" --nshards "$NSHARDS" \
+    --claims "$CLAIMS" --done-glob "$DONE_GLOB" || true
 
 # resubmit solo si murió sin llegar a COMPLETE/EXHAUSTED (p.ej. límite de 6h)
 if ! tail -3 /beegfs/a474r867/ecoreasoner/logs/b2_augment_${SLURM_JOB_ID}.out 2>/dev/null \

@@ -166,6 +166,23 @@ a batch gigante).. **Ganador: span-esqueleto.**
   29226860→29226861→29226862 (afterany, ~18h; quizá haga falta 1 más
   mañana). Acelerador disponible NO aplicado: 2 hilos por shard para
   usar los 8 slots del serve (~mitad de tiempo).
+  **Backend OpenRouter IMPLEMENTADO (12-09 ~18:40, no lanzado — falta
+  API key)**: egress a internet desde nodos de cómputo VERIFICADO (200
+  a openrouter desde srun). `--backend openrouter` + `OR_MODELS` (CSV,
+  fallback server-side), `OPENROUTER_API_KEY` por env, `REVERSE=1` +
+  claims atómicos `O_EXCL` (`CLAIMS` dir compartido) + `DONE_GLOB`
+  (respeta .done hermanos) → workers OR recorren candidatos al revés
+  sin duplicar con los shards modulo. 429 → Retry-After, x4 seguidos
+  exit(3) (las llamadas fallidas también descuentan cuota). Free tier
+  = **por cuenta** (50 req/día, o 1000/día si ≥$10 cargados alguna
+  vez; 20 rpm) — hedge/backup, no acelerador grande; paid deepseek-v3
+  haría los ~9.5K restantes por ~$3-5. Lanzar OR worker:
+  `BACKEND=openrouter REVERSE=1 PACE=3.5 MAX_TOKENS=400
+  OUT=.../train_skeleton_aug_b2_or.jsonl SHARD=0 NSHARDS=1 N=999999
+  CLAIMS=.../train_skeleton_aug_b2.jsonl.claims
+  DONE_GLOB='.../train_skeleton_aug_b2*.done' OR_MODELS='<slugs:free>'
+  OPENROUTER_API_KEY=... sbatch --export=ALL b2_augment.slurm`
+  (merge final: dedup por pid).
 - **B1 — CANDIDATE_FOCUS NO-GO (2026-09-12, `f0-span-v3-candfocus` 10K steps,
   battery automática)**: battery base (random15): L0 0.52 / L1 0.51 / L2
   0.582*** / L3 0.518 ns → "estructura sin inferencia"; battery **dense**
