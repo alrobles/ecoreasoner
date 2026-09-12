@@ -108,6 +108,10 @@ def parse():
                         "(en vez de spans random)")
     p.add_argument("--stage_labels", default="[OBSERVACION],[HIPOTESIS],[PREDICCION],[EVIDENCIA],[CONCLUSION]",
                    help="etiquetas de etapa para --whole_stage")
+    p.add_argument("--candidate_focus", type=float, default=0.0,
+                   help="probabilidad por ejemplo de enmascarar UNA etapa "
+                        "completa (etiqueta+contenido, sesgo a tardias): "
+                        "replica la tarea del scorer denso L3 en training")
     p.add_argument("--role_mask", action="store_true",
                    help="activar masking ponderado por rol semantico (V3.2). "
                         "Default OFF: con --role_mask ausente el comportamiento "
@@ -775,6 +779,46 @@ def build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type="span", span
     return torch.cat(all_indices)
 
 
+def build_candidate_mask(xb, stage_label_ids, device="cpu"):
+    """Enmascara UNA etapa completa (etiqueta + contenido) por ejemplo.
+
+    Replica la tarea del scorer denso L3 (Fase A): contexto intacto, candidato
+    al 100%. Sesgo a etapas tardias: peso lineal creciente por posicion de
+    etapa (la ultima etapa es el candidato mas frecuente en los pares de eval).
+    Devuelve indices planos [0, B*T) o None si el ejemplo no tiene etapas."""
+    B, T = xb.shape
+    all_indices = []
+    for b in range(B):
+        seq = xb[b]
+        # localizar etiquetas (inicio, fin-etiqueta) en orden
+        starts = []
+        for i in range(T):
+            for label_ids in stage_label_ids:
+                L = len(label_ids)
+                if i + L <= T:
+                    if (seq[i:i+L] == torch.tensor(label_ids, device=seq.device, dtype=seq.dtype)).all():
+                        starts.append((i, i + L))
+                        break
+        if len(starts) < 2:
+            continue
+        starts.sort()
+        # span candidato por etapa: [inicio_etiqueta, inicio_siguiente_etiqueta o T)
+        spans = []
+        for idx, (s, _e) in enumerate(starts):
+            end = starts[idx + 1][0] if idx + 1 < len(starts) else T
+            if s < end:
+                spans.append((s, end))
+        if not spans:
+            continue
+        w = torch.arange(1, len(spans) + 1, device=device, dtype=torch.float32)
+        idx = int(torch.multinomial(w / w.sum(), 1).item())
+        s, e = spans[idx]
+        all_indices.append(torch.arange(s, e, device=device) + b * T)
+    if not all_indices:
+        return None
+    return torch.cat(all_indices)
+
+
 def build_mask_indices(xb, n_target, mask_type, whole_stage=False, stage_label_ids=None, span_len=64, device="cpu", token_scores=None):
     """Entry-point: devuelve indices planos [0, B*T) a enmascarar por batch.
 
@@ -981,9 +1025,9 @@ def main():
     tok, batches_all = build_batches()
     # pre-computar token ids de etiquetas de esqueleto para whole_stage
     STAGE_LABEL_IDS = None
-    if ARGS.whole_stage and tok:
+    if (ARGS.whole_stage or ARGS.candidate_focus > 0) and tok:
         STAGE_LABEL_IDS = [tok.encode(lbl, add_special_tokens=False) for lbl in ARGS.stage_labels]
-        log(f"whole_stage: labels={ARGS.stage_labels} ids={STAGE_LABEL_IDS}")
+        log(f"stage labels: {ARGS.stage_labels} ids={STAGE_LABEL_IDS}")
     # distribute batches across ranks (each rank trains on a distinct slice)
     if ddp:
         nb = len(batches_all)
@@ -1068,7 +1112,7 @@ def main():
     nb = len(batches); it = 0
     log(f"masking: schedule={ARGS.mask_schedule} type={ARGS.mask_type} "
         f"whole_stage={ARGS.whole_stage} span_len={ARGS.span_len} "
-        f"role_mask={ARGS.role_mask}")
+        f"role_mask={ARGS.role_mask} candidate_focus={ARGS.candidate_focus}")
     if ARGS.curriculum:
         s0, f0 = curriculum_state(STEPS_DONE[0], ARGS.cur_stages)
         log(f"curriculum on: steps={len(ARGS.cur_stages)} stages, "
@@ -1099,11 +1143,16 @@ def main():
         mp_parts = []
         for b_idx in range(B):
             xb_b = xb[b_idx:b_idx+1]
-            mp_b = build_mask_indices(xb_b, n_masked_per_ex[b_idx], ARGS.mask_type,
-                                      whole_stage=ARGS.whole_stage,
-                                      stage_label_ids=STAGE_LABEL_IDS,
-                                      span_len=eff_span_len, device=xb.device,
-                                      token_scores=role_scores[b_idx:b_idx+1] if role_scores is not None else None)
+            mp_b = None
+            if (ARGS.candidate_focus > 0 and STAGE_LABEL_IDS
+                    and float(torch.rand((), device=xb.device)) < ARGS.candidate_focus):
+                mp_b = build_candidate_mask(xb_b, STAGE_LABEL_IDS, device=xb.device)
+            if mp_b is None:
+                mp_b = build_mask_indices(xb_b, n_masked_per_ex[b_idx], ARGS.mask_type,
+                                          whole_stage=ARGS.whole_stage,
+                                          stage_label_ids=STAGE_LABEL_IDS,
+                                          span_len=eff_span_len, device=xb.device,
+                                          token_scores=role_scores[b_idx:b_idx+1] if role_scores is not None else None)
             mp_parts.append(mp_b + b_idx * T)
         mp = torch.cat(mp_parts)
         assert int(mp.max()) < B * T, f"mask indices out of bounds: max={int(mp.max())} >= {B*T}"
