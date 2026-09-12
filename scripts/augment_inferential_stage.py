@@ -25,21 +25,24 @@ Uso:
 import argparse, json, os, re, subprocess, sys, time, urllib.request
 
 STAGE_RE = re.compile(r"\[(OBSERVACION|HIPOTESIS|PREDICCION|EVIDENCIA|CONCLUSION)\]")
-OUT_RE = re.compile(
-    r"(?:\[|\*\*)?\s*(HIP[OÓ]T[ÉE]SIS|HYPOTHESIS|PREDICCI[OÓ]N|PREDICTION)"
-    r"[\]\*:]*\s*([^\n\[*]+)", re.I)
+OUT_MARK = re.compile(
+    r"[\[\(\*_\-\s•#]*"
+    r"(HIP[OÓ]T[ÉE]SIS|HYPOTHESIS|PREDICCI[OÓ]N|PREDICTION)"
+    r"[\]\)\*_\s:.\-]*", re.I)
 
 SYSTEM = """You complete scientific argument skeletons. Given OBSERVATION, EVIDENCE and CONCLUSION, write the two missing inferential stages.
 
-Reply with EXACTLY two lines, like this example:
+Your reply must be EXACTLY two lines and nothing else, like this example:
 [HIPOTESIS] Drought reduces soil water availability, which inhibits seed germination and seedling survival.
 [PREDICCION] Irrigated plots will show higher recruitment of the species than unirrigated plots.
 
-Rules: <=30 words each, plain English, no new entities, do not restate the conclusion."""
+Rules: <=30 words each, plain English, no new entities, do not restate the conclusion, no preamble or explanation."""
 
 USER_TMPL = """[OBSERVACION] {obs}
 [EVIDENCIA] {evid}
-[CONCLUSION] {conc}"""
+[CONCLUSION] {conc}
+
+Reply with the two lines [HIPOTESIS] and [PREDICCION] only."""
 
 
 def resolve_ollama_url():
@@ -100,10 +103,24 @@ def jaccard(a, b):
 
 
 def parse_out(text):
+    """Marcador + contenido en la misma línea; si la línea queda vacía,
+    el contenido es el bloque siguiente hasta línea en blanco u otro marcador."""
     parts = {}
-    for m in OUT_RE.finditer(text):
+    ms = list(OUT_MARK.finditer(text))
+    for i, m in enumerate(ms):
         k = "HIPOTESIS" if m.group(1).upper().startswith("H") else "PREDICCION"
-        parts[k] = m.group(2).strip()
+        if k in parts:
+            continue
+        end = ms[i + 1].start() if i + 1 < len(ms) else len(text)
+        seg = text[m.end():end]
+        nl = seg.find("\n")
+        same_line = (seg[:nl] if nl != -1 else seg).strip()
+        if same_line:
+            parts[k] = same_line
+        else:
+            block = seg.strip().split("\n\n", 1)[0]
+            lines = [l for l in block.splitlines() if not STAGE_RE.match(l.strip())]
+            parts[k] = "\n".join(lines).strip() or None
     return parts.get("HIPOTESIS"), parts.get("PREDICCION")
 
 

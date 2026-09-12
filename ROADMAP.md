@@ -153,14 +153,19 @@ a batch gigante).. **Ganador: span-esqueleto.**
   **Rev 12-09 ~17:15 CDT**: yield de parseo ~45% (el teacher emite
   [HIPOTESIS] pero omite [PREDICCION]; solo 2/15 fails contienen
   "prediction") → ritmo efectivo ~0.21 docs/s → ~7h+/shard → 2+ olas.
-  Fix ops (sin tocar procesos vivos): `augment_inferential_stage.py`
-  distingue fallo de red de mal parseo — net_err NO marca .done y
-  aborta FATAL tras 5 seguidos (lo heredan las olas resubmit).
-  Cadena de serves v4 para cubrir la muerte de 29226410 (~20:15 local):
-  29226860→29226861→29226862 (afterany). DECISIÓN PENDIENTE: endurecer
-  el prompt del teacher (EXACTLY two lines se ignora ~55%) o parser
-  tolerante a contenido en la línea siguiente — mejora yield pero
-  cambia el generador a mitad de recolección.
+  **FIX APLICADO + RELANZADO (12-09 ~18:00 CDT, jobs 29226869-872)**:
+  prompt endurecido ("EXACTLY two lines and nothing else" + recordatorio
+  en el turno user) + parser de bloques (`OUT_MARK`: contenido misma
+  línea o bloque siguiente hasta línea en blanco/otro marcador;
+  `**Hypothesis:**`, bullets, `[HIPÓTESIS]\n<contenido>`) + net_err no
+  marca .done (aborta FATAL tras 5). Resultado: **fail≈0** en las
+  primeras ~25 llamadas (vs ~55%). CUELLO REAL medido: teacher
+  ~30s/llamada con 4 clientes paralelos (NUM_PARALLEL=8, solo 4 en uso)
+  → ~0.03-0.04 calls/s/shard → 2500 ok ≈ **18-21h/shard → ~4 olas**.
+  Cadena de serves v4 cubre la muerte de 29226410 (~20:15 local):
+  29226860→29226861→29226862 (afterany, ~18h; quizá haga falta 1 más
+  mañana). Acelerador disponible NO aplicado: 2 hilos por shard para
+  usar los 8 slots del serve (~mitad de tiempo).
 - **B1 — CANDIDATE_FOCUS NO-GO (2026-09-12, `f0-span-v3-candfocus` 10K steps,
   battery automática)**: battery base (random15): L0 0.52 / L1 0.51 / L2
   0.582*** / L3 0.518 ns → "estructura sin inferencia"; battery **dense**
