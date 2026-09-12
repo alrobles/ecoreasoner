@@ -16,8 +16,11 @@ IN=${IN:-$BASE/data/skeleton/train_skeleton_train.jsonl}
 OUT=${OUT:-$BASE/data/skeleton/train_skeleton_aug_b2.jsonl}
 N=${N:-40000}
 MODEL=${MODEL:-deepseek-v4-flash}
+SHARD=${SHARD:-0}
+NSHARDS=${NSHARDS:-1}
+OUTFILE="${OUT}_s${SHARD}"
 
-echo "=== b2-augment $(date -u) in=$IN out=$OUT n=$N ==="
+echo "=== b2-augment $(date -u) in=$IN out=$OUTFILE n=$N shard=$SHARD/$NSHARDS ==="
 
 # esperar a que haya un v4serve RUNNING (max 20 min)
 for i in $(seq 1 40); do
@@ -28,13 +31,14 @@ for i in $(seq 1 40); do
 done
 
 python3 -u "$BASE/scripts/augment_inferential_stage.py" \
-    --input "$IN" --out "$OUT" --n "$N" --model "$MODEL" || true
+    --input "$IN" --out "$OUTFILE" --n "$N" --model "$MODEL" \
+    --shard "$SHARD" --nshards "$NSHARDS" || true
 
-# si no completó, resubmit (el .done evita repetir pids)
-DONE_N=$(wc -l < "$OUT.done" 2>/dev/null || echo 0)
-if [ "$DONE_N" -lt "$N" ]; then
-    echo "incompleto ($DONE_N/$N) -> resubmit"
-    sbatch --export=ALL,IN,OUT,N,MODEL "$0"
+# resubmit solo si murió sin llegar a COMPLETE/EXHAUSTED (p.ej. límite de 6h)
+if ! tail -3 /beegfs/a474r867/ecoreasoner/logs/b2_augment_${SLURM_JOB_ID}.out 2>/dev/null \
+        | grep -qE "COMPLETE|EXHAUSTED"; then
+    echo "murio sin terminar -> resubmit"
+    sbatch --export=ALL,IN,OUT,N,MODEL,SHARD,NSHARDS "$0"
 else
-    echo "=== b2-augment COMPLETE $(date -u) ==="
+    echo "=== b2-augment fin $(date -u) ==="
 fi

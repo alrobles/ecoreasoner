@@ -25,18 +25,17 @@ Uso:
 import argparse, json, os, re, subprocess, sys, time, urllib.request
 
 STAGE_RE = re.compile(r"\[(OBSERVACION|HIPOTESIS|PREDICCION|EVIDENCIA|CONCLUSION)\]")
-OUT_RE = re.compile(r"\[(HIPOTESIS|PREDICCION)\]\s*([^\[]+)")
+OUT_RE = re.compile(
+    r"(?:\[|\*\*)?\s*(HIP[OÓ]T[ÉE]SIS|HYPOTHESIS|PREDICCI[OÓ]N|PREDICTION)"
+    r"[\]\*:]*\s*([^\n\[*]+)", re.I)
 
-SYSTEM = """You complete scientific argument skeletons. Given the OBSERVATION, EVIDENCE and CONCLUSION of a study, write the two missing inferential stages.
+SYSTEM = """You complete scientific argument skeletons. Given OBSERVATION, EVIDENCE and CONCLUSION, write the two missing inferential stages.
 
-Output EXACTLY two lines:
-[HIPOTESIS] <one sentence: the mechanism hypothesis that connects the observation to the evidence>
-[PREDICCION] <one sentence: a specific, testable prediction derived from that hypothesis>
+Reply with EXACTLY two lines, like this example:
+[HIPOTESIS] Drought reduces soil water availability, which inhibits seed germination and seedling survival.
+[PREDICCION] Irrigated plots will show higher recruitment of the species than unirrigated plots.
 
-Rules:
-- At most 30 words per sentence. Plain scientific English.
-- Do NOT introduce new species, numbers or entities absent from the input.
-- Do NOT restate the conclusion. Do NOT add any other text or labels."""
+Rules: <=30 words each, plain English, no new entities, do not restate the conclusion."""
 
 USER_TMPL = """[OBSERVACION] {obs}
 [EVIDENCIA] {evid}
@@ -76,7 +75,7 @@ def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240):
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": USER_TMPL.format(obs=obs, evid=evid, conc=conc)},
         ],
-        "temperature": 0.3, "max_tokens": 140,
+        "temperature": 0.3, "max_tokens": 1200, "think": False,
     }).encode()
     last = "?"
     for _ in range(retries):
@@ -99,7 +98,10 @@ def jaccard(a, b):
 
 
 def parse_out(text):
-    parts = {m.group(1): m.group(2).strip() for m in OUT_RE.finditer(text)}
+    parts = {}
+    for m in OUT_RE.finditer(text):
+        k = "HIPOTESIS" if m.group(1).upper().startswith("H") else "PREDICCION"
+        parts[k] = m.group(2).strip()
     return parts.get("HIPOTESIS"), parts.get("PREDICCION")
 
 
@@ -124,6 +126,8 @@ def main():
     ap.add_argument("--max-chars", type=int, default=1800,
                     help="truncar cada etapa del prompt a N chars")
     ap.add_argument("--every", type=int, default=1, help="procesar 1 de cada N docs")
+    ap.add_argument("--shard", type=int, default=0)
+    ap.add_argument("--nshards", type=int, default=1)
     args = ap.parse_args()
 
     import random
@@ -140,7 +144,7 @@ def main():
             continue
         docs.append(r)
     rng.shuffle(docs)
-    docs = docs[:args.n]
+    docs = [d for i, d in enumerate(docs) if i % args.nshards == args.shard]
     print(f"[aug] candidatos={len(docs)}", flush=True)
 
     done_path = args.out + ".done"
@@ -183,8 +187,13 @@ def main():
             f_out.write(json.dumps({**r, "text": new_text, "aug": "b2_v1"}) + "\n")
             f_out.flush()
             n_ok += 1
+            if n_ok >= args.n:
+                break
         else:
             n_fail += 1
+            if n_fail <= 15:
+                print(f"[aug-fail] pid={pid} raw={repr((raw or '')[:400])}",
+                      flush=True)
         f_done.write(pid + "\n"); f_done.flush()
         if (k + 1) % 25 == 0:
             el = time.time() - t0
@@ -192,7 +201,8 @@ def main():
             eta = (len(docs) - k - 1) / rate / 3600 if rate else -1
             print(f"[aug] {k+1}/{len(docs)} ok={n_ok} fail={n_fail} "
                   f"{rate:.2f} docs/s eta={eta:.1f}h", flush=True)
-    print(f"[aug] DONE ok={n_ok} fail={n_fail}", flush=True)
+    status = "COMPLETE" if n_ok >= args.n else "EXHAUSTED"
+    print(f"[aug] {status} ok={n_ok} fail={n_fail}", flush=True)
 
 
 if __name__ == "__main__":
