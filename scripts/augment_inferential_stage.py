@@ -86,6 +86,8 @@ def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240,
     }
     if models:  # openrouter: fallback server-side entre variantes :free
         body["models"] = models
+        body["reasoning"] = {"enabled": False}  # el reasoning consume
+        # max_tokens antes de emitir content -> respuesta vacia/truncada
     else:
         body["model"] = model
         body["think"] = False  # param ollama-only
@@ -107,11 +109,14 @@ def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240,
                 r = json.loads(resp.read().decode())
             return r["choices"][0]["message"]["content"], None
         except urllib.error.HTTPError as e:
+            body = e.read()[:200]
+            print(f"[aug-err] HTTP {e.code} {body!r}", flush=True)
             if e.code == 429:
                 ra = e.headers.get("Retry-After")
                 return None, ("rate", ra)
             time.sleep(3)
-        except Exception:
+        except Exception as e:
+            print(f"[aug-err] {type(e).__name__} {str(e)[:200]}", flush=True)
             time.sleep(3)
     return None, ("net", None)
 
@@ -232,10 +237,18 @@ def main():
     if args.backend == "openrouter":
         api_key = os.environ.get("OPENROUTER_API_KEY")
         if not api_key:
-            print("[aug] FATAL: OPENROUTER_API_KEY no definida", flush=True)
+            kf = os.environ.get("OPENROUTER_KEY_FILE",
+                                os.path.expanduser("~/.openrouter-key"))
+            try:
+                api_key = open(kf).read().strip()
+            except OSError:
+                pass
+        if not api_key:
+            print("[aug] FATAL: sin OPENROUTER_API_KEY ni key-file", flush=True)
             sys.exit(2)
         url = "https://openrouter.ai/api/v1/chat/completions"
-        models = [m.strip() for m in args.models.split(",") if m.strip()]
+        # OR: fallback array admite max 3 modelos (400 si no)
+        models = [m.strip() for m in args.models.split(",") if m.strip()][:3]
         used, lim = openrouter_quota(api_key)
         print(f"[aug] openrouter usage_daily={used} limit={lim} "
               f"models={models}", flush=True)

@@ -166,23 +166,21 @@ a batch gigante).. **Ganador: span-esqueleto.**
   29226860→29226861→29226862 (afterany, ~18h; quizá haga falta 1 más
   mañana). Acelerador disponible NO aplicado: 2 hilos por shard para
   usar los 8 slots del serve (~mitad de tiempo).
-  **Backend OpenRouter IMPLEMENTADO (12-09 ~18:40, no lanzado — falta
-  API key)**: egress a internet desde nodos de cómputo VERIFICADO (200
-  a openrouter desde srun). `--backend openrouter` + `OR_MODELS` (CSV,
-  fallback server-side), `OPENROUTER_API_KEY` por env, `REVERSE=1` +
-  claims atómicos `O_EXCL` (`CLAIMS` dir compartido) + `DONE_GLOB`
-  (respeta .done hermanos) → workers OR recorren candidatos al revés
-  sin duplicar con los shards modulo. 429 → Retry-After, x4 seguidos
-  exit(3) (las llamadas fallidas también descuentan cuota). Free tier
-  = **por cuenta** (50 req/día, o 1000/día si ≥$10 cargados alguna
-  vez; 20 rpm) — hedge/backup, no acelerador grande; paid deepseek-v3
-  haría los ~9.5K restantes por ~$3-5. Lanzar OR worker:
-  `BACKEND=openrouter REVERSE=1 PACE=3.5 MAX_TOKENS=400
-  OUT=.../train_skeleton_aug_b2_or.jsonl SHARD=0 NSHARDS=1 N=999999
-  CLAIMS=.../train_skeleton_aug_b2.jsonl.claims
-  DONE_GLOB='.../train_skeleton_aug_b2*.done' OR_MODELS='<slugs:free>'
-  OPENROUTER_API_KEY=... sbatch --export=ALL b2_augment.slurm`
-  (merge final: dedup por pid).
+  **Backend OpenRouter IMPLEMENTADO + LANZADO (12-09 ~19:15, worker
+  29227048 RUNNING)**: egress desde cómputo verificado (200 a OR desde
+  srun). Key en `~/.openrouter-key` (600) del cluster — el script la
+  lee por `OPENROUTER_KEY_FILE`/`~/.openrouter-key`, nunca viaja en el
+  env del job. Cuenta NO free-tier (is_free_tier=False) → 1000 req/día
+  cuenta-wide en `:free`, 20 rpm. `models` fallback server-side
+  **max 3 items** (400 si más — bug cazado en prod), `reasoning.enabled
+  =false` (los :free son razonadores y consumían max_tokens sin emitir
+  content). Config viva: OR_MODELS='gemma-4-31b-it,nemotron-3-super-
+  120b,nemotron-3.5-lightning' PACE=3.2 MAX_TOKENS=600 REVERSE=1
+  OUT=train_skeleton_aug_b2_or.jsonl_s0 CLAIMS/DONE_GLOB compartidos
+  con los shards modulo (claims atómicos O_EXCL + .done hermanos;
+  merge final dedup por pid). Yield ~96%+, ~5.3s/doc → quema la cuota
+  en ~1.5h → QUOTA_EXHAUSTED sin resubmit (re-lanzar mañana si hace
+  falta; valor real = hedge si se pierden las L40, no throughput).
 - **B1 — CANDIDATE_FOCUS NO-GO (2026-09-12, `f0-span-v3-candfocus` 10K steps,
   battery automática)**: battery base (random15): L0 0.52 / L1 0.51 / L2
   0.582*** / L3 0.518 ns → "estructura sin inferencia"; battery **dense**
