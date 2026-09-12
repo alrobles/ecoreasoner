@@ -130,6 +130,39 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ## 4. ESTADO VIVO (HPC, al 12-09)
 
+- **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
+  completo de la cadena activa dLLM (línea confirmada como ruta de
+  investigación). Fixes aplicados, todos compatibles con resume/olas:
+  - `train_mdlm_moe_v2.py`: lookup de etiquetas de etapa vía `tolist()`
+    (~30K allocs GPU menos por step; equivalencia verificada 300/300);
+    parse defensivo de `checkpoint-g*` en `resume()` y retención-2 (un dir
+    no conforme ya no mata save/resume).
+  - `suite_smoke.py` + `suite_smoke_logicdiff.py`: el import del trainer
+    heredaba su handler SIGUSR1 (guarda ckpt con glob_model=None → crash
+    feo en eval ante preemption) → ahora se restaura el handler previo.
+    **ctx tail-trunc**: `_load_pairs` conservaba `ctx[:max_ctx]` (cabeza);
+    ahora `ctx[-max_ctx:]` (cola = etapa inmediatamente previa al
+    candidato, la más informativa). Aplica a la battery de B3 esta noche.
+  - `build_b3_synthetic.py`: retry-loop reescrito — `labels.append+shuffle`
+    dentro del `for` re-asignaba labels ya consumidos → el corpus de prod
+    salió 69.89% válido (esperado 70%; count correcto por convergencia,
+    ratio levemente desviado — corpus usable, no regenerar). Y
+    `NOM["slowed"]` "slow"→"slowdown" ("a slow of 41%" era inglés roto).
+  - `augment_inferential_stage.py`: HTTP 4xx permanentes (400/401/403/404/
+    422) → `"fatal"` → `CONFIG_EXHAUSTED` + exit 3 = **sin resubmit** (un
+    400 en bucle quemaba cuota OR en puros rechazos — ya ocurrió con el
+    array de 4 modelos). Renombrado `ebody` (sombreaba el dict request).
+  - `verdict.py`: `--step` se ignoraba (siempre el último punto) → ahora
+    decide en el último step ≤ N.
+  - Verificado sin cambios: `b3_pretok_merge.slurm` (OOB check OK),
+    `f0_v3_synthb3.slurm` (finalize/resubmit correcto, flag por slurm),
+    `build_skeleton.py`, `eval_curve.py` (ya tenía tmp-por-PID + merge
+    anti-lost-update), `build_pairs_hard_v3.py` (mutaciones L3 bien),
+    `ecobench/` (línea secundaria, sin bugs críticos). Nota conocida:
+    `train_mdlm_moe_hetero.py` no escribe `training_complete.flag` — el
+    slurm lo escribe en exit 0; watchdogs externos deben usar
+    `state.json step==TARGET` o `sacct`.
+
 - **B3 — CAPA SINTÉTICA FLD LANZADA (2026-09-12, job 29226824, r23r09n01
   RUNNING)**: receta B1 EXACTA (span64/curriculum/role_mask/candidate_focus
   0.30, 10K steps) sobre el corpus mezclado `data/train_ids_b3.npz` =
