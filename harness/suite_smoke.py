@@ -35,6 +35,8 @@ import importlib.util  # noqa: E402
 
 _argv = sys.argv
 sys.argv = [_trainer_path.name, "--data", "dummy", "--output", "/tmp/dummy"]
+import signal as _signal  # noqa: E402
+_prev_usr1 = _signal.getsignal(_signal.SIGUSR1)
 try:
     _spec = importlib.util.spec_from_file_location("train_mdlm_moe", _trainer_path)
     _mod = importlib.util.module_from_spec(_spec)
@@ -42,6 +44,9 @@ try:
     MdLMMoE = _mod.MdLMMoE
 finally:
     sys.argv = _argv
+    # restaurar SIGUSR1: el handler del trainer asume modelo/optimizador vivos
+    # (en eval son None) -> crash en vez de salida limpia ante preemption.
+    _signal.signal(_signal.SIGUSR1, _prev_usr1)
 
 MASK_ID = None  # default: mcfg["vocab"] (embedding vocab+1, el token MASK es el índice vocab)
 
@@ -55,7 +60,7 @@ def _load_pairs(path, rng, max_ctx, max_cand):
         if not line.strip():
             continue
         rec = json.loads(line)
-        ctx = rec["ctx"][:max_ctx]
+        ctx = rec["ctx"][-max_ctx:]   # tail: el contexto cercano al candidato
         ok = rec["ok"][:max_cand]
         bad = rec["bad"][:max_cand]
         if len(ctx) >= 2 and len(ok) and len(bad):

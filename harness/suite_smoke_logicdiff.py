@@ -45,6 +45,8 @@ import importlib.util  # noqa: E402
 
 _argv = sys.argv
 sys.argv = [_trainer_path.name, "--data", "dummy", "--output", "/tmp/dummy_ld"]
+import signal as _signal  # noqa: E402
+_prev_usr1 = _signal.getsignal(_signal.SIGUSR1)
 try:
     _spec = importlib.util.spec_from_file_location("train_mdlm_moe_v2", _trainer_path)
     _mod = importlib.util.module_from_spec(_spec)
@@ -54,6 +56,9 @@ try:
     _normalize_token_text = _mod._normalize_token_text
 finally:
     sys.argv = _argv
+    # el trainer registra un handler SIGUSR1 que guarda checkpoint; en eval
+    # glob_model es None -> crash feo en preemption. Restaurar el previo.
+    _signal.signal(_signal.SIGUSR1, _prev_usr1)
 
 ROLE2ID = {"FILLER": 0, "PREMISE": 1, "CONNECTIVE": 2, "DERIVED": 3,
            "CONCLUSION": 4}
@@ -340,7 +345,9 @@ def _load_pairs(path, max_ctx, max_cand):
         if not line.strip():
             continue
         rec = json.loads(line)
-        ctx, ok, bad = rec["ctx"][:max_ctx], rec["ok"][:max_cand], rec["bad"][:max_cand]
+        # tail-trunc: conservar el contexto MAS CERCANO al candidato (la etapa
+        # previa es la mas informativa para la decision inferencial)
+        ctx, ok, bad = rec["ctx"][-max_ctx:], rec["ok"][:max_cand], rec["bad"][:max_cand]
         if len(ctx) >= 2 and len(ok) and len(bad):
             pairs.append((ctx, ok, bad, rec.get("l3_subtype")))
     return pairs

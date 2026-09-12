@@ -109,11 +109,15 @@ def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240,
                 r = json.loads(resp.read().decode())
             return r["choices"][0]["message"]["content"], None
         except urllib.error.HTTPError as e:
-            body = e.read()[:200]
-            print(f"[aug-err] HTTP {e.code} {body!r}", flush=True)
+            ebody = e.read()[:200]
+            print(f"[aug-err] HTTP {e.code} {ebody!r}", flush=True)
             if e.code == 429:
                 ra = e.headers.get("Retry-After")
                 return None, ("rate", ra)
+            if e.code in (400, 401, 403, 404, 422):
+                # 4xx permanente (config/modelo): reintentar no lo arregla y un
+                # resubmit-loop quemaria cuota en puros rechazos -> "fatal"
+                return None, ("fatal", e.code)
             time.sleep(3)
         except Exception as e:
             print(f"[aug-err] {type(e).__name__} {str(e)[:200]}", flush=True)
@@ -294,6 +298,11 @@ def main():
             except OSError:
                 pass
             kind, ra = status
+            if kind == "fatal":
+                # EXHAUSTED en el mensaje: el grep del slurm frena el resubmit
+                print(f"[aug] CONFIG_EXHAUSTED: HTTP {ra} permanente — "
+                      "fin sin resubmit", flush=True)
+                sys.exit(3)
             if kind == "rate":
                 n_rate += 1
                 wait = min(float(ra), 300.0) if ra else 60.0

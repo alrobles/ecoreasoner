@@ -144,6 +144,13 @@ def curve_verdict(curve_path, n_pairs, args):
     if not rows:
         print("curva sin puntos válidos")
         return 2
+    if args.step is not None:
+        # punto de decisión explícito: último step <= --step
+        elig = [r for r in rows if r["step"] <= args.step]
+        if not elig:
+            print(f"sin puntos con step <= {args.step}")
+            return 2
+        rows = elig
     slope = _slope_last3(rows)
     final = rows[-1]
     label, stats = eval_point(final["pairwise_acc"], n_pairs,

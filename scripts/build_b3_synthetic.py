@@ -89,7 +89,7 @@ OPP_SIMPLE = {"declined": "increased", "increased": "declined", "decreased": "in
 DIR_BARE = ["decline", "increase", "decrease", "rise", "fall", "advance", "delay"]
 NOM = {"declined": "decline", "increased": "increase", "decreased": "decrease",
        "advanced": "advance", "delayed": "delay", "risen": "rise", "fallen": "fall",
-       "fell": "fall", "rose": "rise", "slowed": "slow",
+       "fell": "fall", "rose": "rise", "slowed": "slowdown",
        "accelerated": "acceleration", "weakened": "weakening",
        "strengthened": "strengthening", "lengthened": "lengthening",
        "shortened": "shortening"}
@@ -205,14 +205,19 @@ def main():
     labels = [True] * (args.n - n_inv) + [False] * n_inv
     rng.shuffle(labels)
     docs, rej = [], 0
-    for lb in labels:
+    i = 0
+    # BUG-FIX: antes se hacia labels.append(lb)+shuffle DENTRO del for sobre
+    # `labels`: el shuffle reordenaba elementos ya consumidos (re-procesados)
+    # y cada retry agrandaba la lista -> corpus con != n docs y ratio desviado.
+    # Ahora: indice explicito, retry del MISMO label, conteos exactos.
+    while i < len(labels):
+        lb = labels[i]
         t = build(rng, valid=lb)
         if check(t):
             docs.append((t, lb))
+            i += 1
         else:
             rej += 1
-            labels.append(lb)          # reintento el tipo
-            rng.shuffle(labels)
     with open(args.out, "w") as f:
         for i, (t, valid) in enumerate(docs):
             f.write(json.dumps({"text": t, "pid": f"synth_b3_{i:06d}",

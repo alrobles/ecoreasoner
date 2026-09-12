@@ -700,12 +700,13 @@ def _find_stage_boundaries(seq, stage_label_ids):
     stage_label_ids: lista de listas de ids, p.ej. [[id('[','OBS',']'), ...]].
     """
     T = seq.size(0)
+    seq_list = seq.tolist()  # comparacion en python: ~30K allocs GPU menos por step
     starts = []
     for i in range(T):
         for label_ids in stage_label_ids:
             L = len(label_ids)
             if i + L <= T:
-                if (seq[i:i+L] == torch.tensor(label_ids, device=seq.device, dtype=seq.dtype)).all():
+                if seq_list[i:i+L] == label_ids:
                     starts.append((i, i + L))
                     break
     if not starts:
@@ -790,13 +791,14 @@ def build_candidate_mask(xb, stage_label_ids, device="cpu"):
     all_indices = []
     for b in range(B):
         seq = xb[b]
+        seq_list = seq.tolist()
         # localizar etiquetas (inicio, fin-etiqueta) en orden
         starts = []
         for i in range(T):
             for label_ids in stage_label_ids:
                 L = len(label_ids)
                 if i + L <= T:
-                    if (seq[i:i+L] == torch.tensor(label_ids, device=seq.device, dtype=seq.dtype)).all():
+                    if seq_list[i:i+L] == label_ids:
                         starts.append((i, i + L))
                         break
         if len(starts) < 2:
@@ -892,7 +894,13 @@ def _save_checkpoint_locked(tag):
         {"step": g, "checkpoint": f"checkpoint-g{g}", "updated": time.time()}))
     (OUT/"progress.json").write_text(json.dumps(
         {"step": g, "loss": LAST_LOSS[0], "updated": time.time()}))
-    ckpts = sorted(OUT.glob("checkpoint-g*"), key=lambda d: int(d.name.split("-g")[1]))
+    def _step_of(d):
+        try:
+            return int(d.name.split("-g")[1])
+        except (IndexError, ValueError):
+            return -1
+    ckpts = sorted((d for d in OUT.glob("checkpoint-g*") if _step_of(d) >= 0),
+                   key=_step_of)
     for f in ckpts[:-2]:  # conserva 2: el actual + el de la ola previa (resume seguro)
         shutil.rmtree(f, ignore_errors=True)
     log(f"  checkpoint g{g} guardado")
@@ -938,10 +946,15 @@ def resume():
                 st_cand, st_step = c, st.get("step",0)
         except Exception:
             pass
-    for d in sorted(OUT.glob("checkpoint-g*"),
-                    key=lambda x: int(x.name.split("-g")[1]), reverse=True):
+    def _step_of(d):
+        try:
+            return int(d.name.split("-g")[1])
+        except (IndexError, ValueError):
+            return -1
+    for d in sorted((d for d in OUT.glob("checkpoint-g*") if _step_of(d) >= 0),
+                    key=_step_of, reverse=True):
         if (d/"model.pt").exists() and (d/"optimizer.pt").exists():
-            cands.append((d, int(d.name.split("-g")[1])))
+            cands.append((d, _step_of(d)))
     if st_cand is not None:
         # estado.json primero (mas fiable); el loop cubre el resto
         if _try_load(st_cand, st_step):
