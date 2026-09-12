@@ -130,6 +130,27 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ## 4. ESTADO VIVO (HPC, al 12-09)
 
+- **B2 — AUMENTO INFERENCIAL EN VUELO (2026-09-12, jobs 29226700-703, 4 shards
+  × N=40000)**: genera HIPOTESIS+PREDICCION con teacher DeepSeek-V4-Flash
+  (ollama-v4serve r32r25n01, 4×L40, NUM_PARALLEL=8) sobre esqueletos
+  OBS→EVID→CONC (corpus sin etapa inferencial: HIP 2.4%, PRED 0%). Scripts:
+  `scripts/augment_inferential_stage.py` (parse EN/ES, filtro ≤60 words/etapa,
+  jaccard<0.7 vs CONC, resume .done por pid — sharding `--shard/--nshards`) +
+  `scripts/b2_augment.slurm` (CPU sixhour, auto-resubmit condicional
+  COMPLETE/EXHAUSTED). **RITMO REAL ~0.04 docs/s → ETA 547h/shard: la meta del
+  doc (30-50K docs aumentados) NO es viable con N=40000/shard (160K docs =
+  3-5× el objetivo). PENDIENTE de redimensionar/decidir presupuesto.**
+- **B1 — CANDIDATE_FOCUS NO-GO (2026-09-12, `f0-span-v3-candfocus` 10K steps,
+  battery automática)**: battery base (random15): L0 0.52 / L1 0.51 / L2
+  0.582*** / L3 0.518 ns → "estructura sin inferencia"; battery **dense**
+  (canónico Fase A): L0 0.544* / L1 0.530 ns / L2 0.663*** / **L3 0.583******
+  (p=1.7e-4) → señal presente PERO **débil del mejor base (contrastive 0.640,
+  v3-role 0.592)** → **NO-GO según criterio (≥0.66 / Δ+0.02)**. Subtipos:
+  direction_word 0.741 (n=193) sigue siendo el grueso; **number 0.31 y
+  negation 0.19 DEGRADAN vs azar** — el objetivo candidate-focused no repara
+  la lógica fina → **el objetivo no era el cuello: el INPUT sí**. Reporte:
+  `docs/results/LOGICDIFF-FASE-B1-RESULTADO.md`. Siguiente: B2 (input real-
+  aumentado) y B3 (sintético FLD) en paralelo.
 - **LOGICDIFF FASE A — LA FAMILIA dLLM SE REABRE POR CORRECCIÓN DE MÉTRICA
   (2026-09-12)**: el NO-GO de V3.3 queda **supersedido**. El scorer de la
   battery (máscara random 15% sobre ctx+candidato) diluía la señal L3 ~6× en
