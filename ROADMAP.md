@@ -150,6 +150,17 @@ a batch gigante).. **Ganador: span-esqueleto.**
   (resume por pid). Al COMPLETE: merge → pre-tokenize → training con la
   receta B1 → battery dense (GO: dense L3 sube Y mejora en causal_* /
   mechanism).
+  **Rev 12-09 ~17:15 CDT**: yield de parseo ~45% (el teacher emite
+  [HIPOTESIS] pero omite [PREDICCION]; solo 2/15 fails contienen
+  "prediction") → ritmo efectivo ~0.21 docs/s → ~7h+/shard → 2+ olas.
+  Fix ops (sin tocar procesos vivos): `augment_inferential_stage.py`
+  distingue fallo de red de mal parseo — net_err NO marca .done y
+  aborta FATAL tras 5 seguidos (lo heredan las olas resubmit).
+  Cadena de serves v4 para cubrir la muerte de 29226410 (~20:15 local):
+  29226860→29226861→29226862 (afterany). DECISIÓN PENDIENTE: endurecer
+  el prompt del teacher (EXACTLY two lines se ignora ~55%) o parser
+  tolerante a contenido en la línea siguiente — mejora yield pero
+  cambia el generador a mitad de recolección.
 - **B1 — CANDIDATE_FOCUS NO-GO (2026-09-12, `f0-span-v3-candfocus` 10K steps,
   battery automática)**: battery base (random15): L0 0.52 / L1 0.51 / L2
   0.582*** / L3 0.518 ns → "estructura sin inferencia"; battery **dense**

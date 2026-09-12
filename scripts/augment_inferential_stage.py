@@ -69,6 +69,8 @@ def resolve_ollama_url():
 
 
 def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240):
+    """Devuelve (texto, net_err). net_err=True => el serve esta caido:
+    NO marcar el pid como done, no hubo intento real."""
     payload = json.dumps({
         "model": model,
         "messages": [
@@ -85,11 +87,11 @@ def call_teacher(url, obs, evid, conc, model, retries=3, timeout=240):
                                          method="POST")
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 r = json.loads(resp.read().decode())
-            return r["choices"][0]["message"]["content"]
+            return r["choices"][0]["message"]["content"], False
         except Exception as e:
             last = str(e)[:120]
             time.sleep(3)
-    return None
+    return None, True
 
 
 def jaccard(a, b):
@@ -160,7 +162,7 @@ def main():
         sys.exit(2)
     print(f"[aug] teacher={args.model} url={url}", flush=True)
 
-    n_ok = n_fail = 0
+    n_ok = n_fail = consec_net = 0
     t0 = time.time()
     for k, r in enumerate(docs):
         pid = r.get("pid", f"doc{k}")
@@ -176,7 +178,15 @@ def main():
         if not obs or not evid or not conc:
             f_done.write(pid + "\n"); f_done.flush()
             continue
-        raw = call_teacher(url, obs, evid, conc, args.model)
+        raw, net_err = call_teacher(url, obs, evid, conc, args.model)
+        if net_err:
+            consec_net += 1
+            if consec_net >= 5:
+                print(f"[aug] FATAL: teacher inalcanzable x{consec_net}, "
+                      "salir para resubmit (pids NO marcados)", flush=True)
+                sys.exit(2)
+            continue
+        consec_net = 0
         hip, pred = parse_out(raw or "")
         if valid(hip, pred, conc):
             new_text = (f"[OBSERVACION] {segs['OBSERVACION']}\n"
