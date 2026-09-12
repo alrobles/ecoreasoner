@@ -312,14 +312,18 @@ class MdLMMoE(nn.Module):
         self.head = (TiedHead(self.tok_emb, vocab) if weight_tying
                      else nn.Linear(hidden, vocab))
         self.apply(_default_init)
-    def forward(self, ids):
+    def forward(self, ids, output_hidden_states=False):
         B, T = ids.shape
         h = self.tok_emb(ids)
         if not self.use_rope:
             h = h + self.pos(torch.arange(T, device=ids.device))
         for b in self.blocks:
             h = b(h)
-        return self.head(self.ln_f(h))
+        hidden = self.ln_f(h)
+        logits = self.head(hidden)
+        if output_hidden_states:
+            return logits, hidden
+        return logits
     def n_params(self):
         return sum(p.numel() for p in self.parameters())
 

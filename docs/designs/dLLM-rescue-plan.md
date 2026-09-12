@@ -1,8 +1,14 @@
 # Plan de rescate para dLLM que razone
 
-> Fecha: 2026-09-11.
+> Fecha: 2026-09-11. **REVISADO 2026-09-12 tras ejecutar Fase A.**
 > Contexto: V3.3 NO-GO. El usuario pide re-explorar opciones antes de archivar
 > definitivamente la línea dLLM-pura.
+>
+> **RESULTADO FASE A (09-12):** el orden de desenmascaramiento NO era la
+> barrera (staged≈rev≈dense); el scorer antiguo diluía la señal. Con scoring
+> denso de candidato: 8/8 checkpoints significativos (0.545-0.640) vs
+> random-init al azar. Familia reabierta como scorer/verificador, no como
+> generador. Detalle: `docs/results/LOGICDIFF-FASE-A-RESULTADO.md`.
 
 ## 1. Diagnóstico del fracaso
 

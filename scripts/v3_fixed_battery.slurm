@@ -11,11 +11,11 @@
 BASE=/beegfs/a474r867/ecoreasoner
 SIF=$BASE/pytorch-cuda.sif
 OVL=$BASE/blackwell-torch.overlay
-CKPT=$BASE/runs/f0-span-v3-contrastive-fixed/checkpoint-g-final/model.pt
-CFG=$BASE/harness/configs/f0-span-v3-contrastive.yaml
-OUT=$BASE/runs/f0-span-v3-contrastive-fixed/battery_eval
+CKPT=$BASE/runs/f0-span-v3-role/checkpoint-g10000/model.pt
+CFG=$BASE/harness/configs/f0-span-v3-role.yaml
+OUT=$BASE/runs/f0-span-v3-role/battery_eval
 
-echo "=== battery LIMPIA V3.3-fixed (eval set seed 9999) sobre $CKPT $(date -u) ==="
+echo "=== battery LIMPIA V3.2 role (eval set seed 9999) sobre $CKPT $(date -u) ==="
 
 apptainer exec --nv --overlay "$OVL":ro "$SIF" /bb/bwvenv/bin/python \
     "$BASE/harness/suite_smoke_v2.py" \

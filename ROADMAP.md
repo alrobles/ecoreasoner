@@ -128,9 +128,25 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 11-09 00:57 CDT)
+## 4. ESTADO VIVO (HPC, al 12-09)
 
-- **V3.3 CONTRASTIVO CERRADO — NO-GO FINAL (2026-09-11)**: con el fix
+- **LOGICDIFF FASE A — LA FAMILIA dLLM SE REABRE POR CORRECCIÓN DE MÉTRICA
+  (2026-09-12)**: el NO-GO de V3.3 queda **supersedido**. El scorer de la
+  battery (máscara random 15% sobre ctx+candidato) diluía la señal L3 ~6× en
+  ruido de contexto. El nuevo modo `dense` de `harness/suite_smoke_logicdiff.py`
+  (enmascarar el 100% del candidato, reconstruir condicionado al contexto)
+  revela: **v3-contrastive-fixed L3 0.640*** (p<10⁻⁵, IC95 [0.596,0.682])**,
+  y **8/8 checkpoints entrenados significativos** (0.545-0.640, p<0.03 todos)
+  vs random-init 0.459 ns (piso limpio). El scheduler de orden lógico NO es
+  el mecanismo (staged≈rev≈dense; rand peor) — la barrera era el evaluador.
+  Desglose por subtipo: la señal se concentra en `direction_word` 0.76-0.78
+  (n=193) y causal/mechanism; `number`/`negation` siguen en azar o invertidos
+  → discriminación direccional real, lógica fina ausente. Documento:
+  `docs/results/LOGICDIFF-FASE-A-RESULTADO.md`. Uso defendible: el dLLM como
+  **scorer de continuaciones** dentro del controller/verificator (rerank de
+  argumentos, verificación de drafts), no como generador.
+
+- **V3.3 CONTRASTIVO — NO-GO SUPERSEDIDO (2026-09-11, rev. 09-12)**: con el fix
   anti-contaminación (split por contexto 373/93, mask_id del tokenizer, guard
   de memorización; auditoría en docs/results/AUDITORIA-V3.3-CONTAMINACION.md),
   el training (job 29184168) completó y eval_acc_holdout ranking = 0.7742.
