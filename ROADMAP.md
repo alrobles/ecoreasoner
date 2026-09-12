@@ -130,16 +130,26 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ## 4. ESTADO VIVO (HPC, al 12-09)
 
-- **B2 — AUMENTO INFERENCIAL EN VUELO (2026-09-12, jobs 29226700-703, 4 shards
-  × N=40000)**: genera HIPOTESIS+PREDICCION con teacher DeepSeek-V4-Flash
-  (ollama-v4serve r32r25n01, 4×L40, NUM_PARALLEL=8) sobre esqueletos
-  OBS→EVID→CONC (corpus sin etapa inferencial: HIP 2.4%, PRED 0%). Scripts:
-  `scripts/augment_inferential_stage.py` (parse EN/ES, filtro ≤60 words/etapa,
-  jaccard<0.7 vs CONC, resume .done por pid — sharding `--shard/--nshards`) +
-  `scripts/b2_augment.slurm` (CPU sixhour, auto-resubmit condicional
-  COMPLETE/EXHAUSTED). **RITMO REAL ~0.04 docs/s → ETA 547h/shard: la meta del
-  doc (30-50K docs aumentados) NO es viable con N=40000/shard (160K docs =
-  3-5× el objetivo). PENDIENTE de redimensionar/decidir presupuesto.**
+- **B3 — CAPA SINTÉTICA FLD LANZADA (2026-09-12, job 29226824, r23r09n01
+  RUNNING)**: receta B1 EXACTA (span64/curriculum/role_mask/candidate_focus
+  0.30, 10K steps) sobre el corpus mezclado `data/train_ids_b3.npz` =
+  skeleton_v2 (299,534 docs) + 30K docs sintéticos deductivos
+  (`build_b3_synthetic.py`: cadenas premisa→derivada→conclusión con
+  vocabulario ecológico, 70% válidos / 30% near-miss con dirección o número
+  roto; subtipos débiles forzados: números %, negación, conectivas,
+  temporales; plantillas gramaticales cortas por RSD). Mezcla ~5% por tokens,
+  9% por docs. Pretok+merge (job 29226808) verificado OOB_OK (max 126077).
+  Battery dense+base automática al COMPLETE. **GO: subtipos number/negation
+  >0.6 sin degradar el resto** (vs B1: number 0.31/negation 0.19).
+- **B2 — AUMENTO INFERENCIAL REDIMENSIONADO (2026-09-12, jobs 29226763-766,
+  4 shards × N=2500 = 10K docs totales, test-and-drop)**: el dimensionado
+  previo (N=40000/shard = 160K) era 3-5× la meta del doc y con el ritmo
+  inicial medido (0.04 docs/s) daba ETA 547h/shard — CANCELADO y relanzado.
+  Ritmo real nuevo con el batch del serve lleno: ~0.29 docs/s/shard →
+  estima ~4h para 10K. `train_skeleton_aug_b2.jsonl_s{0..3}` + .done
+  (resume por pid). Al COMPLETE: merge → pre-tokenize → training con la
+  receta B1 → battery dense (GO: dense L3 sube Y mejora en causal_* /
+  mechanism).
 - **B1 — CANDIDATE_FOCUS NO-GO (2026-09-12, `f0-span-v3-candfocus` 10K steps,
   battery automática)**: battery base (random15): L0 0.52 / L1 0.51 / L2
   0.582*** / L3 0.518 ns → "estructura sin inferencia"; battery **dense**
