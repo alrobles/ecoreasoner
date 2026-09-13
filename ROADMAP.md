@@ -250,6 +250,18 @@ a batch gigante).. **Ganador: span-esqueleto.**
   requiere ≥2 seeds antes de tocar holdout; una mejora solo cuenta si
   supera al campeón en media por más que la sd entre seeds. Registro
   de seeds usados por generación en el launcher correspondiente.
+- **Gen de datos `logic` (build_logic_synth.py + g4_prep_logic.slurm)**:
+  corpus sintético de consistencia fina, 30K docs **100% válidos**
+  (lección B4), donde número/negación son load-bearing — CONCLUSION
+  determinada por EVIDENCIA: magnitud exacta (20%), magnitud derivada
+  40→60 ⇒ "+50%" (30%), nulo con polaridad preservada (25%),
+  comparación/umbral (15%), temporal (10%). Corpus:
+  `train_ids_b4aug2logic.npz` = skeleton_v2 + augv2(11,964) + logic(30K)
+  = 341,498 docs. Motivo: el corpus esqueleto YA es denso (73% docs con
+  dígitos, 29% con negación) — el cuello no es frecuencia sino que el
+  objetivo no premia consistencia fina; este corpus hace que el token
+  correcto esté forzado por contexto bajo denoising. `g3-logic` lanzado
+  como probe temprano (receta campeón rand+CF0.7 + corpus logic).
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
