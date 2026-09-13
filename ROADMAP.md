@@ -212,6 +212,16 @@ a batch gigante).. **Ganador: span-esqueleto.**
   directo a la frontera), `g1-aug5x` (aug ×5 = 4510 docs), probes
   `g1-cf05rand` (mask_type=random: ¿span importa bajo candidate-focus?)
   y `g1-cf05lr1` (lr 1e-4). Watcher G1 activo.
+- **EVOG1 — RESULTADO (2026-09-13)**: BREAKOUT — `g1-cf05rand`
+  (mask_type=random + CF=0.5): FIT **0.495**, L3 0.619, **num 0.385,
+  neg 0.372** (los dos subtipos débiles ~duplicados vs ~0.31/0.19).
+  Mecanismo: el span forzaba coherencia local; el masking aleatorio
+  obliga a inferir tokens desde evidencia dispersa — mejor alineado
+  con la discriminación. 2° `g1-cf07aug` 0.445 (dir récord 0.793);
+  `g1-numbias` señal débil (neg 0.233). -> **EVOG2 lanzada**
+  (g2_launch.sh, 8 jobs): mutantes del ganador — randaug, randcf07,
+  randnumb, randaug5x, randws0, randnr + probes randhi (mask_p
+  0.30-0.99) y cf07aug (intensificación total).
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
