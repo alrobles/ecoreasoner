@@ -75,6 +75,11 @@ echo "GPU detectada: $GPU_NAME -> OVL='${OVL_ARGS:-none}' PY=$PYBIN"
 
 flag() { [ "$1" = "1" ] && echo "$2" || echo ""; }
 
+# VRAM guard: batch8 x seq768 no cabe en ~16GB (g0-marked OOM en V100-SXM2-16G).
+# Re-encola a otra ola/nodo en vez de morir en backward.
+GPU_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo 0)
+MIN_VRAM_MIB=${MIN_VRAM_MIB:-20000}
+
 finalize() {
     if [ "$FINALIZED" = "1" ]; then echo "=== finalize ya ejecutado, skip ==="; return; fi
     FINALIZED=1
@@ -104,6 +109,11 @@ handle_signal() {
 }
 trap handle_signal USR1
 trap 'echo SIGTERM; exit 1' TERM
+
+if [ "$GPU_MIB" -lt "$MIN_VRAM_MIB" ]; then
+    echo "VRAM ${GPU_MIB}MiB < ${MIN_VRAM_MIB}MiB -> re-encolo en otro nodo"
+    finalize
+fi
 
 # dependencia suave del cache (max 4h) por si se lanzo sin --dependency
 for i in $(seq 1 480); do
