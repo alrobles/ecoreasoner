@@ -9,7 +9,7 @@ Uso:
     python3 scripts/leaderboard.py --runs /beegfs/.../runs
     python3 scripts/leaderboard.py --runs runs --glob 'g0-*/battery_logicdiff/dense'
 """
-import argparse, glob, json, os, sys
+import argparse, glob, json, os, re, statistics, sys
 
 
 def harvest(runs_dir, pat):
@@ -44,6 +44,28 @@ def harvest(runs_dir, pat):
     return rows
 
 
+def group_replicas(rows):
+    """Agrupa corridas `nombre-sK` (misma config, seed k) bajo `nombre`.
+    La fila de grupo = MEDIA entre seeds (seleccion por media, no best-of-N);
+    `sd` = desviacion del fitness entre seeds. `n3` = n de pares (identico
+    entre replicas; se toma el maximo)."""
+    groups = {}
+    for r in rows:
+        groups.setdefault(re.sub(r"-s\d+$", "", r["run"]), []).append(r)
+    agg = []
+    for base, mem in groups.items():
+        a = {"run": base, "n_seeds": len(mem)}
+        for k in ("L0", "L1", "L2", "L3", "number", "negation", "direction", "fitness"):
+            v = [m[k] for m in mem if m[k] is not None]
+            a[k] = statistics.mean(v) if v else None
+        a["n3"] = max((m["n3"] for m in mem if m["n3"] is not None), default=None)
+        fv = [m["fitness"] for m in mem if m["fitness"] is not None]
+        a["sd"] = statistics.pstdev(fv) if len(fv) > 1 else (0.0 if fv else None)
+        a["members"] = mem
+        agg.append(a)
+    return agg
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True)
@@ -52,21 +74,27 @@ def main():
     args = ap.parse_args()
 
     rows = harvest(args.runs, args.glob)
-    rows.sort(key=lambda r: (r["fitness"] is None, -(r["fitness"] or 0)))
+    agg = group_replicas(rows)
+    agg.sort(key=lambda r: (r["fitness"] is None, -(r["fitness"] or 0)))
 
-    hdr = f"{'run':<28} {'L0':>6} {'L1':>6} {'L2':>6} {'L3':>6} {'num':>6} {'neg':>6} {'dir':>6} {'FIT':>6}"
+    hdr = f"{'run':<28} {'n':>2} {'L0':>6} {'L1':>6} {'L2':>6} {'L3':>6} {'num':>6} {'neg':>6} {'dir':>6} {'FIT':>6} {'sd':>5}"
     print(hdr); print("-" * len(hdr))
-    for r in rows:
-        f = lambda x: f"{x:.3f}" if isinstance(x, float) else "  -  "
-        print(f"{r['run']:<28} {f(r['L0'])} {f(r['L1'])} {f(r['L2'])} "
-              f"{f(r['L3'])} {f(r['number'])} {f(r['negation'])} {f(r['direction'])} "
-              f"{f(r['fitness'])}")
+    f = lambda x: f"{x:.3f}" if isinstance(x, float) else "  -  "
+    for a in agg:
+        print(f"{a['run']:<28} {a['n_seeds']:>2} {f(a['L0'])} {f(a['L1'])} {f(a['L2'])} "
+              f"{f(a['L3'])} {f(a['number'])} {f(a['negation'])} {f(a['direction'])} "
+              f"{f(a['fitness'])} {f(a['sd'])}")
+        for m in a["members"] if a["n_seeds"] > 1 else []:
+            print(f"  · {m['run']:<25} {'':>2} {f(m['L0'])} {f(m['L1'])} {f(m['L2'])} "
+                  f"{f(m['L3'])} {f(m['number'])} {f(m['negation'])} {f(m['direction'])} "
+                  f"{f(m['fitness'])}")
 
     if args.out:
         with open(args.out, "w") as fh:
-            for r in rows:
-                fh.write(json.dumps(r) + "\n")
-        print(f"\n-> {args.out} ({len(rows)} runs)")
+            for a in agg:
+                a2 = {k: v for k, v in a.items() if k != "members"}
+                fh.write(json.dumps(a2) + "\n")
+        print(f"\n-> {args.out} ({len(agg)} configs, {len(rows)} runs)")
 
 
 if __name__ == "__main__":

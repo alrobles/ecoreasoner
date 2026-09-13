@@ -238,7 +238,18 @@ a batch gigante).. **Ganador: span-esqueleto.**
   `g3-champv1`, barrido CF {0.5,0.85,1.0}, mecanismo {ws0, norole,
   numbias}, densidad random {hi 0.30-0.99, lo 0.02-0.50}, receta
   {lr4, ep2-20K, cap-150M}. Watcher g3. Holdout v4 queda reservado
-  para el campeón de campeones.
+  para el campeón de campeones. Réplicas añadidas mid-flight:
+  `g3-champ-s2/s3`, `g3-numb-s2`, `g3-cf085-s2`, `g3-ws0-s2` (18 runs).
+- **PROTOCOLO seeds/réplicas (vigente desde G4)**: toda corrida lleva
+  `SEED=k` explícito (`--seed` en trainer; init + orden de datos +
+  masking quedan deterministas por seed). Convención de tag:
+  `gN-<genoma>-s<k>`; la corrida base sin sufijo cuenta como s1.
+  Réplicas = mismo genoma, solo cambia seed. Selección por MEDIA del
+  fitness entre seeds (`leaderboard.py` agrupa `-sK` y reporta
+  mean±sd) — nunca best-of-N (infla al ganador). Candidato a campeón
+  requiere ≥2 seeds antes de tocar holdout; una mejora solo cuenta si
+  supera al campeón en media por más que la sd entre seeds. Registro
+  de seeds usados por generación en el launcher correspondiente.
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
