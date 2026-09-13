@@ -11,7 +11,7 @@ Receta v2 (2026-09-09):
 
 Run via apptainer SIF (ROCm), 1-2 GPUs. Single-GPU friendly for PoC.
 """
-import argparse, json, math, os, re, signal, sys, time, shutil, contextlib
+import argparse, json, math, os, random, re, signal, sys, time, shutil, contextlib
 from pathlib import Path
 
 import torch
@@ -126,6 +126,7 @@ def parse():
                         "Si se da, build_batches carga los IDs de disco en vez de tokenizar.")
     p.add_argument("--tokenizer", default="/beegfs/a474r867/hf-cache/models--GSAI-ML--LLaDA-8B-Instruct/snapshots/08b83a6feb34df1a6011b80c3c00c7563e963b07")
     p.add_argument("--output", required=True)
+    p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
 ARGS = parse()
 if ARGS.mask_schedule_args:
@@ -152,6 +153,10 @@ if ARGS.stage_labels:
     ARGS.stage_labels = [x.strip() for x in ARGS.stage_labels.split(",") if x.strip()]
 else:
     ARGS.stage_labels = []
+if ARGS.seed:
+    random.seed(ARGS.seed)
+    torch.manual_seed(ARGS.seed)
+    torch.cuda.manual_seed_all(ARGS.seed)
 
 OUT = Path(ARGS.output); OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "train.log"

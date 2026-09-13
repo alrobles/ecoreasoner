@@ -150,6 +150,7 @@ apptainer exec --nv $OVL_ARGS "$SIF" \
     --grad_clip "$GRAD_CLIP" --ema_decay "$EMA_DECAY" \
     $(flag "$WEIGHT_TYING" --weight_tying) \
     $(flag "$USE_ROPE" --use_rope) \
+    $([ -n "${SEED:-}" ] && echo --seed "$SEED") \
     --output "$OUT" &
 TRAIN_PID=$!
 set +e; wait "$TRAIN_PID"; TRAIN_X=$?; set -e
