@@ -222,6 +222,23 @@ a batch gigante).. **Ganador: span-esqueleto.**
   (g2_launch.sh, 8 jobs): mutantes del ganador — randaug, randcf07,
   randnumb, randaug5x, randws0, randnr + probes randhi (mask_p
   0.30-0.99) y cf07aug (intensificación total).
+- **EVOG2 — RESULTADO + HOLDOUT (2026-09-13)**: ningún mutante superó
+  a cf05rand en dev (top g2-cf07aug 0.456). PERO el **holdout v4**
+  (n≈2000/nivel, number 201 / negation 157, seed 4242 — primera
+  medición de alta resolución) **cambió el campeón**: `g2-cf07aug`
+  (random + CF0.7 + aug): **L3 0.617, L2 0.702, number 0.408,
+  negation 0.408** vs cf05rand 0.593/0.383/0.274 (su negación dev
+  0.372 era mirage de n chico). Frontera verificada: ~0.41 en ambos
+  subtipos débiles — real pero <0.6. Lección metodológica: seleccionar
+  en dev n=475 sobrevende; el holdout redefine el podio.
+- **EVOG3 — LANZADA**: mutantes del nuevo campeón sobre corpus aug
+  refrescado `train_ids_b4aug2.npz` (B2 maduro: 11,964 docs únicos,
+  13x vs los 902 de b4aug) — 13 configs saturando el pool
+  (g3_launch.sh): replica-varianza `g3-champ`, eje aug-viejo
+  `g3-champv1`, barrido CF {0.5,0.85,1.0}, mecanismo {ws0, norole,
+  numbias}, densidad random {hi 0.30-0.99, lo 0.02-0.50}, receta
+  {lr4, ep2-20K, cap-150M}. Watcher g3. Holdout v4 queda reservado
+  para el campeón de campeones.
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
