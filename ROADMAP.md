@@ -168,6 +168,31 @@ a batch gigante).. **Ganador: span-esqueleto.**
   `dv_for()` que devuelve forma base con triggers plurales → "which
   lengthen" (~10% docs, también en corpus B3 ya entrenado). Fix:
   sujeto siempre singular → siempre 3a persona. Regenerado pre-pretok.
+- **B4 — RESULTADO (2026-09-13 ~04:45 UTC, 10K steps)**: dense L3
+  **0.585*** (n=475), L2 0.617***, direction 0.762, mechanism 0.667,
+  causal_phrase 0.636 — pero **number 0.308 / negation 0.186**,
+  idénticos a B3 → **NO-GO: el near-miss-como-positivo NO era el
+  supresor**. La frontera number/negation es de mecanismo/capacidad,
+  no de composición del corpus. Se cierra el eje "quitar contraste".
+
+- **EVOG0 — búsqueda evolutiva por torneo LANZADA (2026-09-13,
+  jobs 29230976-983 + prep 29230975)**: la meta sube a piso por
+  subtipo (min(number,negation)>0.6 antes de pensar en 0.7). G0 =
+  pantalla de 8 ejes single-gen vs control B4 (~90M, 10K steps,
+  `train_ids_b4.npz`): `g0-aug` (etapas inferenciales REALES aug_b2,
+  gen nunca testado), `g0-marked` (corpus 70/30 con etapa final
+  `[VALIDEZ]` post-CONCLUSION — validez como dimensión derivable),
+  `g0-cap` (hidden768/l8 ~150M), `g0-ep2` (20K steps, pro6000),
+  `g0-cf05` (candidate_focus 0.50), `g0-nocur` (sin curriculum),
+  `g0-lr4` (lr 4e-4), `g0-norole` (role_mask off). Fitness =
+  0.5·L3_dense + 0.5·min(number,negation) — maximin anti-direction.
+  Selección sobre dev `pairs_hard_v3_eval` (congelado); holdout
+  `pairs_hard_v4_holdout` (n=2000, seed 4242) solo para el campeón.
+  Infra: `scripts/g0_run.slurm` (runner genérico env-driven,
+  auto-detect Blackwell→overlay/venv vs python3 base), `g0_prep.slurm`
+  (corpus b4m + b4aug + holdout), `leaderboard.py` (fitness+ranking).
+  G1 = 6 mutantes top-2 + 2 probes (successive halving, no crossover
+  libre — los genes interactúan).
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de

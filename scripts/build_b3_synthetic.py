@@ -169,10 +169,16 @@ def build_invalid(rng):
     return obs, hip, pre, evi, conc, sp, pr, va, dp1, num, num2
 
 
-def build(rng, valid=True):
+def build(rng, valid=True, mark_validity=False):
     obs, hip, pre, evi, conc, *_ = build_valid(rng) if valid else build_invalid(rng)
-    return f"[OBSERVACION] {obs}\n[HIPOTESIS] {hip}\n[PREDICCION] {pre}\n" \
-           f"[EVIDENCIA] {evi}\n[CONCLUSION] {conc}"
+    t = f"[OBSERVACION] {obs}\n[HIPOTESIS] {hip}\n[PREDICCION] {pre}\n" \
+        f"[EVIDENCIA] {evi}\n[CONCLUSION] {conc}"
+    if mark_validity:
+        # La marca va DESPUES de CONCLUSION: para denoising-la el modelo debe
+        # derivar la validez de la cadena, no condicionarla por adelantado.
+        verdict = "valid" if valid else "invalid"
+        t += f"\n[VALIDEZ] This chain is deductively {verdict}."
+    return t
 
 
 def check(text, maxw=60, minw=4):
@@ -183,7 +189,12 @@ def check(text, maxw=60, minw=4):
     if len(m) != 5 or [mm.group(1) for mm in m] != order:
         return False
     for j, mm in enumerate(m):
-        end = m[j + 1].start() if j + 1 < len(m) else len(text)
+        if j + 1 < len(m):
+            end = m[j + 1].start()
+        else:
+            end = text.find("\n[VALIDEZ]", m[j].end())
+            if end < 0:
+                end = len(text)
         w = len(text[mm.end():end].split())
         if not (minw <= w <= maxw):
             return False
@@ -203,6 +214,8 @@ def main():
     ap.add_argument("--n", type=int, default=30000)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--valid-ratio", type=float, default=0.7)
+    ap.add_argument("--mark-validity", action="store_true",
+                    help="agrega etapa final [VALIDEZ] valid/invalid (EvoG0 g0-marked)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
@@ -219,7 +232,7 @@ def main():
     # Ahora: indice explicito, retry del MISMO label, conteos exactos.
     while i < len(labels):
         lb = labels[i]
-        t = build(rng, valid=lb)
+        t = build(rng, valid=lb, mark_validity=args.mark_validity)
         if check(t):
             docs.append((t, lb))
             i += 1
