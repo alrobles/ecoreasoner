@@ -105,6 +105,8 @@ def load_model(args, mcfg):
     try:
         model.load_state_dict(ck, strict=True)
     except RuntimeError:
+        if not any(k.startswith("module.") for k in ck):
+            raise  # mismatch real (arch) -> falla ruidoso, no segundo error críptico
         ck = {k[len("module."):]: v for k, v in ck.items()}
         model.load_state_dict(ck, strict=True)
     model.eval()
@@ -367,6 +369,8 @@ def main():
     ap.add_argument("--mask-id", type=int, default=None)
     ap.add_argument("--use-rope", action="store_true")
     ap.add_argument("--weight-tying", action="store_true")
+    ap.add_argument("--model-override", default="",
+                    help="JSON que pisa cfg['model'] (p.ej. '{\"hidden\":768,\"layers\":8}')")
     ap.add_argument("--limit", type=int, default=0,
                     help="limitar pares por nivel (debug)")
     args = ap.parse_args()
@@ -374,6 +378,9 @@ def main():
     import yaml
     cfg = yaml.safe_load(Path(args.config).read_text())
     mcfg, ecfg = cfg["model"], cfg["eval"]
+    if args.model_override:
+        mcfg.update(json.loads(args.model_override))
+        print(f"[model-override] {args.model_override}")
     mask_id = args.mask_id if args.mask_id is not None else mcfg["vocab"]
     seed = cfg["seed"]; tag = cfg["out"]["tag"]
 

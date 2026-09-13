@@ -20,7 +20,7 @@ def harvest(runs_dir, pat):
         except Exception as e:
             print(f"[skip] {bp}: {e}", file=sys.stderr)
             continue
-        run = bp.split("/runs/")[-1].split("/battery")[0] if "/runs/" in bp else bp
+        run = bp.split("/battery_logicdiff/")[0].rstrip("/").split("/")[-1]
         lv = d.get("levels", {})
         subs = lv.get("L3", {}).get("l3_subtype_acc", {})
         num = subs.get("number", {}).get("acc")

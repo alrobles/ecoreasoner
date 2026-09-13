@@ -15,8 +15,9 @@ set -u
 BASE=/beegfs/a474r867/ecoreasoner
 RUNS=$BASE/runs
 SIF=$BASE/pytorch-cuda.sif
-TAGS="g0-cf05 g0-nocur g0-lr4 g0-norole g0-cap g0-ep2 g0-marked g0-aug"
-DONE_FILE=$RUNS/g0_generation_done.flag
+GEN=${GEN:-g0}
+TAGS=${TAGS:-"g0-cf05 g0-nocur g0-lr4 g0-norole g0-cap g0-ep2 g0-marked g0-aug"}
+DONE_FILE=$RUNS/${GEN}_generation_done.flag
 
 missing() {
     for t in $TAGS; do
@@ -42,13 +43,13 @@ if [ -n "$m" ]; then
     exit 42
 fi
 
-echo "=== G0 COMPLETA $(date -u) — ranking ==="
+echo "=== $GEN COMPLETA $(date -u) — ranking ==="
 apptainer exec "$SIF" python3 "$BASE/scripts/leaderboard.py" \
-    --runs "$RUNS" --glob 'g0-*/battery_logicdiff/dense' \
-    --out "$RUNS/g0_leaderboard.jsonl" | tee "$RUNS/g0_leaderboard.txt"
+    --runs "$RUNS" --glob "${GEN}-*/battery_logicdiff/dense" \
+    --out "$RUNS/${GEN}_leaderboard.jsonl" | tee "$RUNS/${GEN}_leaderboard.txt"
 
-# Propuesta G1: top-2 por fitness -> mutantes (regla pre-registrada ROADMAP)
-apptainer exec "$SIF" python3 - "$RUNS/g0_leaderboard.jsonl" "$RUNS/g0_next_gen_proposal.txt" <<'EOF'
+# Propuesta siguiente generacion: top-2 por fitness (regla ROADMAP)
+apptainer exec "$SIF" python3 - "$RUNS/${GEN}_leaderboard.jsonl" "$RUNS/${GEN}_next_gen_proposal.txt" <<'EOF'
 import json, sys
 rows = [json.loads(l) for l in open(sys.argv[1])]
 top = [r for r in rows if r.get("fitness") is not None][:2]

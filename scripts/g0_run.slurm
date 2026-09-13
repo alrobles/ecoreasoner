@@ -166,13 +166,15 @@ if [ -z "$CKPT_DIR" ]; then
     echo "[eval] sin checkpoints en $OUT"; exit 1
 fi
 CKPT="$CKPT_DIR/model.pt"
-echo "=== eval $CKPT con logicdiff dense/base sobre $PAIRS_DIR ==="
+MODEL_OV="{\"vocab\":$VOCAB,\"hidden\":$HIDDEN,\"layers\":$LAYERS,\"heads\":$HEADS,\"ff_mult\":$FF_MULT,\"seq_len\":$SEQ_LEN,\"n_experts\":$N_EXPERTS,\"k\":$EXPERT_K}"
+echo "=== eval $CKPT con logicdiff dense/base sobre $PAIRS_DIR (ov=$MODEL_OV) ==="
 
 # shellcheck disable=SC2086
 apptainer exec --nv $OVL_ARGS "$SIF" "$PYBIN" \
     "$BASE/harness/suite_smoke_logicdiff.py" \
     --ckpt "$CKPT" --config "$EVAL_CFG" --pairs-dir "$PAIRS_DIR" \
     --out-dir "$OUT/battery_logicdiff" --device cuda \
+    --model-override "$MODEL_OV" \
     --modes "base,dense" || echo "[eval] logicdiff FAILED"
 
 # shellcheck disable=SC2086

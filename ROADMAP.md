@@ -191,8 +191,27 @@ a batch gigante).. **Ganador: span-esqueleto.**
   Infra: `scripts/g0_run.slurm` (runner genérico env-driven,
   auto-detect Blackwell→overlay/venv vs python3 base), `g0_prep.slurm`
   (corpus b4m + b4aug + holdout), `leaderboard.py` (fitness+ranking).
-  G1 = 6 mutantes top-2 + 2 probes (successive halving, no crossover
-  libre — los genes interactúan).
+- **EVOG0 — RESULTADO (2026-09-13)**: 8/8 evaluados. Ranking fitness
+  (0.5·L3+0.5·min(num,neg)): **g0-cf05 0.431** (L3 0.606, neg 0.256),
+  **g0-aug 0.406** (L3 0.602, num 0.365 — único >0.35 con solo 902 docs
+  aug ≈0.3% share), norole 0.394 ≈ B4-control 0.393, marked 0.387,
+  nocur 0.371, cap-150M 0.367, ep2-20K 0.358, lr4 0.333. Lectura:
+  candidate_focus sube L3+negación; las etapas inferenciales REALES
+  mueven number aun con share mínimo. Capacidad, épocas, lr-alto,
+  marcador [VALIDEZ], quitar curriculum o role_mask: nada ayuda → la
+  frontera responde a énfasis-de-candidato + dato inferencial real.
+  Fix en ruta: `suite_smoke_logicdiff` ganó `--model-override` (JSON
+  pisa cfg.model; g0-cap evaluaba hidden512 contra ckpt 768) + el
+  fallback `module.` solo aplica si el prefijo existe (g0-cap había
+  fallado con keys truncadas-7 enmascarando el size mismatch real).
+- **EVOG1 — LANZADA (2026-09-13, jobs 29231473-482 + watch 29231481)**:
+  6 mutantes de top-2 + 2 probes, todos heredan CF=0.5 salvo
+  intensificación: `g1-cf07`, `g1-cf05aug`, `g1-cf07aug`,
+  `g1-cf05norole`, `g1-numbias` (ROLE_CONFIG number_weight=6 +
+  negación "not/no/never/cannot" como conectivas — sesgo de masking
+  directo a la frontera), `g1-aug5x` (aug ×5 = 4510 docs), probes
+  `g1-cf05rand` (mask_type=random: ¿span importa bajo candidate-focus?)
+  y `g1-cf05lr1` (lr 1e-4). Watcher G1 activo.
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
