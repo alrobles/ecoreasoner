@@ -130,6 +130,21 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ## 4. ESTADO VIVO (HPC, al 13-09)
 
+- **TESIS UNAM — nueva fuente (2026-09-13)**: descarga en curso en
+  `/beegfs/a474r867/tesis_unam/corrida_doct/` (pdfs + md + checkpoint.jsonl
+  con metadata DGDU: uuid/handle/title/degree/disciplina/area). ~293 docs
+  ya; sigue madurando. **Decisión**: solo tesis de ciencia; traducción
+  ES→EN DESPUÉS (cluster, v4serve o gpt-oss dedicado); mates/física/ing
+  curadas aparte COMO LATEX para entrenar después. Curador listo:
+  `scripts/curate_tesis_unam.py` → `tesis_unam/curada_v1/` con
+  `science/` (138 docs, front-matter LFDA/Neevia/comité/índice/bibliografía
+  eliminados — cortes por encabezado-seguido-de-prosa, TOC residual 0) y
+  `latex/` (155 docs, conservados tal cual) + `meta.jsonl`. Nota: muchas
+  son "tesis por artículos" con capítulos ya en inglés — la traducción
+  solo cubrirá las partes ES. **Pendiente**: cuando madure la descarga,
+  rerun del curador + worker de traducción (por capítulos, preservando
+  estructura) → prosa larga inglesa para el corpus.
+
 - **B3 — RESULTADO (2026-09-13 ~01:30 UTC, 10K steps completos)**: battery
   base: L0 0.527/L1 0.498/L2 0.606***/L3 0.518 → "estructura sin
   inferencia". Battery **dense**: L0 0.540*/L1 0.520/L2 0.665***/
