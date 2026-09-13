@@ -128,7 +128,31 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ---
 
-## 4. ESTADO VIVO (HPC, al 12-09)
+## 4. ESTADO VIVO (HPC, al 13-09)
+
+- **B3 — RESULTADO (2026-09-13 ~01:30 UTC, 10K steps completos)**: battery
+  base: L0 0.527/L1 0.498/L2 0.606***/L3 0.518 → "estructura sin
+  inferencia". Battery **dense**: L0 0.540*/L1 0.520/L2 0.665***/
+  **L3 0.600*** (p=1e-5, n=475) → SEÑAL INFERENCIAL. Subtipos dense L3:
+  direction_word 0.762 (n=193), causal_phrase 0.682, temporal_phrase
+  0.667, mechanism 0.667, environment 0.636; **number 0.346 (n=52),
+  negation 0.209 (n=43) → NO-GO en su criterio** (GO: >0.6). La capa
+  sintética FLD no reparó la lógica fina; la tesis madre NO falsada
+  (L3 sigue significativo). **Hipótesis nueva que B3 revela**: los
+  subtipos que fallan son exactamente los que el 30% near-miss
+  corrompía — entrenar contradicciones como positivos de denoising
+  puede SUPRIMIR activamente la discriminación → test B4.
+- **B4 — ABLACIÓN LANZADA (2026-09-13, pretok 29230699 → train
+  29230700, afterok)**: receta B1/B3 EXACTA, mismo seed 42, único
+  cambio: corpus sintético **100% válido** (0% near-miss) —
+  `train_corpus_synth_b4.jsonl` 30K docs → `train_ids_b4.npz` →
+  `runs/f0-span-v3-synthb4`. GO: number/negation >0.6 sin degradar
+  (si suben → el supresor era el contraste enmascarado como positivo,
+  hallazgo publicable; si no → el cuello es capacidad/objetivo).
+  Bug gramatical cazado al inspeccionar el corpus: `dv2`/`dv3` usaban
+  `dv_for()` que devuelve forma base con triggers plurales → "which
+  lengthen" (~10% docs, también en corpus B3 ya entrenado). Fix:
+  sujeto siempre singular → siempre 3a persona. Regenerado pre-pretok.
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de

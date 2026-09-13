@@ -127,7 +127,10 @@ def build_valid(rng):
     va = pick(rng, TRIGGER_VARS[tr])
     sp = pick(rng, SPECIES); pr = pick(rng, PROCESS); me = pick(rng, MECH)
     site = pick(rng, SITES); tmp = pick(rng, TEMP); tmp2 = pick(rng, TEMP)
-    dv = dv_for(rng, tr); dv2 = dv_for(rng, tr); dv3 = dv_for(rng, tr)
+    dv = dv_for(rng, tr)
+    # dv2 ("which X") y dv3 ("<mech> X") tienen sujeto singular SIEMPRE ->
+    # forma 3a persona (claves de DIR_V), no la forma base del trigger.
+    dv2 = pick(rng, list(DIR_V)); dv3 = pick(rng, list(DIR_V))
     dp1 = pick(rng, DIR_PP); dp2 = pick(rng, DIR_SIMPLE)
     dpS1 = pick(rng, DIR_SIMPLE)
     db = pick(rng, DIR_BARE); conn = pick(rng, ADV_LINK); neg = pick(rng, NEG_EXP)
@@ -185,7 +188,11 @@ def check(text, maxw=60, minw=4):
         if not (minw <= w <= maxw):
             return False
     for bad in ("has fell", "has rised", "a fallen of", "a risen of", "a shortened of",
-                "has shortened", "plots not not", "temperatures decreases"):
+                "has shortened", "plots not not", "temperatures decreases",
+                "which lengthen ", "which reduce ", "which increase ",
+                "which decrease ", "which raise ", "which lower ",
+                "which advance ", "which delay ", "which intensify ",
+                "which boost ", "which shorten ", "a slow of"):
         if bad in text:
             return False
     return True
