@@ -20,8 +20,13 @@ partes en español.
 Uso:
   python3 curate_tesis_unam.py --corrida /beegfs/.../corrida_doct \
       --out /beegfs/.../tesis_curada --report /beegfs/.../curate_report.json
+
+  # cosecha multi-worker (flota/w*/md) — incremental + vigilante:
+  python3 curate_tesis_unam.py --md-dirs flota/w*/md \
+      --meta-jsonl flota/slice*.jsonl \
+      --out curada_v2 --loop 1800
 """
-import argparse, json, re, shutil, sys
+import argparse, glob, json, re, shutil, sys, time
 from collections import Counter
 from pathlib import Path
 
@@ -138,71 +143,134 @@ def clean(text):
     return t
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--corrida", required=True, help="dir con checkpoint.jsonl + md/")
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--report", default=None)
-    ap.add_argument("--min-chars", type=int, default=20000,
-                    help="mínimo de chars limpios para conservar en science/")
-    args = ap.parse_args()
+def slugify_title(title):
+    """Replica el slug de descargar_convertir.py para mapear md -> metadata."""
+    return re.sub(r"[^\w\-]+", "_", (title or "")[:70]).strip("_")
 
-    corrida = Path(args.corrida)
-    meta = {}
-    ck = corrida / "checkpoint.jsonl"
-    if ck.exists():
-        for l in ck.read_text(errors="ignore").splitlines():
+
+def run_once(args):
+    """Una pasada de curado; devuelve el dict de reporte."""
+    # --- fuentes de md ---
+    md_files = []
+    if args.corrida:
+        md_files += sorted(Path(args.corrida).glob("md/*.md"))
+    for pat in (args.md_dirs or []):
+        md_files += sorted(Path(p) for p in glob.glob(pat + "/*.md")
+                           if Path(p).is_file())
+
+    # --- mapas de metadata ---
+    meta_uuid = {}   # uuid8 -> info (checkpoint estilo corrida: uuid presente)
+    meta_slug = {}   # slug(titulo) -> info (slices: uuid=null hasta resolver)
+    meta_files = list(args.meta_jsonl or [])
+    if args.corrida:
+        meta_files.append(str(Path(args.corrida) / "checkpoint.jsonl"))
+    for mj in meta_files:
+        mjp = Path(mj)
+        if not mjp.exists():
+            continue
+        for l in mjp.read_text(errors="ignore").splitlines():
             try:
                 d = json.loads(l)
-                # el filename usa los primeros 8 chars del uuid
-                meta[d["uuid"][:8]] = d
             except Exception:
                 continue
+            if not isinstance(d, dict):
+                continue
+            if d.get("uuid"):
+                meta_uuid[d["uuid"][:8]] = d
+            s = slugify_title(d.get("title", ""))
+            if s:
+                meta_slug.setdefault(s, d)
 
     out_sci = Path(args.out) / "science"
     out_lat = Path(args.out) / "latex"
     out_sci.mkdir(parents=True, exist_ok=True)
     out_lat.mkdir(parents=True, exist_ok=True)
 
+    # --- incremental: entradas ya curadas se conservan sin reprocesar ---
+    prev = {}
+    mjson = Path(args.out) / "meta.jsonl"
+    if mjson.exists():
+        for l in mjson.read_text(errors="ignore").splitlines():
+            try:
+                d = json.loads(l)
+                prev[d["file"]] = d
+            except Exception:
+                continue
+
     stats = Counter()
     meta_out = []
-    for fp in sorted((corrida / "md").glob("*.md")):
-        uuid = fp.name.split("_", 1)[0]
-        info = meta.get(uuid, {})
+    for fp in md_files:
+        stem = fp.stem
+        uuid8, _, slug = stem.partition("_")
+        sci_rel, lat_rel = f"science/{fp.name}", f"latex/{fp.name}"
+        # skip incremental: salida y meta previas existen -> reutilizar
+        if sci_rel in prev and (out_sci / fp.name).exists():
+            meta_out.append(prev[sci_rel]); stats["grp_science"] += 1
+            stats["science_kept"] += 1
+            continue
+        if lat_rel in prev and (out_lat / fp.name).exists():
+            meta_out.append(prev[lat_rel]); stats["grp_latex"] += 1
+            continue
+        info = meta_uuid.get(uuid8) or meta_slug.get(slug) or {}
         raw = fp.read_text(errors="ignore")
         degree = info.get("degree", "")
         grp = classify(info, raw)
         stats[f"grp_{grp}"] += 1
+        common = {"uuid": uuid8, "degree": degree,
+                  "area": info.get("area", ""),
+                  "disciplina": info.get("disciplina", ""),
+                  "facultad": info.get("facultad", ""),
+                  "title": info.get("title", ""),
+                  "date": info.get("date", "")}
         if grp == "latex":
             shutil.copy2(fp, out_lat / fp.name)  # se guarda tal cual (latex)
-            meta_out.append({"uuid": uuid, "group": "latex", "degree": degree,
-                             "area": info.get("area", ""),
-                             "disciplina": info.get("disciplina", ""),
-                             "title": info.get("title", ""),
-                             "file": f"latex/{fp.name}", "chars_raw": len(raw)})
+            meta_out.append({**common, "group": "latex",
+                             "file": lat_rel, "chars_raw": len(raw)})
             continue
         t = clean(raw)
         if len(t) < args.min_chars:
             stats["science_dropped_short"] += 1
             continue
         (out_sci / fp.name).write_text(t)
-        meta_out.append({"uuid": uuid, "group": "science", "degree": degree,
-                         "area": info.get("area", ""),
-                         "disciplina": info.get("disciplina", ""),
-                         "title": info.get("title", ""),
-                         "date": info.get("date", ""),
-                         "file": f"science/{fp.name}",
+        meta_out.append({**common, "group": "science", "file": sci_rel,
                          "chars_raw": len(raw), "chars_clean": len(t)})
         stats["science_kept"] += 1
 
-    (Path(args.out) / "meta.jsonl").write_text(
+    mjson.write_text(
         "\n".join(json.dumps(m, ensure_ascii=False) for m in meta_out) + "\n")
-    rep = {"corrida": str(corrida), "n_md": stats["grp_science"] + stats["grp_latex"],
+    rep = {"n_md_seen": len(md_files),
            **dict(stats)}
-    print(json.dumps(rep, indent=2))
+    print(json.dumps(rep, indent=2), flush=True)
     if args.report:
         Path(args.report).parent.mkdir(parents=True, exist_ok=True)
         Path(args.report).write_text(json.dumps(rep, indent=2) + "\n")
+    return rep
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--corrida", default=None, help="dir con checkpoint.jsonl + md/")
+    ap.add_argument("--md-dirs", nargs="*", default=None,
+                    help="globs de dirs md (p.ej. flota/w*/md); combinable con --corrida")
+    ap.add_argument("--meta-jsonl", nargs="*", default=None,
+                    help="jsonls de metadata (slices); el join es por slug del titulo")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--report", default=None)
+    ap.add_argument("--min-chars", type=int, default=20000,
+                    help="mínimo de chars limpios para conservar en science/")
+    ap.add_argument("--loop", type=int, default=0,
+                    help="si >0, re-corre el curado cada N segundos")
+    args = ap.parse_args()
+    if not args.corrida and not args.md_dirs:
+        ap.error("se requiere --corrida o --md-dirs")
+    if args.loop <= 0:
+        run_once(args)
+        return 0
+    while True:
+        rep = run_once(args)
+        print(f"[loop] {rep.get('n_md_seen', 0)} md vistos; "
+              f"re-curando en {args.loop}s", flush=True)
+        time.sleep(args.loop)
     return 0
 
 
