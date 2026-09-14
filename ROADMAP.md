@@ -297,6 +297,12 @@ a batch gigante).. **Ganador: span-esqueleto.**
   corrhi-s1 (0.20), numw-s1/s2 (3.0/2.5), corrnw, cos (schedule coseno
   puro), mrd (decaimiento b_h 0.99→0.30). Conducción autónoma:
   gen_wait + gen_overseer.
+- **HOLDOUT v4 (primera medición verificada de la frontera)**:
+  hinrcf10 n=2 → L3 0.628 / num 0.396 / neg 0.592 (s1: 0.643);
+  hicf10 n=3 → L3 0.618 / num 0.420 / neg 0.514. L3 ~0.62 supera
+  el piso 0.55 pre-registrado → la tesis no queda falsada a esta
+  escala; num mejoró vs dev (~0.32→0.40). La frontera a empujar:
+  num+neg → ≥0.6 simultáneos en holdout.
 - **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
   docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
   evidencia publicada y ejes nuevos que el GA no descubre por mutación:
