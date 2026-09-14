@@ -279,6 +279,15 @@ a batch gigante).. **Ganador: span-esqueleto.**
   cruce de los ejes que movieron negación), hi×ws0 (2), hi×nr (2),
   hi×cf10, hi×nr×cf10 (combo de ganadores), barrido mask_p
   {0.45-0.99, 0.20-0.90}, hicf05, hilogic, hilr1. Watcher g4.
+- **EVOG4 — RESULTADO PARCIAL FUERTE (13/15 con batería)**:
+  `g4-hicf10` (hi+CF=1.0, n=1): **L3 0.640 / neg 0.651** — primera
+  medición por encima del piso 0.6 de negación en dev. `g4-hinrcf10`
+  (hi+nr+cf10): FIT 0.480, neg 0.558, dir 0.788. CF=1.0 bajo densidad
+  = la condición de eval aplicada al 100% de ejemplos; parece además
+  *estabilizar* el régimen denso: `hi` solo dio neg {0.302, 0.186}
+  entre seeds (sd 0.036) — el líder G3 fue en parte seed afortunado.
+  Réplicas lanzadas: hicf10-s2/s3, hinrcf10-s2 (protocolo ≥2 seeds
+  antes de holdout). hiep2 (20K) cierra la generación.
 - **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
   docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
   evidencia publicada y ejes nuevos que el GA no descubre por mutación:
