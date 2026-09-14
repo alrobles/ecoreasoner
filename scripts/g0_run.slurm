@@ -192,4 +192,13 @@ apptainer exec --nv $OVL_ARGS "$SIF" "$PYBIN" \
 apptainer exec --nv $OVL_ARGS "$SIF" "$PYBIN" \
     "$BASE/scripts/verdict.py" --battery "$OUT/battery_logicdiff/dense" \
     --out "$OUT/battery_verdict_dense.json" || echo "[eval] verdict dense FAILED"
+
+# PPL proxy: CE de denoising a fracs fijas sobre docs correctos del holdout
+# (solo ctx+ok; no toca etiquetas/pares -> no contamina la metrica pairwise)
+HOLDOUT_PAIRS=${HOLDOUT_PAIRS:-$RUNS/pairs_hard_v4_holdout}
+apptainer exec --nv $OVL_ARGS "$SIF" "$PYBIN" \
+    "$BASE/scripts/eval_ppl_proxy.py" \
+    --ckpt "$CKPT" --model-override "$MODEL_OV" \
+    --pairs-dir "$HOLDOUT_PAIRS" --device cuda \
+    --out "$OUT/ppl_proxy.json" || echo "[eval] ppl_proxy FAILED"
 echo "=== G0 $TAG DONE $(date -u) ==="

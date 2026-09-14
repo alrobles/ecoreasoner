@@ -21,6 +21,13 @@ def harvest(runs_dir, pat):
             print(f"[skip] {bp}: {e}", file=sys.stderr)
             continue
         run = bp.split("/battery_logicdiff/")[0].rstrip("/").split("/")[-1]
+        ppl = None
+        pj = os.path.join(runs_dir, run, "ppl_proxy.json")
+        if os.path.exists(pj):
+            try:
+                ppl = json.load(open(pj)).get("ppl_proxy")
+            except Exception:
+                pass
         lv = d.get("levels", {})
         subs = lv.get("L3", {}).get("l3_subtype_acc", {})
         num = subs.get("number", {}).get("acc")
@@ -39,7 +46,7 @@ def harvest(runs_dir, pat):
             "n3": lv.get("L3", {}).get("n_pairs"),
             "number": num, "negation": neg,
             "direction": subs.get("direction_word", {}).get("acc"),
-            "fitness": fit,
+            "fitness": fit, "ppl": ppl,
         })
     return rows
 
@@ -55,7 +62,8 @@ def group_replicas(rows):
     agg = []
     for base, mem in groups.items():
         a = {"run": base, "n_seeds": len(mem)}
-        for k in ("L0", "L1", "L2", "L3", "number", "negation", "direction", "fitness"):
+        for k in ("L0", "L1", "L2", "L3", "number", "negation", "direction",
+                  "fitness", "ppl"):
             v = [m[k] for m in mem if m[k] is not None]
             a[k] = statistics.mean(v) if v else None
         a["n3"] = max((m["n3"] for m in mem if m["n3"] is not None), default=None)
@@ -77,17 +85,18 @@ def main():
     agg = group_replicas(rows)
     agg.sort(key=lambda r: (r["fitness"] is None, -(r["fitness"] or 0)))
 
-    hdr = f"{'run':<28} {'n':>2} {'L0':>6} {'L1':>6} {'L2':>6} {'L3':>6} {'num':>6} {'neg':>6} {'dir':>6} {'FIT':>6} {'sd':>5}"
+    hdr = f"{'run':<28} {'n':>2} {'L0':>6} {'L1':>6} {'L2':>6} {'L3':>6} {'num':>6} {'neg':>6} {'dir':>6} {'FIT':>6} {'sd':>5} {'PPL':>7}"
     print(hdr); print("-" * len(hdr))
     f = lambda x: f"{x:.3f}" if isinstance(x, float) else "  -  "
+    fp = lambda x: f"{x:.1f}" if isinstance(x, float) else "   -   "
     for a in agg:
         print(f"{a['run']:<28} {a['n_seeds']:>2} {f(a['L0'])} {f(a['L1'])} {f(a['L2'])} "
               f"{f(a['L3'])} {f(a['number'])} {f(a['negation'])} {f(a['direction'])} "
-              f"{f(a['fitness'])} {f(a['sd'])}")
+              f"{f(a['fitness'])} {f(a['sd'])} {fp(a['ppl'])}")
         for m in a["members"] if a["n_seeds"] > 1 else []:
             print(f"  · {m['run']:<25} {'':>2} {f(m['L0'])} {f(m['L1'])} {f(m['L2'])} "
                   f"{f(m['L3'])} {f(m['number'])} {f(m['negation'])} {f(m['direction'])} "
-                  f"{f(m['fitness'])}")
+                  f"{f(m['fitness'])} {'':>5} {fp(m['ppl'])}")
 
     if args.out:
         with open(args.out, "w") as fh:

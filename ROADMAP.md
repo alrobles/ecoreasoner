@@ -331,6 +331,31 @@ a batch gigante).. **Ganador: span-esqueleto.**
     num_ids=10 (nivel dígito), flip_ids=104 con variantes de case.
   Ambos no-ops con defaults; compatibles con resume y seeds.
 
+- **PLAN NOCTURNO G5-G8 (autonomía 23:17→08:00, Devin al mando)** —
+  infraestructura añadida: `eval_ppl_proxy.py` (CE de denoising a fracs
+  {0.15,0.5,0.85} sobre ctx+ok del holdout — pseudo-PPL comparable entre
+  runs, nunca toca etiquetas), `gen_overseer.py` (marca corridas muertas
+  con verdict terminal → cierre sin colgar), `gen_wait.sh` (espera de
+  generación), leaderboard ahora reporta PPL. **Nota de interpretación**:
+  la familia `hi` llevaba CURRICULUM=1 implícito — el gen ganador real es
+  "rampa b_h 0.30→0.95 sobre random", no denso plano desde step 0.
+  - **G5** (~01:30): genes de la lit-review sobre backbone G4
+    (hicf10|hinrcf10 según media de réplicas): `corr` 0.10 (2 seeds),
+    `corrhi` 0.20, `numw` 3.0/2.5 (2 seeds), `corrnw`, `cos` (cosine puro,
+    hipótesis contraria likelihood-lit), `mrd` (decaimiento b_h — dirección
+    opuesta a la rampa heredada). Pregunta: ¿gen de objetivo (corrective/
+    numw) > gen de schedule?
+  - **G6** (~03:30): cruces de ganadores G5 + barrido fino del gen que
+    gane (p.ej. corrective_p∈{0.05,0.10,0.15}, boost∈{4,8,16}, o dosis
+    numw). Réplicas s2/s3 de lo mejor.
+  - **G7** (~05:30): consolidación — 3+ seeds del mejor recipe;
+    si media supera al incumbente por >σ entre seeds → candidato a
+    holdout. Verificación PPL: un campeón que degrade ppl_proxy >50% vs
+    baseline se reporta con asterisco, no se esconde.
+  - **G8** (~07:00): holdout del campeón validado (≥2 seeds) +
+    reporte matutino. Si nada supera al incumbente en media+σ, el
+    resultado negativo limpio se documenta igual.
+
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
   investigación). Fixes aplicados, todos compatibles con resume/olas:
