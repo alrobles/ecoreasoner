@@ -38,6 +38,10 @@ CUR_STAGES=${CUR_STAGES:-'[[0,2000,16,0.30],[2000,5000,32,0.60],[5000,10000,64,0
 ROLE_MASK=${ROLE_MASK:-1}
 ROLE_CONFIG=${ROLE_CONFIG:-'{"connectives":["because","despite","however","therefore","although","thus","since","while","whereas","yet","but","so","if"],"relation_verbs":["increases","reduces","decreases","inhibits","promotes","correlates","depends","drives","affects","influences","regulates","enhances","suppresses","causes","leads","results","associated","linked","modulates","triggers"],"species_keywords":["panthera","quercus","apis","daphnia","mytilus","giraffa","cervus","populus","saguaro","tigris","ilex","suber"],"number_weight":2.0,"connective_weight":3.0,"relation_weight":3.0,"entity_weight":2.0,"uppercase_bonus":0.5}'}
 CANDIDATE_FOCUS=${CANDIDATE_FOCUS:-0.30}
+LOSS_NUM_W=${LOSS_NUM_W:-1.0}
+LOSS_NEG_W=${LOSS_NEG_W:-1.0}
+CORRECTIVE_P=${CORRECTIVE_P:-0.0}
+CORRECTIVE_BOOST=${CORRECTIVE_BOOST:-8.0}
 LR=${LR:-2.0e-4}
 LR_DECAY=${LR_DECAY:-cosine}
 LR_MIN_RATIO=${LR_MIN_RATIO:-0.1}
@@ -145,6 +149,8 @@ apptainer exec --nv $OVL_ARGS "$SIF" \
     $(flag "$CURRICULUM" --curriculum) --cur_stages "$CUR_STAGES" \
     $(flag "$ROLE_MASK" --role_mask) --role_config "$ROLE_CONFIG" \
     --candidate_focus "$CANDIDATE_FOCUS" \
+    --loss_num_w "$LOSS_NUM_W" --loss_neg_w "$LOSS_NEG_W" \
+    --corrective_p "$CORRECTIVE_P" --corrective_boost "$CORRECTIVE_BOOST" \
     --lr "$LR" --lr_decay "$LR_DECAY" --lr_min_ratio "$LR_MIN_RATIO" \
     --warmup "$WARMUP" --max_steps "$TARGET_STEPS" \
     --grad_clip "$GRAD_CLIP" --ema_decay "$EMA_DECAY" \

@@ -309,6 +309,18 @@ a batch gigante).. **Ganador: span-esqueleto.**
   → Ejes G5 propuestos: `noiseskew` (schedule coseno/Beta vs uniforme
   denso), `numw` (loss-weight numérico), `corrective` (mutaciones
   visibles + corrección supervisada), `mrd` (decay de ratio).
+- **GENES `numw` + `corrective` IMPLEMENTADOS** (train_mdlm_moe_v2.py
+  V3.4, env: LOSS_NUM_W / LOSS_NEG_W / CORRECTIVE_P / CORRECTIVE_BOOST):
+  - `numw`: CE ponderada por token (w en dígitos y negaciones; el resto
+    1.0). DSFT-style — pondera loss, no masking.
+  - `corrective`: con prob por posición, corrompe tokens VISIBLES
+    (complemento de la máscara) y supervisa a predecir el original.
+    Selección ponderada hacia tokens informativos (boost=8); mutaciones
+    con sentido: dígito→dígito, negación→neutralizador ("not"→"also",
+    "without"→"with"), verbo de dirección→antónimo ("increases"→
+    "decreases"), resto→vocab uniforme. Verificado vs tokenizer real:
+    num_ids=10 (nivel dígito), flip_ids=104 con variantes de case.
+  Ambos no-ops con defaults; compatibles con resume y seeds.
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de

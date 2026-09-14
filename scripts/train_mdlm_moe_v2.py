@@ -119,6 +119,20 @@ def parse():
     p.add_argument("--role_config", default=ROLE_CONFIG_DEFAULT,
                    help="JSON con listas de conectivas, verbos de relacion, "
                         "especies y pesos para role-aware masking.")
+    p.add_argument("--loss_num_w", type=float, default=1.0,
+                   help="peso de loss en tokens numericos (DSFT-style: "
+                        "ponderar la loss, no el masking). 1.0 = off")
+    p.add_argument("--loss_neg_w", type=float, default=1.0,
+                   help="peso de loss en tokens de negacion. 1.0 = off")
+    p.add_argument("--corrective_p", type=float, default=0.0,
+                   help="fraccion de tokens VISIBLES corrompidos por ejemplo "
+                        "(Corrective Diffusion LM style): el modelo debe "
+                        "predecir el token original en posiciones corruptas, "
+                        "no solo enmascaradas. 0 = off")
+    p.add_argument("--corrective_boost", type=float, default=8.0,
+                   help="peso de seleccion de tokens informativos (numeros, "
+                        "negaciones, verbos de direccion) al elegir posiciones "
+                        "a corromper, vs 1.0 para el resto")
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="*", default=[])
     p.add_argument("--data_cache", default=None,
@@ -698,6 +712,144 @@ def build_role_weighted_mask(T, n_target, mask_type, span_len, token_scores, dev
     return build_role_weighted_span_mask(T, n_target, span_len, token_scores, device=device)
 
 
+# ---------------- corrective corruption + loss weighting (V3.4) ----------------
+# Corrective Diffusion LM (2025): mezcla de masks absorbentes + tokens
+# VISIBLES corrompidos, supervisados a predecir el token original. A
+# diferencia de ELECTRA (detecta provenance), aqui la supervision es de
+# correccion: el modelo aprende "este token visible esta mal -> deberia
+# ser X", que es exactamente la habilidad que mide el eval pairwise.
+#
+# Corrupciones con sentido cientifico (no uniformes a ciegas):
+#   - numeros -> otro token numerico del vocabulario (swap de magnitud)
+#   - negaciones -> token que neutraliza/invierte la polaridad
+#   - verbos/comparativos de direccion -> su antonimo (increases->decreases)
+#   - resto -> token uniforme del vocabulario (corrupcion generica)
+#
+# numw (DSFT-style): peso extra en la LOSS de tokens numericos/negacion,
+# en vez de sesgar el masking (leccion de g3-numb: mask-bias inestable).
+
+_CORRUPT_FLIP_TEXT = {
+    # negaciones -> neutralizacion / flip de polaridad
+    "not": ["also", "indeed", "often", "still"],
+    "no": ["a", "the", "some"],
+    "never": ["often", "sometimes", "usually", "always"],
+    "cannot": ["can", "may", "could"],
+    "without": ["with"],
+    "nor": ["or", "and"],
+    "neither": ["either", "both"],
+    "fails": ["succeeds", "manages"],
+    "fail": ["succeed", "manage"],
+    "failed": ["succeeded", "managed"],
+    # direccion / comparacion -> antonimo
+    "increases": ["decreases", "reduces"],
+    "decreases": ["increases", "enhances"],
+    "inhibits": ["promotes", "enhances"],
+    "promotes": ["inhibits", "suppresses"],
+    "enhances": ["suppresses", "reduces"],
+    "suppresses": ["enhances", "promotes"],
+    "improves": ["worsens", "impairs"],
+    "reduces": ["increases", "raises"],
+    "higher": ["lower"],
+    "lower": ["higher"],
+    "more": ["less", "fewer"],
+    "less": ["more"],
+    "above": ["below"],
+    "below": ["above"],
+    "before": ["after"],
+    "after": ["before"],
+    "positive": ["negative"],
+    "negative": ["positive"],
+    "significant": ["negligible", "marginal"],
+}
+_NEG_WORDS = {"not", "no", "never", "cannot", "without", "nor",
+              "neither", "fails", "fail", "failed"}
+_FLIP_K = 4  # max candidatos por token en la tabla de flips
+
+
+def build_correction_tables(tok, vocab, device):
+    """Tablas [vocab] para corrupcion corrective y ponderacion de loss."""
+    strs = _all_token_strings(tok, vocab)
+    text2ids = {}
+    for i, s in enumerate(strs):
+        text2ids.setdefault(_normalize_token_text(s).lower(), []).append(i)
+    is_num = torch.zeros(vocab, dtype=torch.bool)
+    is_flip = torch.zeros(vocab, dtype=torch.bool)
+    is_neg = torch.zeros(vocab, dtype=torch.bool)
+    flip_cand = torch.full((vocab, _FLIP_K), -1, dtype=torch.long)
+    num_ids = []
+    for i, s in enumerate(strs):
+        t = _normalize_token_text(s)
+        tl = t.lower()
+        if _NUMBER_RE.match(t):
+            is_num[i] = True
+            num_ids.append(i)
+        if tl in _NEG_WORDS:
+            is_neg[i] = True
+        if tl in _CORRUPT_FLIP_TEXT:
+            cands = []
+            for rep in _CORRUPT_FLIP_TEXT[tl]:
+                cands += text2ids.get(rep, [])
+            if cands:
+                is_flip[i] = True
+                for j, c in enumerate(cands[:_FLIP_K]):
+                    flip_cand[i, j] = c
+    lw = torch.ones(vocab, dtype=torch.float32)
+    lw[is_num] = float(ARGS.loss_num_w)
+    lw[is_neg] = float(ARGS.loss_neg_w)
+    sel_w = torch.ones(vocab, dtype=torch.float32)
+    sel_w[is_num | is_flip] += float(ARGS.corrective_boost)
+    return {
+        "is_num": is_num.to(device), "is_flip": is_flip.to(device),
+        "flip_cand": flip_cand.to(device),
+        "num_ids": torch.tensor(num_ids or [0], dtype=torch.long, device=device),
+        "lw": lw.to(device), "sel_w": sel_w.to(device),
+        "n_num": len(num_ids), "n_flip": int(is_flip.sum().item()),
+    }
+
+
+def _corrupt_positions(x1, mp_local, tables, device):
+    """Elige posiciones VISIBLES a corromper para un ejemplo [T].
+
+    x1: ids del ejemplo; mp_local: indices ya enmascarados (a excluir).
+    Devuelve indices locales 1D o None.
+    """
+    T = x1.numel()
+    vis = torch.ones(T, dtype=torch.bool, device=device)
+    vis[mp_local] = False
+    vis_idx = vis.nonzero(as_tuple=False).squeeze(-1)
+    n_vis = int(vis_idx.numel())
+    n_corr = int(round(n_vis * ARGS.corrective_p))
+    if n_vis == 0 or n_corr <= 0:
+        return None
+    w = tables["sel_w"][x1.reshape(-1)[vis_idx]]
+    sel = torch.multinomial(w, min(n_corr, n_vis), replacement=False)
+    return vis_idx[sel]
+
+
+def _corrupt_replacements(orig_ids, tables, vocab, device):
+    """Devuelve ids corruptos para orig_ids [N] (vectorizado)."""
+    n = orig_ids.numel()
+    rep = torch.randint(0, vocab, (n,), device=device)
+    num_m = tables["is_num"][orig_ids]
+    if bool(num_m.any()):
+        ri = torch.randint(0, tables["num_ids"].numel(),
+                           (int(num_m.sum().item()),), device=device)
+        rep[num_m] = tables["num_ids"][ri]
+    fl_m = tables["is_flip"][orig_ids]
+    if bool(fl_m.any()):
+        cand = tables["flip_cand"][orig_ids[fl_m]]              # [m,K]
+        ri = torch.randint(0, cand.size(1), (cand.size(0),), device=device)
+        r = cand.gather(1, ri[:, None]).squeeze(1)
+        bad = r < 0
+        if bool(bad.any()):
+            r[bad] = orig_ids[fl_m][bad]  # sin candidato: deja el original
+        rep[fl_m] = r
+    same = rep == orig_ids
+    if bool(same.any()):
+        rep[same] = (rep[same] + 1) % vocab
+    return rep
+
+
 def _find_stage_boundaries(seq, stage_label_ids):
     """Devuelve listas de (start, end) de contenido de cada etapa.
 
@@ -1138,6 +1290,13 @@ def main():
     if ARGS.role_mask:
         log(f"role_mask on: conectivas/relaciones/numeros/entidades "
             f"(config keys={list(ARGS.role_config.keys())})")
+    CORRUPT = None
+    if ARGS.corrective_p > 0 or ARGS.loss_num_w != 1.0 or ARGS.loss_neg_w != 1.0:
+        CORRUPT = build_correction_tables(tok, ARGS.vocab, device=DEVICE)
+        log(f"corrective/numw on: p={ARGS.corrective_p} "
+            f"boost={ARGS.corrective_boost} num_ids={CORRUPT['n_num']} "
+            f"flip_ids={CORRUPT['n_flip']} "
+            f"loss_w(num={ARGS.loss_num_w}, neg={ARGS.loss_neg_w})")
     for step in range(STEPS_DONE[0], ARGS.max_steps):
         xb = batches[it % nb].to(DEVICE); it += 1
         B, T = xb.shape
@@ -1159,6 +1318,7 @@ def main():
                 n = max(1, int(T * frac))
             n_masked_per_ex.append(n)
         mp_parts = []
+        cp_parts = []
         for b_idx in range(B):
             xb_b = xb[b_idx:b_idx+1]
             mp_b = None
@@ -1172,15 +1332,32 @@ def main():
                                           span_len=eff_span_len, device=xb.device,
                                           token_scores=role_scores[b_idx:b_idx+1] if role_scores is not None else None)
             mp_parts.append(mp_b + b_idx * T)
+            if CORRUPT is not None and ARGS.corrective_p > 0:
+                cp_b = _corrupt_positions(xb_b, mp_b, CORRUPT, xb.device)
+                if cp_b is not None and cp_b.numel() > 0:
+                    cp_parts.append(cp_b + b_idx * T)
         mp = torch.cat(mp_parts)
+        cp = torch.cat(cp_parts) if cp_parts else None
         assert int(mp.max()) < B * T, f"mask indices out of bounds: max={int(mp.max())} >= {B*T}"
         assert int(xb.max()) < ARGS.vocab, f"token id out of vocab: max={int(xb.max())} >= {ARGS.vocab}"
         xm = xb.clone()
         xm.view(-1)[mp] = ARGS.vocab
+        sup = mp
+        if cp is not None:
+            xm.view(-1)[cp] = _corrupt_replacements(
+                xb.reshape(-1)[cp], CORRUPT, ARGS.vocab, xb.device)
+            sup = torch.cat([mp, cp])
         assert int(xm.max()) <= ARGS.vocab, f"masked input out of embedding range: max={int(xm.max())}"
         out = glob_model(xm)
-        loss = F.cross_entropy(out.reshape(B * T, -1)[mp],
-                               xb.reshape(-1)[mp])
+        tgt = xb.reshape(-1)[sup]
+        per = F.cross_entropy(out.reshape(B * T, -1)[sup], tgt,
+                              reduction="none")
+        if CORRUPT is not None and (ARGS.loss_num_w != 1.0 or
+                                    ARGS.loss_neg_w != 1.0):
+            w = CORRUPT["lw"][tgt]
+            loss = (per * w).sum() / w.sum().clamp(min=1e-8)
+        else:
+            loss = per.mean()
         raw = glob_model.module if ddp else glob_model
         aux = sum(b.mlp.balance_loss(0.01) for b in raw.blocks)
         sync = (not ddp) or ((step+1) % ARGS.grad_accum == 0)
