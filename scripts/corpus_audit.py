@@ -60,10 +60,13 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
-    emb = np.memmap(os.path.join(args.emb_dir, "emb.fp16.npy"),
+    raw = np.memmap(os.path.join(args.emb_dir, "emb.fp16.npy"),
                     dtype=np.float16, mode="r")
-    N, dim = emb.shape[0], emb.shape[1]
-    emb = emb.reshape(N, dim)
+    with open(os.path.join(args.emb_dir, "idx.jsonl")) as f:
+        N = sum(1 for _ in f)
+    dim = raw.size // N
+    assert N * dim == raw.size, f"emb size {raw.size} no divisible en N={N}"
+    emb = raw.reshape(N, dim)
     print(f"[audit] corpus N={N} dim={dim}", flush=True)
 
     report = {"n_docs": int(N), "dedup_thr": args.dedup_thr,
@@ -107,9 +110,9 @@ def main():
 
     # ---------- leakage vs holdout ----------
     if args.holdout_emb_dir:
-        he = np.memmap(os.path.join(args.holdout_emb_dir, "emb.fp16.npy"),
-                       dtype=np.float16, mode="r")
-        he = he.reshape(he.shape[0], dim)
+        he_raw = np.memmap(os.path.join(args.holdout_emb_dir, "emb.fp16.npy"),
+                           dtype=np.float16, mode="r")
+        he = he_raw.reshape(-1, dim)
         hsims, hidxs = topk_chunked(emb, he, 1, args.device)
         max_per_doc = hsims[:, 0]
         leaks = np.where(max_per_doc > args.leak_thr)[0]
