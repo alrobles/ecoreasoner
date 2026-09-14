@@ -324,6 +324,20 @@ a batch gigante).. **Ganador: span-esqueleto.**
 - **EVOG7 — LANZADA**: champ-s4/s5 (replicas hinrcf10 -> n=5 total)
   + chnrep-s1 (campeon x 20K steps: eje "mas practica" sobre el
   backbone, no probado antes). En vuelo al cierre del turno.
+- **LEAKAGE CHECK (embeddings e5-small, emb_v1)**: audit sobre
+  skeleton_v2 + holdout. Dedup: 5,882 docs duplicados (2%)>0.95.
+  **Fuga real detectada**: el holdout NO se separo por documento
+  fuente — 82 docs del corpus y 215 items de holdout comparten
+  abstract fuente (>0.95; la masa >0.90 = familia-de-template, no
+  copia). Holdout ~97% limpio; inflacion acotada pero real.
+  Construido  (7,509 items).
+  Re-eval del campeon en curso para numero honesto.
+- **CORPUS v3 (data/corpus_v3.jsonl, 344,837 docs)**: skeleton_v2
+  filtrado (dedup+leak) + augv2 + synth_logic + UNAM 48,591 chunks
+  (lang=es, domain=unam_<area>). Balanceo: cap 40K/dominio -> max
+  11.6% (antes medgen 33%). Metadatos src/lang/domain por doc.
+  knn_edges.tsv (16-NN) disponible para hard-negative mining.
+  Pretokenize -> train_ids_c1.npz en curso.
 - **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
   docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
   evidencia publicada y ejes nuevos que el GA no descubre por mutación:
