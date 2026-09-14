@@ -321,9 +321,13 @@ a batch gigante).. **Ganador: span-esqueleto.**
   corrlo/cormras/mrashi/base-s1 quedaron en cola (cluster saturado).
   **Convergencia del GA: hinrcf10 es optimo local duro — todos los
   genes lit-review empatan o degradan.**
-- **EVOG7 — LANZADA**: champ-s4/s5 (replicas hinrcf10 -> n=5 total)
-  + chnrep-s1 (campeon x 20K steps: eje "mas practica" sobre el
-  backbone, no probado antes). En vuelo al cierre del turno.
+- **EVOG7 — CERRADA (dev v3_eval)**: champ-s4 L3 0.602/neg 0.349,
+  champ-s5 L3 0.642/neg 0.512 → hinrcf10 n=6 total (g4 s1/s2 +
+  g6-base s1/s2 + g7 s4/s5): L3 0.602-0.642, neg 0.349-0.558,
+  num 0.308-0.327. **chnrep-s1 (20K steps): L3 0.632/neg 0.465/
+  num 0.346 — el eje "más práctica" (2x steps) NO mueve la frontera.**
+  PPL proxy: s4 2275, s5 2920, chnrep 3102 (2x steps degrada PPL
+  sin ganar frontera). Backbone confirmado como óptimo local.
 - **LEAKAGE CHECK (embeddings e5-small, emb_v1)**: audit sobre
   skeleton_v2 + holdout. Dedup: 5,882 docs duplicados (2%)>0.95.
   **Fuga real detectada**: el holdout NO se separo por documento
@@ -340,7 +344,22 @@ a batch gigante).. **Ganador: span-esqueleto.**
   (lang=es, domain=unam_<area>). Balanceo: cap 40K/dominio -> max
   11.6% (antes medgen 33%). Metadatos src/lang/domain por doc.
   knn_edges.tsv (16-NN) disponible para hard-negative mining.
-  Pretokenize -> train_ids_c1.npz en curso.
+  **Pretokenize COMPLETO → train_ids_c1.npz (147.6M tok, seq768).**
+  Audit c1 final (report.json): skeleton dedup 5,882 drop / leak
+  56 estrictos (48,913 a >0.9 = familia-de-template); UNAM dedup
+  10,386 drop (21% — mucha tesis por-artículos repetida), leak 683.
+- **EVOG8 — ABLACIÓN DE CORPUS (hinrcf10 × corpus nuevo)**: misma
+  receta, solo cambia DATA_CACHE. `g8-c1` = corpus v3 completo:
+  **s91 dev L3 0.568 / neg 0.302 / num 0.327 / dir 0.700 — DEGRADA
+  vs backbone (~0.63/0.50/0.32/0.77), ~5σ de corrida.** s92 en vuelo.
+  Hipótesis principal: dilución UNAM-ES (11.7% del corpus en español;
+  eval 100% EN — el plan original era traducir UNAM antes de usarlo).
+  Hipótesis secundaria: cap medgen/microbio (-31K docs de texto
+  biomédico denso en inferencia). Ablación lanzada: `g8-c1e` =
+  corpus v3 solo-EN (304,585 docs sin UNAM → train_ids_c1e.npz;
+  build 29388670 + jobs 29388671-672, seeds 91/92 pareados). Si c1e
+  recupera → el problema era el español crudo (UNAM va traducido o
+  fuera); si no → el cap/dedup del skeleton es el coste.
 - **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
   docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
   evidencia publicada y ejes nuevos que el GA no descubre por mutación:
