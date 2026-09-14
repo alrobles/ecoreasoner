@@ -303,6 +303,27 @@ a batch gigante).. **Ganador: span-esqueleto.**
   el piso 0.55 pre-registrado → la tesis no queda falsada a esta
   escala; num mejoró vs dev (~0.32→0.40). La frontera a empujar:
   num+neg → ≥0.6 simultáneos en holdout.
+- **EVOG5 — CERRADA (8 runs, base=hinrcf10)**: schedules cos/mrd
+  empatan al backbone (L3 0.638-0.642, neg 0.56-0.58) — bajo CF=1.0
+  la mascara es siempre etapa completa: genes de tasa/schedule INERTES
+  (lectura mecanistica confirmada). numw NEGATIVO confirmado (n=2:
+  neg 0.256/0.279, num plano) — ponderar loss en digitos degrada.
+  corrective bimodal con gradiente adverso: p=0.10 -> {0.279,0.581},
+  p=0.20 -> 0.419, corr+numw -> 0.163. num inamovible en 0.327 en
+  TODA la generacion -> posible piso estructural del formato.
+- **EVOG6 — LANZADA (8 jobs)**: mras-s1/s2 (gen nuevo: masking
+  adaptativo por EMA de CE; bajo CF10 pondera eleccion de etapa),
+  corrlo-s1/s2 (p=0.05, media dosis), cormras (corr+mras), mrashi
+  (gamma=1.0), base-s1/s2 (control interno).
+- **EVOG6 — PARCIAL (base=hinrcf10)**: mras-s1 0.634/neg 0.488,
+  mras-s2 0.615/neg 0.465 -> masking adaptativo ~= backbone, no lo
+  supera. base-s2 (control) 0.625/0.512 valida la referencia interna.
+  corrlo/cormras/mrashi/base-s1 quedaron en cola (cluster saturado).
+  **Convergencia del GA: hinrcf10 es optimo local duro — todos los
+  genes lit-review empatan o degradan.**
+- **EVOG7 — LANZADA**: champ-s4/s5 (replicas hinrcf10 -> n=5 total)
+  + chnrep-s1 (campeon x 20K steps: eje "mas practica" sobre el
+  backbone, no probado antes). En vuelo al cierre del turno.
 - **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
   docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
   evidencia publicada y ejes nuevos que el GA no descubre por mutación:
