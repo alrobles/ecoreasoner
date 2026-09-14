@@ -279,6 +279,36 @@ a batch gigante).. **Ganador: span-esqueleto.**
   cruce de los ejes que movieron negación), hi×ws0 (2), hi×nr (2),
   hi×cf10, hi×nr×cf10 (combo de ganadores), barrido mask_p
   {0.45-0.99, 0.20-0.90}, hicf05, hilogic, hilr1. Watcher g4.
+- **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
+  docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
+  evidencia publicada y ejes nuevos que el GA no descubre por mutación:
+  - `random`+`hi` (masking denso): Wettig 2023 confirma que masking
+    uniforme requiere tasas altas vs span; MAE (75%) análogo en visión.
+    MATIZ honesto: en difusión para *likelihood*, schedules coseno
+    (media ~0.36, sesgo a ruido BAJO) ganan a uniforme — nuestro eval es
+    discriminativo, no likelihood, lo que puede explicar por qué `hi`
+    nos funciona aunque iría contra el consejo de la literatura de PPL.
+  - `nr` (role_mask off): "Mask Is What DLLM Needs" (2026) — el masking
+    estático por listas desperdicia señal; la versión correcta es
+    densidad *adaptativa* (máscara ∝ dificultad actual del token).
+  - `numbias` nuestra vs **DSFT** (2025): ellos ponderan la *LOSS* en
+    tokens numéricos (w>1), no el masking — gen nuevo barato `numw`.
+  - ELECTRA/RTD existe pero detecta *provenance*, no corrección; el
+    precedente exacto a lo que necesitamos es **Corrective Diffusion
+    Language Models (2025)**: corrupción mixta = masks + tokens
+    visiblemente mutados supervisados a predecir el original →
+    entrena "este número visible está mal" = alineación directa con
+    el eval pairwise. Gen nuevo `rtd`/corrective (implementación media).
+  - Curriculum de bloque fine→coarse (DreamReasoner, T⋆) y MRD
+    (masking-ratio decay 30%→15%): soportan curricula; nuestra
+    dirección span16→64 ya es la versión barata.
+  - Fase RL (d1/diffu-GRPO, d2): factible a ~100M para tareas
+    verificables estrechas; NO demostrado para razonamiento amplio a
+    esa escala; rollout cost real pero nuestro modelo es barato de
+    muestrear. Backlog post-plateau, no gen G5.
+  → Ejes G5 propuestos: `noiseskew` (schedule coseno/Beta vs uniforme
+  denso), `numw` (loss-weight numérico), `corrective` (mutaciones
+  visibles + corrección supervisada), `mrd` (decay de ratio).
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
