@@ -262,6 +262,23 @@ a batch gigante).. **Ganador: span-esqueleto.**
   objetivo no premia consistencia fina; este corpus hace que el token
   correcto esté forzado por contexto bajo denoising. `g3-logic` lanzado
   como probe temprano (receta campeón rand+CF0.7 + corpus logic).
+- **EVOG3 — RESULTADO (19 runs, 14 configs)**: nuevo líder dev
+  **`g3-hi`** (mask_p denso 0.30-0.99): FIT **0.492**, num 0.365, neg
+  0.372 — supera al campeón (0.446±0.012, n=3) por ~4σ de corrida.
+  Sorpresas del cierre: `g3-nr` (role_mask off) mejor L3 0.625 y mejor
+  negación 0.419 — el sesgo por rol ayudaba bajo span pero distorsiona
+  bajo random; `g3-cf10` (CF=1.0) 2º (0.471) — el eje CF quiere el
+  extremo. Negativos: `g3-cap` divergió (NaN ~step 2360: 150M+random
+  inestable a lr2e-4), `g3-logic` no movió la frontera (num 0.346 pero
+  neg 0.233), aug 13x plano (champv1≈champ), numbias inestable
+  (σ_neg alta). Lectura convergente: la frontera responde a *volumen
+  de práctica inferencial* (densidad de masking + steps), no a
+  arquitectura ni a marcadores.
+- **EVOG4 — LANZADA (15 jobs, g4_launch.sh + añadidos nr/cf10)**:
+  mutantes del líder hi: réplicas s2/s3 (σ propia), hi×ep2 (2 seeds —
+  cruce de los ejes que movieron negación), hi×ws0 (2), hi×nr (2),
+  hi×cf10, hi×nr×cf10 (combo de ganadores), barrido mask_p
+  {0.45-0.99, 0.20-0.90}, hicf05, hilogic, hilr1. Watcher g4.
 
 - **AUDITORÍA 2.0 cross-pipeline (2026-09-12, commit `7bec25f`)** — repaso
   completo de la cadena activa dLLM (línea confirmada como ruta de
