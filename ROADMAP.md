@@ -1,6 +1,6 @@
 # ROADMAP — EcoReasoner Fase 3 (refundación `-new`): excavar un dLLM científico
 
-> ReumanLab · EcoReasoner · 2026-09-08 (última actualización)
+> ReumanLab · EcoReasoner · 2026-09-14 (última actualización)
 > Este es el PLAN MAESTRO. El código vive en `scripts/` + `harness/`; los diseños
 > en `docs/designs/`. Para el estado MÁS reciente de jobs/watchdogs: ver
 > `docs/results/` + skill `ecoreasoner-swarm` (referencias f0-micro-sweep-* y f1-hetero-*).
@@ -348,18 +348,20 @@ a batch gigante).. **Ganador: span-esqueleto.**
   Audit c1 final (report.json): skeleton dedup 5,882 drop / leak
   56 estrictos (48,913 a >0.9 = familia-de-template); UNAM dedup
   10,386 drop (21% — mucha tesis por-artículos repetida), leak 683.
-- **EVOG8 — ABLACIÓN DE CORPUS (hinrcf10 × corpus nuevo)**: misma
-  receta, solo cambia DATA_CACHE. `g8-c1` = corpus v3 completo:
-  **s91 dev L3 0.568 / neg 0.302 / num 0.327 / dir 0.700 — DEGRADA
-  vs backbone (~0.63/0.50/0.32/0.77), ~5σ de corrida.** s92 en vuelo.
-  Hipótesis principal: dilución UNAM-ES (11.7% del corpus en español;
-  eval 100% EN — el plan original era traducir UNAM antes de usarlo).
-  Hipótesis secundaria: cap medgen/microbio (-31K docs de texto
-  biomédico denso en inferencia). Ablación lanzada: `g8-c1e` =
-  corpus v3 solo-EN (304,585 docs sin UNAM → train_ids_c1e.npz;
-  build 29388670 + jobs 29388671-672, seeds 91/92 pareados). Si c1e
-  recupera → el problema era el español crudo (UNAM va traducido o
-  fuera); si no → el cap/dedup del skeleton es el coste.
+- **EVOG8 — CERRADA (2026-09-14, 4 runs)**: ablación de corpus sobre
+  hinrcf10, misma receta, solo cambia DATA_CACHE (eval dev v3_eval en
+  ambos). `g8-c1` = corpus v3 completo (147.6M tok, incl. ~40K docs
+  UNAM-ES crudo): s91 L3 0.568/neg 0.302, s92 L3 0.598/neg 0.349 →
+  **media L3 0.583, neg 0.326 — DEGRADA ~5σ vs backbone**. `g8-c1e` =
+  v3 solo-EN (116.9M tok, 304,585 docs sin UNAM → train_ids_c1e.npz):
+  s91 L3 0.646/neg 0.651/num 0.365/dir 0.777, s92 L3 0.608/neg 0.395/
+  num 0.308/dir 0.756 → **media L3 0.627, neg 0.523 — RECUPERA la
+  frontera** (hinrcf10 en mismo v3_eval: 0.626). PPL proxy: c1e 2723
+  vs c1 2234 (irrelevante: c1 tiene mejor PPL y peor L3 — el ES crudo
+  "ayuda" al LM y daña la discriminación EN).
+  **Veredicto: el coste era el español crudo, NO el cap medgen/dedup.
+  Corpus base nuevo = c1e (corpus_v3_en.jsonl). UNAM solo entra
+  traducido ES→EN.** Lección permanente: nunca ES crudo al corpus.
 - **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
   docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
   evidencia publicada y ejes nuevos que el GA no descubre por mutación:
@@ -693,35 +695,34 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ##5. PARA RETOMAR RÁPIDO(checklist)
 
-**Siguiente: EXPERIMENTO PUENTE — superar el accuracy con la receta EXACTA del micro
-ganador,pero con MUCHOS más steps(updates pequeños y frecuentes,NO batch gigante。:
+**Línea viva = GA logicdiff sobre dLLM ~90-155M (ver §4 EVOG0-G8). Estado al
+14-09 ~13:30 UTC:**
 
-1. Revisar cola:`squeue -u a474r867 | grep -vE 'quercus|split'`(y sinfo pro6000 idle)。
-2. Lanzar:`sbatch --export='TAG=f2-spanes,MASK_TYPE=span,MASK_P=0.15,SPAN_LEN=64,
-   DATA_CACHE=/beegfs/a474r867/ecoreasoner/data/train_ids_skeleton.npy,
-TARGET_STEPS=50000,PAIRS=/beegfs/a474r867/ecoreasoner/runs/pairs.jsonl,
-   CONFIG=/beegfs/a474r867/ecoreasoner/harness/configs/f0-span-esqueleto.yaml,
-   AUTO_RESUBMIT=1' /beegfs/a474r867/ecoreasoner/scripts/moe_v4_micro.slurm`
-   (1 GPU pro6000 cu128;batch8+accum2=12,288 tok/update;lr 2e-4 warmup 200;
-   olas AUTO_RESUBMIT ya integradas; 10K steps≈2:07h → 50K≈10.6h,100K≈21h)。
-
-3. Cuando f2-spanes complete (`runs/f2-spanes/training_complete.flag` presente o
-   `runs/f2-spanes/state.json step==TARGET_STEPS==50000`), correr
-   `python scripts/verdict_f2.py --run-dir runs/f2-spanes` y seguir el VERDICT:
-   - `HIT` (last acc >= 0.60) -> archivar como resultado positivo.
-   - `EXTEND` (acc > 0.535 y pendiente last-3 positiva) -> relanzar f2 a 100K steps.
-   - `FALSIFY` / `NO-GO` -> archivar la línea como falsificada y pasar a la
-     arquitectura controller/verificator.
-   Mientras tanto, `eval_curve` / `eval_curve_watch_f2.sh` siguen re-evaluando
-   checkpoints; la deduplicación por step en `eval_curve.jsonl` mantiene la última fila.
-
-4. Hito:si pairwise_acc escala de 0.535(partida del micro)hacia 0.6+
-   con la curva — la receta era correcta;solo faltaban updates finos. Falsación:a100K
-   steps si la curva NO despega de ~0.55:la línea dLLM pequeño queda cerrada con
-   evidencia barata(y el cómputo cedido sigue siendo modesto).
-5. Para un f2 de pool heterogéneo completo(validar NCCL multi-familia A100+L40):
-   el watchdog `5fa09d642d89`(f1-multifam-validate)vuelve a ser prerequisito—
-   reactivar al llegar ahi(no antes).
+1. **G8 CERRADA — corpus base nuevo = c1e** (corpus_v3_en.jsonl,
+   train_ids_c1e.npz, 116.9M tok). c1e media L3 0.627 = backbone 0.626
+   en v3_eval (recupera frontera); c1 con UNAM-ES crudo degradó a 0.583.
+   Nada en cola ecoreasoner (`squeue -u a474r867 | grep -E 'g[0-9]|c1'`).
+2. Leaderboard: `ssh kuhpc 'cd /beegfs/a474r867/ecoreasoner && python3
+   scripts/leaderboard.py --runs runs'`. Top FIT: g1-cf05rand 0.495,
+   g3-hi 0.492, g7-chnrep 0.489, g5-mrd 0.485, g8-c1e 0.482.
+3. Frontera verificada (holdout limpio): hinrcf10 L3 0.632 / num 0.389 /
+   neg 0.645. Piso a empujar: num+neg ≥0.6 simultáneos — num ~0.31-0.37
+   en TODAS las configs; neg oscila 0.33-0.65 por seed (alta varianza).
+   GA convergió en hinrcf10; ejes agotados: densidad, CF, seeds, steps,
+   schedules, genes lit-review.
+4. Ejes sin probar si se reabre: corrective a dosis FINA controlada
+   (p=0.10 fue gradiente adverso — probar p≈0.02-0.05), hard-negative
+   mining con knn_edges.tsv (16-NN de emb_v1 ya calculado), arquitectura
+   (objetivo, no receta).
+5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
+   descargando (~1100 md nuevos + 295 corrida_doct ≈ 1377 vistos;
+   slices 0-5 nunca lanzaron). Curador en loop 30min → curada_v2:
+   1169 science + 155 latex (12:30). Traducción ES→EN: piloto local
+   qwen3:8b = 4 tok/s (~10 min/tesis — inviable serial); md_en/ solo
+   2 docs. Falta: worker masivo contra endpoint cluster
+   (ollama-v4serve job 29404367 = deepseek-v4-flash en 2× Blackwell,
+   r30r08n01, corre hasta ~17:40) o paralelizar local. NO meter ES
+   crudo al corpus (lección g8-c1).
 
 ---
 
