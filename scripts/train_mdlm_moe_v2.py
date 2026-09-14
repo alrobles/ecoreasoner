@@ -133,6 +133,14 @@ def parse():
                    help="peso de seleccion de tokens informativos (numeros, "
                         "negaciones, verbos de direccion) al elegir posiciones "
                         "a corromper, vs 1.0 para el resto")
+    p.add_argument("--mras_gamma", type=float, default=0.0,
+                   help="masking adaptativo por dificultad (EMA de CE por "
+                        "token-id): peso de seleccion ~ EMA^gamma mezclado "
+                        "con uniforme. 0 = off")
+    p.add_argument("--mras_ema", type=float, default=0.999,
+                   help="decaimiento de la EMA de dificultad por token")
+    p.add_argument("--mras_floor", type=float, default=0.3,
+                   help="mezcla uniforme residual para no dejar de explorar")
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="*", default=[])
     p.add_argument("--data_cache", default=None,
@@ -937,12 +945,14 @@ def build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type="span", span
     return torch.cat(all_indices)
 
 
-def build_candidate_mask(xb, stage_label_ids, device="cpu"):
+def build_candidate_mask(xb, stage_label_ids, device="cpu", span_scores=None):
     """Enmascara UNA etapa completa (etiqueta + contenido) por ejemplo.
 
     Replica la tarea del scorer denso L3 (Fase A): contexto intacto, candidato
     al 100%. Sesgo a etapas tardias: peso lineal creciente por posicion de
     etapa (la ultima etapa es el candidato mas frecuente en los pares de eval).
+    Si span_scores [T] viene, el peso de cada etapa se multiplica por la media
+    de scores de sus posiciones (mras: favorece etapas con tokens dificiles).
     Devuelve indices planos [0, B*T) o None si el ejemplo no tiene etapas."""
     B, T = xb.shape
     all_indices = []
@@ -970,6 +980,12 @@ def build_candidate_mask(xb, stage_label_ids, device="cpu"):
         if not spans:
             continue
         w = torch.arange(1, len(spans) + 1, device=device, dtype=torch.float32)
+        if span_scores is not None:
+            ss = span_scores[b] if span_scores.dim() == 2 else span_scores
+            mult = torch.tensor(
+                [float(ss[s:e].mean()) for s, e in spans],
+                device=device, dtype=torch.float32)
+            w = w * mult.clamp(min=1e-6)
         idx = int(torch.multinomial(w / w.sum(), 1).item())
         s, e = spans[idx]
         all_indices.append(torch.arange(s, e, device=device) + b * T)
@@ -984,7 +1000,9 @@ def build_mask_indices(xb, n_target, mask_type, whole_stage=False, stage_label_i
     Si token_scores no es None y --role_mask esta activo, se usa role-aware
     masking. El curriculum fija span_len y b_h por step; role_mask decide la
     ubicacion de los spans (o la seleccion de etapas con whole_stage)."""
-    use_role = (token_scores is not None) and getattr(ARGS, "role_mask", False)
+    use_role = (token_scores is not None) and (
+        getattr(ARGS, "role_mask", False) or
+        getattr(ARGS, "mras_gamma", 0.0) > 0)
     if whole_stage and stage_label_ids:
         return build_whole_stage_mask(xb, n_target, stage_label_ids, mask_type=mask_type, span_len=span_len, device=device, token_scores=token_scores)
     B, T = xb.shape
@@ -1297,6 +1315,11 @@ def main():
             f"boost={ARGS.corrective_boost} num_ids={CORRUPT['n_num']} "
             f"flip_ids={CORRUPT['n_flip']} "
             f"loss_w(num={ARGS.loss_num_w}, neg={ARGS.loss_neg_w})")
+    MRAS_EMA = None
+    if ARGS.mras_gamma > 0:
+        MRAS_EMA = torch.ones(ARGS.vocab, device=DEVICE)
+        log(f"mras on: gamma={ARGS.mras_gamma} ema={ARGS.mras_ema} "
+            f"floor={ARGS.mras_floor}")
     for step in range(STEPS_DONE[0], ARGS.max_steps):
         xb = batches[it % nb].to(DEVICE); it += 1
         B, T = xb.shape
@@ -1304,6 +1327,11 @@ def main():
         role_scores = None
         if ARGS.role_mask:
             role_scores = get_token_role_scores(tok, xb)
+        if MRAS_EMA is not None:
+            ema_n = MRAS_EMA / MRAS_EMA.mean().clamp(min=1e-8)
+            ms = ARGS.mras_floor + (1.0 - ARGS.mras_floor) * ema_n.clamp(max=8.0) ** ARGS.mras_gamma
+            adapt_scores = ms[xb.clamp(max=ARGS.vocab - 1)]
+            role_scores = adapt_scores if role_scores is None else role_scores * adapt_scores
         eff_span_len = ARGS.span_len
         if ARGS.curriculum:
             eff_span_len, cur_b_h = curriculum_state(step, ARGS.cur_stages)
@@ -1324,7 +1352,11 @@ def main():
             mp_b = None
             if (ARGS.candidate_focus > 0 and STAGE_LABEL_IDS
                     and float(torch.rand((), device=xb.device)) < ARGS.candidate_focus):
-                mp_b = build_candidate_mask(xb_b, STAGE_LABEL_IDS, device=xb.device)
+                mp_b = build_candidate_mask(
+                    xb_b, STAGE_LABEL_IDS, device=xb.device,
+                    span_scores=role_scores[b_idx:b_idx+1]
+                    if (role_scores is not None and MRAS_EMA is not None)
+                    else None)
             if mp_b is None:
                 mp_b = build_mask_indices(xb_b, n_masked_per_ex[b_idx], ARGS.mask_type,
                                           whole_stage=ARGS.whole_stage,
@@ -1358,6 +1390,18 @@ def main():
             loss = (per * w).sum() / w.sum().clamp(min=1e-8)
         else:
             loss = per.mean()
+        if MRAS_EMA is not None:
+            with torch.no_grad():
+                ce_sum = torch.zeros_like(MRAS_EMA)
+                ce_cnt = torch.zeros_like(MRAS_EMA)
+                ce_sum.scatter_add_(0, tgt.clamp(max=ARGS.vocab - 1),
+                                    per.detach().float())
+                ce_cnt.scatter_add_(0, tgt.clamp(max=ARGS.vocab - 1),
+                                    torch.ones_like(per, dtype=torch.float))
+                seen = ce_cnt > 0
+                d = ARGS.mras_ema
+                MRAS_EMA[seen] = d * MRAS_EMA[seen] + (1.0 - d) * (
+                    ce_sum[seen] / ce_cnt[seen])
         raw = glob_model.module if ddp else glob_model
         aux = sum(b.mlp.balance_loss(0.01) for b in raw.blocks)
         sync = (not ddp) or ((step+1) % ARGS.grad_accum == 0)

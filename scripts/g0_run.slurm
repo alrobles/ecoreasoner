@@ -42,6 +42,9 @@ LOSS_NUM_W=${LOSS_NUM_W:-1.0}
 LOSS_NEG_W=${LOSS_NEG_W:-1.0}
 CORRECTIVE_P=${CORRECTIVE_P:-0.0}
 CORRECTIVE_BOOST=${CORRECTIVE_BOOST:-8.0}
+MRAS_GAMMA=${MRAS_GAMMA:-0.0}
+MRAS_EMA=${MRAS_EMA:-0.999}
+MRAS_FLOOR=${MRAS_FLOOR:-0.3}
 LR=${LR:-2.0e-4}
 LR_DECAY=${LR_DECAY:-cosine}
 LR_MIN_RATIO=${LR_MIN_RATIO:-0.1}
@@ -151,6 +154,7 @@ apptainer exec --nv $OVL_ARGS "$SIF" \
     --candidate_focus "$CANDIDATE_FOCUS" \
     --loss_num_w "$LOSS_NUM_W" --loss_neg_w "$LOSS_NEG_W" \
     --corrective_p "$CORRECTIVE_P" --corrective_boost "$CORRECTIVE_BOOST" \
+    --mras_gamma "$MRAS_GAMMA" --mras_ema "$MRAS_EMA" --mras_floor "$MRAS_FLOOR" \
     --lr "$LR" --lr_decay "$LR_DECAY" --lr_min_ratio "$LR_MIN_RATIO" \
     --warmup "$WARMUP" --max_steps "$TARGET_STEPS" \
     --grad_clip "$GRAD_CLIP" --ema_decay "$EMA_DECAY" \
