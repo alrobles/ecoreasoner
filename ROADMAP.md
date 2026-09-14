@@ -286,8 +286,17 @@ a batch gigante).. **Ganador: span-esqueleto.**
   = la condición de eval aplicada al 100% de ejemplos; parece además
   *estabilizar* el régimen denso: `hi` solo dio neg {0.302, 0.186}
   entre seeds (sd 0.036) — el líder G3 fue en parte seed afortunado.
-  Réplicas lanzadas: hicf10-s2/s3, hinrcf10-s2 (protocolo ≥2 seeds
-  antes de holdout). hiep2 (20K) cierra la generación.
+- **EVOG4 — CERRADA (18 runs)**: medias por config — hinrcf10 n=2
+  FIT 0.477/neg 0.546; hicf10 n=3 FIT 0.474/neg 0.527 (0.651→0.395:
+  rango amplio pero piso lejos de ~0.28 del campeón); hiep2 n=2
+  FIT 0.478/neg 0.419. PPL proxy: champ 2043 < hicf10 2468 (+21%)
+  < hinrcf10 2988 (+46%) — el avance en razonamiento cuesta calidad
+  LM; restricción PPL activa. **Backbone G5 = hinrcf10** (media,
+  simplicidad). Holdout lanzado para las 5 réplicas de ambos.
+- **EVOG5 — LANZADA (8 jobs, base=hinrcf10)**: corr-s1/s2 (p=0.10),
+  corrhi-s1 (0.20), numw-s1/s2 (3.0/2.5), corrnw, cos (schedule coseno
+  puro), mrd (decaimiento b_h 0.99→0.30). Conducción autónoma:
+  gen_wait + gen_overseer.
 - **REVISIÓN DE LITERATURA (Perplexity Agent API, preset medium;
   docs/lit_review/pplx_*.md)** — mapeo de nuestros genes ganadores a
   evidencia publicada y ejes nuevos que el GA no descubre por mutación:
