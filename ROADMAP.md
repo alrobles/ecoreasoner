@@ -331,7 +331,10 @@ a batch gigante).. **Ganador: span-esqueleto.**
   abstract fuente (>0.95; la masa >0.90 = familia-de-template, no
   copia). Holdout ~97% limpio; inflacion acotada pero real.
   Construido  (7,509 items).
-  Re-eval del campeon en curso para numero honesto.
+  **Re-eval limpio confirma la frontera**: hinrcf10 L3 0.632/
+  num 0.389/neg 0.645 (vs contaminado 0.633/0.643 — la fuga no
+  inflaba la metrica). hicf10 0.624/0.425/0.561. neg>0.6 en
+  holdout limpio = frontera verificada estricta.
 - **CORPUS v3 (data/corpus_v3.jsonl, 344,837 docs)**: skeleton_v2
   filtrado (dedup+leak) + augv2 + synth_logic + UNAM 48,591 chunks
   (lang=es, domain=unam_<area>). Balanceo: cap 40K/dominio -> max
