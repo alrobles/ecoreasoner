@@ -741,6 +741,36 @@ a batch gigante).. **Ganador: span-esqueleto.**
    PITFALL: un Q6000 NO puede servir deepseek-284B — modelo por
    endpoint obligatorio. Piloto qwen3:8b local = 4 tok/s (inviable).
    NO meter ES crudo al corpus (lección g8-c1).
+   **PIVOT 15-09: traducción al CLUSTER, $0** (presupuesto $5 no
+   alcanzaba el resto por API: ~51M tok out restantes ≥$8).
+   OpenRouter PAUSADO (gasto ~$4.7). Modelo = `tencent/HY-MT1.5-7B`
+   (MT especializado, HunYuanDenseV1ForCausalLM, ~p90 FLORES),
+   HF cache `/beegfs/a474r867/hf_cache`, corpus en
+   `/beegfs/a474r867/unam_mt_in` (463MB) → `unam_md_en` (seed
+   341 docs ya hechos mergeados). Prompt card: "Translate the
+   following segment into English, without additional
+   explanation." + t0.7/topk20/topp0.6/rep1.05.
+   GPU map real del cluster: "q6000"=Quadro RTX6000 Turing 24GB
+   (SIN bf16 → fp16 obligatorio, ~30 tok/s HF eager); pro6000=
+   RTX PRO 6000 Blackwell 97GB (sm_120 — necesita torch cu128);
+   a100/a40/l40 también modernas. Stacks: `pylibs_mt` (transformers
+   4.56 sobre torch 2.4.1 SIF, q6000), `pylibs_cu128` (torch 2.7.0
+   +cu128+tv0.22 — para a100/pro6000 HF), `pylibs_vllm2` (vllm
+   0.10.0+torch 2.7.1+cu128+transformers 4.56.2+tokenizers 0.22.1
+   +numpy 2.2.6 — PROBADO: **491 tok/s agg en pro6000**, 7× eager).
+   Triton necesita CC: `conda_cc` env en beegfs con gcc_linux-64.
+   Workers: `traducir_batch.py` (HF, micro-batch por TOKBUDGET de
+   prompt tokens — los logits fp32 de prefill dominan VRAM;
+   apply_chat_template devuelve token_type_ids que HunYuan rechaza
+   → filtrar a input_ids+attention_mask) y `traducir_vllm.py`
+   (vllm offline llm.chat, olas de MAXDOCS docs). Slurm:
+   mt_batch.slurm (q6000 fp16), mt_batch_cu128.slurm, mt_vllm.slurm
+   — todos con SHARD_BASE+NSHARDS. Flota NSHARDS=44: pro6000 0-4,
+   a40 5-8, l40 9-12, a100 13-23, q6000-fp16 24-43. ETA: con ~10
+   GPUs vllm ≈ 5K tok/s → resto en ~3h de GPU real; se reencadena
+   por ventanas sixhour (resume por .en.md).
+   Merge final: rsync beegfs:unam_md_en → curada_v2/md_en (mismo
+   nombre .en.md, dedup natural).
 
 ---
 

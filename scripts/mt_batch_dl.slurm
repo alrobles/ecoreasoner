@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=mt7bd
+#SBATCH --partition=sixhour
+#SBATCH --time=05:50:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:1
+#SBATCH --mem=80G
+#SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/mt7bd_%A_%a.out
+#SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/mt7bd_%A_%a.err
+# Igual que mt_batch.slurm pero con venv_dl (torch 2.7.0+cu128) directo en host —
+# soporta a100/pro6000(Blackwell). Gres override: --gres=gpu:a100:1 etc.
+set -euo pipefail
+BASE=/beegfs/a474r867
+MODEL=${MODEL:-tencent/HY-MT1.5-7B}
+NSHARDS=${NSHARDS:-6}
+LIMIT=${LIMIT:-0}
+BATCH=${BATCH:-8}
+CHUNK=${CHUNK:-8000}
+DTYPE=${DTYPE:-bf16}
+TOKBUDGET=${TOKBUDGET:-8000}
+INDIR=${INDIR:-$BASE/unam_mt_in}
+OUTDIR=${OUTDIR:-$BASE/unam_md_en}
+REPORT=${REPORT:-$OUTDIR/mt_report.jsonl}
+
+export HF_HOME=$BASE/hf_cache
+export HF_HUB_OFFLINE=1
+export TOKENIZERS_PARALLELISM=false
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+mkdir -p "$OUTDIR" "$BASE/ecoreasoner/logs"
+SHARD=$(( ${SHARD_BASE:-0} + SLURM_ARRAY_TASK_ID ))
+echo "[$(hostname)] shard=$(( ${SHARD_BASE:-0} + SLURM_ARRAY_TASK_ID ))/$NSHARDS model=$MODEL limit=$LIMIT dtype=$DTYPE"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+$BASE/venv_dl/bin/python "$BASE/ecoreasoner/scripts/traducir_batch.py" \
+  --indir "$INDIR" --outdir "$OUTDIR" \
+  --shard "$SHARD" --nshards "$NSHARDS" \
+  --model "$MODEL" --batch "$BATCH" --chunk "$CHUNK" --dtype "$DTYPE" \
+  --tokbudget "$TOKBUDGET" --limit "$LIMIT" \
+  --report "$REPORT"
