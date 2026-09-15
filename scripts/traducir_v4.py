@@ -66,27 +66,44 @@ SYS = ("You are a scientific translator Spanish->English. Translate into natural
        "Return ONLY the translation of the given text.")
 
 class Ep:
-    def __init__(self, base, model, key=None):
-        self.base, self.model, self.key = base, model, key
+    def __init__(self, base, model, key=None, effort=None, tier=0):
+        self.base, self.model, self.key, self.effort = base, model, key, effort
+        self.tier = tier
         self.is_or = base.startswith("https://openrouter.ai")
         self.consec_fail = 0
         self.dead_until = 0.0
 
 class Pool:
     def __init__(self, spec, key_file=None):
-        # spec: "url1=model1,url2=model2,or:model3" — modelo por endpoint
-        # (un Q6000 no puede servir el 284B; cada serve anuncia el suyo).
-        # "or:<model>" = OpenRouter (api/v1/chat/completions, key por archivo).
-        # Repetir el mismo endpoint N veces lo pondera xN en el round-robin.
+        # spec: "url1=model1,url2=model2,or:model3[:effort],or2:model4[:eff]"
+        # — modelo por endpoint (un Q6000 no puede servir el 284B).
+        # "or:<model>" = OpenRouter tier 0; "or2:"/"or3:" = tiers de backup —
+        # solo reciben tráfico si TODO el tier anterior está apartado
+        # (failover sin stragglers: un doc espera a todos sus chunks ->
+        # mezclar endpoint lento con rápido degrada cada doc).
+        # Sufijo :low/:medium = reasoning effort (minimax EXIGE reasoning
+        # -> :low); sin sufijo = enabled:false (mercury — razonar quema
+        # tokens sin emitir). Repetir un endpoint N veces lo pondera xN
+        # en el round-robin de su tier.
         self.eps = []
         key = None
         for item in spec.split(","):
             item = item.strip()
-            if item.startswith("or:"):
+            tier, spec_m = None, item
+            for tpref, tt in (("or3:", 3), ("or2:", 2), ("or:", 0)):
+                if item.startswith(tpref):
+                    tier, spec_m = tt, item[len(tpref):]
+                    break
+            if tier is not None:
                 if key is None:
                     key = open(os.path.expanduser(key_file)).read().strip()
+                effort = None
+                if ":" in spec_m:
+                    m2, suf = spec_m.rsplit(":", 1)
+                    if suf in ("low", "medium", "high", "none", "minimal", "max"):
+                        spec_m, effort = m2, suf  # ":free" no es effort
                 self.eps.append(Ep("https://openrouter.ai/api/v1/chat/completions",
-                                   item[3:], key))
+                                   spec_m, key, effort, tier))
             else:
                 b, m = item.rsplit("=", 1)
                 self.eps.append(Ep(b.strip(), m.strip()))
@@ -95,13 +112,16 @@ class Pool:
         self.toks = 0
 
     def _pick(self):
-        # round-robin entre endpoints vivos; un endpoint con >=4 fallos
-        # seguidos se aparca 10 min (murió el job slurm -> no quemar retries)
+        # mejor tier vivo primero; round-robin dentro del tier. Un endpoint
+        # con >=4 fallos seguidos se aparca 10 min (job slurm muerto / OR
+        # rate-limit -> no quemar retries).
         with self._lock:
             now = time.time()
             live = [e for e in self.eps if e.dead_until < now]
             if not live:
                 live = self.eps  # todos "muertos": reintentar igual
+            best_tier = min(e.tier for e in live)
+            live = [e for e in live if e.tier == best_tier]
             ep = live[self._i % len(live)]
             self._i += 1
             return ep
@@ -119,14 +139,17 @@ class Pool:
     def chat(self, text, max_tokens):
         ep = self._pick()
         if ep.is_or:
-            # OpenRouter: reasoning OFF (los reasoners queman max_tokens
-            # sin emitir content — lección B2). usage.completion_tokens.
+            # OpenRouter. reasoning: enabled:false si el modelo lo permite
+            # (reasoners queman max_tokens sin emitir — lección B2); si el
+            # modelo lo exige (minimax), sufijo :low en el spec -> effort.
+            reasoning = {"enabled": False} if ep.effort is None else {"effort": ep.effort}
             body = json.dumps({
                 "model": ep.model,
                 "messages": [{"role": "system", "content": SYS},
                              {"role": "user", "content": text}],
-                "max_tokens": max_tokens, "temperature": 0.1,
-                "reasoning": {"enabled": False},
+                "max_tokens": max_tokens + (1024 if ep.effort else 0),
+                "temperature": 0.1,
+                "reasoning": reasoning,
             }).encode()
             req = urllib.request.Request(ep.base, data=body, headers={
                 "Content-Type": "application/json",
