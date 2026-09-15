@@ -66,19 +66,30 @@ SYS = ("You are a scientific translator Spanish->English. Translate into natural
        "Return ONLY the translation of the given text.")
 
 class Ep:
-    def __init__(self, base, model):
-        self.base, self.model = base, model
+    def __init__(self, base, model, key=None):
+        self.base, self.model, self.key = base, model, key
+        self.is_or = base.startswith("https://openrouter.ai")
         self.consec_fail = 0
         self.dead_until = 0.0
 
 class Pool:
-    def __init__(self, spec):
-        # spec: "url1=model1,url2=model2" (modelo por endpoint: un Q6000 no
-        # puede servir el 284B; cada serve anuncia el suyo)
+    def __init__(self, spec, key_file=None):
+        # spec: "url1=model1,url2=model2,or:model3" — modelo por endpoint
+        # (un Q6000 no puede servir el 284B; cada serve anuncia el suyo).
+        # "or:<model>" = OpenRouter (api/v1/chat/completions, key por archivo).
+        # Repetir el mismo endpoint N veces lo pondera xN en el round-robin.
         self.eps = []
+        key = None
         for item in spec.split(","):
-            b, m = item.strip().rsplit("=", 1)
-            self.eps.append(Ep(b.strip(), m.strip()))
+            item = item.strip()
+            if item.startswith("or:"):
+                if key is None:
+                    key = open(os.path.expanduser(key_file)).read().strip()
+                self.eps.append(Ep("https://openrouter.ai/api/v1/chat/completions",
+                                   item[3:], key))
+            else:
+                b, m = item.rsplit("=", 1)
+                self.eps.append(Ep(b.strip(), m.strip()))
         self._i = 0
         self._lock = threading.Lock()
         self.toks = 0
@@ -107,6 +118,30 @@ class Pool:
 
     def chat(self, text, max_tokens):
         ep = self._pick()
+        if ep.is_or:
+            # OpenRouter: reasoning OFF (los reasoners queman max_tokens
+            # sin emitir content — lección B2). usage.completion_tokens.
+            body = json.dumps({
+                "model": ep.model,
+                "messages": [{"role": "system", "content": SYS},
+                             {"role": "user", "content": text}],
+                "max_tokens": max_tokens, "temperature": 0.1,
+                "reasoning": {"enabled": False},
+            }).encode()
+            req = urllib.request.Request(ep.base, data=body, headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {ep.key}",
+            })
+            try:
+                with urllib.request.urlopen(req, timeout=900) as r:
+                    d = json.loads(r.read())
+            except Exception:
+                self._report(ep, False)
+                raise
+            self._report(ep, True)
+            with self._lock:
+                self.toks += d.get("usage", {}).get("completion_tokens", 0)
+            return d["choices"][0]["message"]["content"]
         body = json.dumps({
             "model": ep.model,
             "messages": [{"role": "system", "content": SYS},
@@ -129,20 +164,25 @@ class Pool:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--endpoints", required=True, help="url1=model1,url2=model2")
+    ap.add_argument("--endpoints", required=True,
+                    help="url1=model1,url2=model2,or:model3 (repetir pondera)")
+    ap.add_argument("--or-key-file", default="~/.openrouter-key")
     ap.add_argument("--indir", default="curada_v2/science")
     ap.add_argument("--outdir", default="curada_v2/md_en")
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--chunk", type=int, default=8000)
     ap.add_argument("--wave", type=int, default=24, help="docs por ola")
+    ap.add_argument("--reverse", action="store_true",
+                    help="orden descendente (para 2o worker anti-colisión)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--report", default="curada_v2/translate_report.jsonl")
     a = ap.parse_args()
 
-    pool = Pool(a.endpoints)
+    pool = Pool(a.endpoints, a.or_key_file)
     os.makedirs(a.outdir, exist_ok=True)
 
-    docs = sorted(glob.glob(os.path.join(a.indir, "*.md")), key=os.path.getsize)
+    docs = sorted(glob.glob(os.path.join(a.indir, "*.md")), key=os.path.getsize,
+                  reverse=a.reverse)
     todo = []
     for p in docs:
         out = os.path.join(a.outdir, os.path.basename(p)[:-3] + ".en.md")
@@ -200,6 +240,8 @@ def main():
             return False
         p, out = todo[idx]
         idx += 1
+        if os.path.exists(out) and os.path.getsize(out) > 100:
+            return True  # otro worker lo terminó desde el arranque
         texto = open(p, encoding="utf-8").read()
         cs = para_chunks(texto, a.chunk)
         es_idx = [i for i, c in enumerate(cs) if lang_of(c) == "es"]
