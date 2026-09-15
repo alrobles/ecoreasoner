@@ -138,10 +138,16 @@ class Pool:
             except Exception:
                 self._report(ep, False)
                 raise
+            if "choices" not in d:
+                self._report(ep, False)
+                raise RuntimeError(f"OR sin choices: {str(d)[:200]}")
             self._report(ep, True)
             with self._lock:
                 self.toks += d.get("usage", {}).get("completion_tokens", 0)
-            return d["choices"][0]["message"]["content"]
+            content = d["choices"][0]["message"]["content"]
+            if not content or not content.strip():
+                raise RuntimeError("OR content vacío")
+            return content
         body = json.dumps({
             "model": ep.model,
             "messages": [{"role": "system", "content": SYS},
