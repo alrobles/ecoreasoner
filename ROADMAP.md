@@ -715,14 +715,22 @@ a batch gigante).. **Ganador: span-esqueleto.**
    mining con knn_edges.tsv (16-NN de emb_v1 ya calculado), arquitectura
    (objetivo, no receta).
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
-   descargando (~1100 md nuevos + 295 corrida_doct ≈ 1377 vistos;
-   slices 0-5 nunca lanzaron). Curador en loop 30min → curada_v2:
-   1169 science + 155 latex (12:30). Traducción ES→EN: piloto local
-   qwen3:8b = 4 tok/s (~10 min/tesis — inviable serial); md_en/ solo
-   2 docs. Falta: worker masivo contra endpoint cluster
-   (ollama-v4serve job 29404367 = deepseek-v4-flash en 2× Blackwell,
-   r30r08n01, corre hasta ~17:40) o paralelizar local. NO meter ES
-   crudo al corpus (lección g8-c1).
+   descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
+   lanzaron — decisión pendiente: 6 slices ×~977 docs más).
+   Curador en loop 30min → curada_v2: ~1900 science + 155 latex y
+   creciendo. **Traducción ES→EN LANZADA (14-09 ~21:44 local)**:
+   `traducir_v4.py` (chunking por párrafos 8KB, detección ES/EN por
+   stopwords — caps. ya-EN pasan intactos, escritura atómica por doc,
+   resume por .en.md, backoff de endpoint muerto) contra DOS serves
+   vivos: :20006=deepseek-v4-flash (v4serve 29435631, muere ~23:40 UTC)
+   y :20000=glm-4.7-flash (q6000 29436238, muere ~01:50 UTC — túnel
+   repuntado a r22r05n01:38595; el viejo 45947 estaba muerto).
+   Medido: ~155 tok/s agg → ETA ~12h para los ~1900 docs (> vida de
+   los serves; rerunnable, cada doc queda). Log: traduccion_v4.log,
+   report: curada_v2/translate_report.jsonl. PITFALL: un Q6000 NO
+   puede servir deepseek-284B — modelo por endpoint obligatorio.
+   Piloto qwen3:8b local = 4 tok/s (inviable). NO meter ES crudo al
+   corpus (lección g8-c1).
 
 ---
 
