@@ -728,17 +728,19 @@ a batch gigante).. **Ganador: span-esqueleto.**
    Medido: ~160 tok/s agg en los serves. **2º worker OpenRouter
    LANZADO (14-09 ~22:00 local)**: `or:inception/mercury-2.5` (dLLM
    de Inception — producción fabricando datos para el nuestro),
-   $0.04/M in + $0.15/M out → corpus completo ~$10. Modo `--reverse`
-   (docs grandes primero) anti-colisión con el worker local que va
-   ascendente; mismo outdir/report, re-check de .en.md al abrir.
-   **~5,600 tok/s agg medido** (30× locals) — grueso del corpus
-   viable esta noche. reasoning.enabled=false obligatorio (lección
-   B2: reasoners queman max_tokens sin emitir). Key copiada a
-   ~/.openrouter-key local (600, archivo — nunca env). Log:
-   traduccion_or.log. PITFALL: un Q6000 NO puede servir
-   deepseek-284B — modelo por endpoint obligatorio. Piloto
-   qwen3:8b local = 4 tok/s (inviable). NO meter ES crudo al
-   corpus (lección g8-c1).
+   $0.04/M in + $0.15/M out → corpus completo ~$10-15. Modo
+   `--reverse` (docs grandes primero) anti-colisión con el worker
+   local que va ascendente; mismo outdir/report, re-check de .en.md
+   al abrir. **~6,600-7,600 tok/s agg medido** — grueso del corpus
+   viable esta noche. Backup tier `or2:` = `minimax/minimax-m2.7:low`
+   (solo si mercury se aparca; mezclar lento+rápido degrada cada doc
+   porque espera a TODOS sus chunks). reasoning.enabled=false en
+   mercury (lección B2); minimax-m2.5/m2.7 EXIGEN reasoning →
+   sufijo `:low` + headroom max_tokens. Key en ~/.openrouter-key
+   local (600, archivo — nunca env). Log: traduccion_or.log.
+   PITFALL: un Q6000 NO puede servir deepseek-284B — modelo por
+   endpoint obligatorio. Piloto qwen3:8b local = 4 tok/s (inviable).
+   NO meter ES crudo al corpus (lección g8-c1).
 
 ---
 
