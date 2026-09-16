@@ -806,6 +806,12 @@ a batch gigante).. **Ganador: span-esqueleto.**
    L6 NUBE (una vez probado 1.5B/4B): costear renta — regla
    GPU-hr ≈ 6·N_activos·T_tokens / FLOPs_efectivos; ballpark
    1.5B-act × 10B tok ≈ ~170 A100-hr ≈ $250-500 spot.
+   GRANTS: Lambda Cloud research credits (hasta ~$5000) +
+   NAIRR/GCP credits. $5K ≈ 8×A100 × 3-4sem ≈ 10-15B tok.
+   Prerequisito: paper #1 (resultado holdout + pipeline +
+   ablación ES-crudo) — el resultado falsificable es la
+   propuesta. Prioridad nube: ablaciones controladas > 1 run
+   grande.
 
 ---
 
