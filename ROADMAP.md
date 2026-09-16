@@ -812,6 +812,14 @@ a batch gigante).. **Ganador: span-esqueleto.**
    ablación ES-crudo) — el resultado falsificable es la
    propuesta. Prioridad nube: ablaciones controladas > 1 run
    grande.
+   COHORTE LAMBDA 2026 (papers ganadores): todos llevan
+   coautor Jianwen Xie (Lambda) → grant = cómputo +
+   colaboración. Ganan: agentes+RL (AgentFlow, ICLR'26 oral),
+   RL para dLLM (ESPO 2512.03759 → método para nuestra L3),
+   evals falsificables (EdiVal, OffTopicEval), eficiencia
+   (VideoNSA, ECF8, Meerkat). Nuestro nicho único: dLLM
+   DESDE CERO + corpus científico curado + verificador —
+   más compute-hambriento = mejor caso para el grant.
 
 ---
 
