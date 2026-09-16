@@ -771,6 +771,22 @@ a batch gigante).. **Ganador: span-esqueleto.**
    por ventanas sixhour (resume por .en.md).
    Merge final: rsync beegfs:unam_md_en → curada_v2/md_en (mismo
    nombre .en.md, dedup natural).
+   **SPRINT→prototipo dLLM v1 (watcher automático)**:
+   `scripts/watch_mt_done.sh` corre local (nohup, log
+   `data/watch_mt_done.log`). Cada 5min: si pendientes>0 sin tasks
+   → relanza arrays; si pendientes==0 → cae la BANDERA
+   `data/UNAM_EN_DONE.flag` y encadena: (a) merge beegfs↔local
+   md_en; (b) `corpus_v4en_build.slurm` = corpus_v3_en +
+   unam_en.jsonl (`unam_en_to_jsonl.py`, filas
+   {"pid","domain":"unam","lang":"en","source":"unam-en"}) →
+   corpus_v4_en.jsonl + pretok → train_ids_v4en.npz; (c)
+   `mdlm_retrain_v4.slurm` con --dependency=afterok:build —
+   continúa retrain_v3/g8000 sobre v4en, TARGET_STEPS=11000,
+   2nodos×4q6000, auto-relanza olas = prototipo dLLM v1.
+   Eval posterior: `g_eval_holdout.slurm` vs frontera
+   (0.632/0.389/0.645). PITFALL 15-09: el rsync de slurms puede
+   quedar viejo — verificar el archivo EN beegfs, no el local
+   (un array corrió shards 0-8 sin offset por eso).
 
 ---
 
