@@ -4,9 +4,9 @@
 #SBATCH --time=05:50:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
-#SBATCH --mem=80G
+#SBATCH --mem=40G
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/mt7b_%A_%a.out
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/mt7b_%A_%a.err
 # Traducción batch ES->EN con HY-MT1.5-7B. Array: cada task = shard.
