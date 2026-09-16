@@ -787,6 +787,25 @@ a batch gigante).. **Ganador: span-esqueleto.**
    (0.632/0.389/0.645). PITFALL 15-09: el rsync de slurms puede
    quedar viejo — verificar el archivo EN beegfs, no el local
    (un array corrió shards 0-8 sin offset por eso).
+   chat_proto.py: REPL local sobre checkpoint-gN (mask-predict,
+   completion de prosa — modelo base, no instruct).
+
+   **ÁRBOL DE CAPAS post-eval** (cada capa = corpus + pass sobre
+   el ckpt anterior; arquitectura nueva solo en L5):
+   L1 verificador = discriminación holdout (ya existe).
+   L2 chat-SFT = diálogo/QA científico; teacher = LLaDA-8B-Instruct
+   servido en cluster (llada_serve_1gpu.slurm); el propio v4 filtra
+   respuestas malas (closed loop).
+   L3 razonamiento = trazas premisa→paso→conclusión; reusar
+   build_logic_synth.py / build_logicdiff_dataset.py como SFT.
+   L4 tool calls = gen_toolcalls_* ya probado; scaffold externo
+   parsea/ejecuta/reinyecta (agent-loop dLLM = denoise por bloques).
+   L5 ESCALA (si v4 ≥ frontera): MoE ~1.5B activos / ~4B total,
+   seq 768→1024. Necesita A100/pro6000 (q6000-24GB capa ~1B y
+   sin bf16); ~2.5-3B tok/semana en 8×A100.
+   L6 NUBE (una vez probado 1.5B/4B): costear renta — regla
+   GPU-hr ≈ 6·N_activos·T_tokens / FLOPs_efectivos; ballpark
+   1.5B-act × 10B tok ≈ ~170 A100-hr ≈ $250-500 spot.
 
 ---
 
