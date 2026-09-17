@@ -45,6 +45,10 @@ CORRECTIVE_BOOST=${CORRECTIVE_BOOST:-8.0}
 MRAS_GAMMA=${MRAS_GAMMA:-0.0}
 MRAS_EMA=${MRAS_EMA:-0.999}
 MRAS_FLOOR=${MRAS_FLOOR:-0.3}
+CONTR_W=${CONTR_W:-0.0}
+CONTR_MARGIN=${CONTR_MARGIN:-2.0}
+CONTR_P=${CONTR_P:-1.0}
+EVAL_EMA=${EVAL_EMA:-0}
 LR=${LR:-2.0e-4}
 LR_DECAY=${LR_DECAY:-cosine}
 LR_MIN_RATIO=${LR_MIN_RATIO:-0.1}
@@ -155,6 +159,7 @@ apptainer exec --nv $OVL_ARGS "$SIF" \
     --loss_num_w "$LOSS_NUM_W" --loss_neg_w "$LOSS_NEG_W" \
     --corrective_p "$CORRECTIVE_P" --corrective_boost "$CORRECTIVE_BOOST" \
     --mras_gamma "$MRAS_GAMMA" --mras_ema "$MRAS_EMA" --mras_floor "$MRAS_FLOOR" \
+    --contr_w "$CONTR_W" --contr_margin "$CONTR_MARGIN" --contr_p "$CONTR_P" \
     --lr "$LR" --lr_decay "$LR_DECAY" --lr_min_ratio "$LR_MIN_RATIO" \
     --warmup "$WARMUP" --max_steps "$TARGET_STEPS" \
     --grad_clip "$GRAD_CLIP" --ema_decay "$EMA_DECAY" \
@@ -176,7 +181,11 @@ CKPT_DIR=$(ls -d "$OUT"/checkpoint-g* 2>/dev/null | sort -V | tail -1 || true)
 if [ -z "$CKPT_DIR" ]; then
     echo "[eval] sin checkpoints en $OUT"; exit 1
 fi
-CKPT="$CKPT_DIR/model.pt"
+if [ "$EVAL_EMA" = "1" ] && [ -f "$CKPT_DIR/ema_model.pt" ]; then
+    CKPT="$CKPT_DIR/ema_model.pt"
+else
+    CKPT="$CKPT_DIR/model.pt"
+fi
 MODEL_OV="{\"vocab\":$VOCAB,\"hidden\":$HIDDEN,\"layers\":$LAYERS,\"heads\":$HEADS,\"ff_mult\":$FF_MULT,\"seq_len\":$SEQ_LEN,\"n_experts\":$N_EXPERTS,\"k\":$EXPERT_K}"
 echo "=== eval $CKPT con logicdiff dense/base sobre $PAIRS_DIR (ov=$MODEL_OV) ==="
 

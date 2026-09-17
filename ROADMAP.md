@@ -717,10 +717,27 @@ Estado al 17-09 ~18:00 UTC:**
    en TODAS las configs; neg oscila 0.33-0.65 por seed (alta varianza).
    GA convergió en hinrcf10; ejes agotados: densidad, CF, seeds, steps,
    schedules, genes lit-review.
-4. Ejes sin probar si se reabre: corrective a dosis FINA controlada
-   (p=0.10 fue gradiente adverso — probar p≈0.02-0.05), hard-negative
-   mining con knn_edges.tsv (16-NN de emb_v1 ya calculado), arquitectura
-   (objetivo, no receta).
+4. **G9 LANZADA (17-09 ~22:47 UTC, jobs 29774162-69 + cadena resubmit)**:
+   7 brazos sobre backbone retrain_v4s/g17000 — diseño completo en
+   `docs/designs/EVOG9-V5-DESIGN.md`. Continuación +3K→20000 (LR 1e-4):
+   corrlo-s1/s2 (CORRECTIVE_P=0.02, ×2 seeds por bimodalidad histórica),
+   corrmd-s1 (0.05), numwl-s1 (LOSS_NUM_W=LOSS_NEG_W=1.5), ep2-s1
+   (control +steps), ema-s1 (EMA_DECAY=0.999, eval sobre ema_model.pt
+   vía EVAL_EMA=1 — loader ya desenvuelve {"ema_model": sd}). Fresh 10K
+   desde cero (LR 2e-4 cosine, curriculum completo): scratch-s1/s2.
+   Fitness = media-seeds 0.5·L3 + 0.5·min(num,neg) en dev v3_eval
+   (PAIRS_DIR default); holdout_clean SOLO al campeón. Sembrado por
+   symlink a checkpoint-g17000 (retención-2 no sigue symlinks).
+   Launcher: `scripts/g9_launch.sh` (--dry-run soportado).
+4b. **Gen G10 `contrastive-in-loss` IMPLEMENTADO** (17-09, sin lanzar):
+   hinge `relu(margin − (logp[real] − logp[mutado]))` sobre posiciones
+   enmascaradas mutables (is_num|is_flip de tablas CORRUPT); alternativa
+   = dígito del pool o antónimo de flip_cand. Args `--contr_w` (default
+   0=off), `--contr_margin` (2.0), `--contr_p` (1.0); env CONTR_* en
+   g0_run.slurm. Test unitario OK (alts != orig, hinge finito/0 al
+   saturar margen). OJO: cobertura tablas estrecha (num_ids=10,
+   flip_ids=104/126k) — si G10 no mueve, auditar _NUMBER_RE primero.
+   Pendiente G10: hneg-data (knn_edges) y corrective a dosis que G9 fije.
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).

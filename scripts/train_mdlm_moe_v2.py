@@ -141,6 +141,14 @@ def parse():
                    help="decaimiento de la EMA de dificultad por token")
     p.add_argument("--mras_floor", type=float, default=0.3,
                    help="mezcla uniforme residual para no dejar de explorar")
+    p.add_argument("--contr_w", type=float, default=0.0,
+                   help="peso del termino contrastivo in-loss: hinge sobre "
+                        "logp[real] - logp[mutado] en posiciones enmascaradas "
+                        "mutables (digitos/negaciones/direccion). 0 = off")
+    p.add_argument("--contr_margin", type=float, default=2.0,
+                   help="margen del hinge contrastivo (nats de logprob)")
+    p.add_argument("--contr_p", type=float, default=1.0,
+                   help="fraccion de posiciones mutables contrastadas por step")
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="*", default=[])
     p.add_argument("--data_cache", default=None,
@@ -858,6 +866,35 @@ def _corrupt_replacements(orig_ids, tables, vocab, device):
     return rep
 
 
+def _contrast_alts(orig_ids, tables, vocab, device):
+    """Alternativa 'misma clase, valor distinto' para el hinge contrastivo.
+
+    Digito -> otro digito del pool (nunca el original); flip -> antonimo de
+    flip_cand (siempre != orig); el resto no se contrasta (filtrado fuera).
+    """
+    alt = (orig_ids + 1) % vocab                      # fallback != orig
+    num_m = tables["is_num"][orig_ids]
+    if bool(num_m.any()):
+        pool = tables["num_ids"]
+        idx = orig_ids[num_m]
+        ri = torch.randint(0, pool.numel(), (idx.numel(),), device=device)
+        r = pool[ri]
+        same = r == idx
+        if bool(same.any()):
+            r[same] = pool[(ri[same] + 1) % pool.numel()]
+        alt[num_m] = r
+    fl_m = tables["is_flip"][orig_ids]
+    if bool(fl_m.any()):
+        cand = tables["flip_cand"][orig_ids[fl_m]]
+        ri = torch.randint(0, cand.size(1), (cand.size(0),), device=device)
+        r = cand.gather(1, ri[:, None]).squeeze(1)
+        bad = r < 0
+        if bool(bad.any()):
+            r[bad] = cand[bad, 0]                     # slot valido siempre (is_flip exige >=1 cand)
+        alt[fl_m] = r
+    return alt
+
+
 def _find_stage_boundaries(seq, stage_label_ids):
     """Devuelve listas de (start, end) de contenido de cada etapa.
 
@@ -1309,12 +1346,15 @@ def main():
         log(f"role_mask on: conectivas/relaciones/numeros/entidades "
             f"(config keys={list(ARGS.role_config.keys())})")
     CORRUPT = None
-    if ARGS.corrective_p > 0 or ARGS.loss_num_w != 1.0 or ARGS.loss_neg_w != 1.0:
+    if (ARGS.corrective_p > 0 or ARGS.loss_num_w != 1.0
+            or ARGS.loss_neg_w != 1.0 or ARGS.contr_w > 0):
         CORRUPT = build_correction_tables(tok, ARGS.vocab, device=DEVICE)
         log(f"corrective/numw on: p={ARGS.corrective_p} "
             f"boost={ARGS.corrective_boost} num_ids={CORRUPT['n_num']} "
             f"flip_ids={CORRUPT['n_flip']} "
-            f"loss_w(num={ARGS.loss_num_w}, neg={ARGS.loss_neg_w})")
+            f"loss_w(num={ARGS.loss_num_w}, neg={ARGS.loss_neg_w}) "
+            f"contr_w={ARGS.contr_w} margin={ARGS.contr_margin} "
+            f"contr_p={ARGS.contr_p}")
     MRAS_EMA = None
     if ARGS.mras_gamma > 0:
         MRAS_EMA = torch.ones(ARGS.vocab, device=DEVICE)
@@ -1390,6 +1430,25 @@ def main():
             loss = (per * w).sum() / w.sum().clamp(min=1e-8)
         else:
             loss = per.mean()
+        if CORRUPT is not None and ARGS.contr_w > 0:
+            # hinge in-loss: logp[real] - logp[mutado] >= margen en posiciones
+            # enmascaradas mutables (digito/negacion/direccion) — alineacion
+            # directa con la metrica pairwise del eval, sin forward extra.
+            tgt_mp = xb.reshape(-1)[mp]
+            mutable = CORRUPT["is_num"][tgt_mp] | CORRUPT["is_flip"][tgt_mp]
+            if ARGS.contr_p < 1.0:
+                mutable = mutable & (torch.rand(mutable.numel(),
+                                                device=xb.device)
+                                     < ARGS.contr_p)
+            if bool(mutable.any()):
+                tsel = tgt_mp[mutable]
+                alt = _contrast_alts(tsel, CORRUPT, ARGS.vocab, xb.device)
+                lg = F.log_softmax(
+                    out.reshape(B * T, -1)[mp][mutable].float(), dim=-1)
+                gap = (lg.gather(1, tsel[:, None]).squeeze(1)
+                       - lg.gather(1, alt[:, None]).squeeze(1))
+                loss = loss + ARGS.contr_w * F.relu(
+                    ARGS.contr_margin - gap).mean()
         if MRAS_EMA is not None:
             with torch.no_grad():
                 ce_sum = torch.zeros_like(MRAS_EMA)

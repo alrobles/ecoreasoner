@@ -102,6 +102,8 @@ def load_model(args, mcfg):
     ck = torch.load(args.ckpt, map_location=dev)
     if isinstance(ck, dict) and "model" in ck:
         ck = ck["model"]
+    if isinstance(ck, dict) and "ema_model" in ck:
+        ck = ck["ema_model"]
     try:
         model.load_state_dict(ck, strict=True)
     except RuntimeError:
