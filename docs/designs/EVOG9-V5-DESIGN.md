@@ -97,10 +97,37 @@ techa el techo? curriculum completo b_h 0.30→0.95 |
   load-bearing mutada — necesita build step de datos).
 - `seq1024` (pos-emb 768→1024 rompe ckpt; solo en brazo fresh).
 
-## 4. Ruta más allá de G9
+## 4. Ruta más allá de G9 — revisada con lecciones Nemotron (17-09)
 
-- **G10** = eje datos/objetivo sobre el backbone ganador de G9:
-  contrastive-in-loss + hneg-data + corrective a la dosis que G9 fije.
+Estudio completo: `docs/NEMOTRON-LECCIONES.md`. Tres lecciones medidas
+del Kaggle que reordenan G10:
+
+1. **Cobertura antes que objetivo.** El ganador abandonó cryptarithm
+   (~8% resoluble) y ganó barriendo el resto. Nuestra medida 17-09:
+   las mutaciones `number` del eval tocan ~1094 tokens únicos pero
+   `is_num` solo cubre los 10 dígitos sueltos (**~1%**). El hinge
+   implementado no puede enseñar "20.6" vs "16.5" — los tokens
+   multi-dígito no son mutables. **Prerequisito G10: expandir la clase
+   mutable** (`_NUMBER_RE` → "contiene dígito tras normalize", con
+   alternativa del mismo pool expandido) y re-medir cobertura sobre los
+   diffs del eval antes de lanzar cualquier brazo contrastive.
+2. **Solo datos verificados** (v12: 12.2% respuestas erróneas → modelo
+   confiadamente erróneo). `hneg-data` vía knn_edges debe filtrar a
+   mutaciones cuyo target quede dentro de la clase mutable expandida;
+   un hard-negative fuera de cobertura es label-noise.
+3. **min-logprob ≈ hinge**: el ganador maximizaba el logprob mínimo de
+   la traza, no la media CE — validación externa de `contr_w`.
+
+### Plan G10 concreto (tras leer G9)
+
+| paso | qué | criterio |
+|---|---|---|
+| 0 | expandir `_NUMBER_RE`/tabla mutable + re-medir cobertura sobre diffs de pairs_L3 | cobertura >50% de tokens-diff number |
+| 1 | `g10-contr-s1/s2`: backbone = ganador G9, `CONTR_W={0.3,1.0}` × `CONTR_MARGIN={1.0,2.0}` | ΔL3 y Δnumber vs backbone |
+| 2 | `g10-contrcov-s1`: mismo brazo SIN expansión de cobertura | aísla si el efecto es el gen o la tabla |
+| 3 | `g10-hneg-s1`: corpus += pares knn_edges verificados (mutación dentro de clase mutable) | Δnum/neg |
+| 4 | reportar **dos fitness**: `0.5·L3+0.5·min(num,neg)` y `L3 solo` | si number no se mueve pese a cobertura+hinge, se declara techo estructural y se deja de invertir (lección ganador) |
+
 - **Post-training** (árbol de capas, ortogonal al GA): L2 chat-SFT con
   teacher LLaDA-8B servido en cluster; L3 trazas premisa→paso→conclusión;
   L4 tool-calls con scaffold externo. El ckpt v4s es el base para todo.
