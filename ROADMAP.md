@@ -695,13 +695,20 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ##5. PARA RETOMAR RÁPIDO(checklist)
 
-**Línea viva = GA logicdiff sobre dLLM ~90-155M (ver §4 EVOG0-G8). Estado al
-14-09 ~13:30 UTC:**
+**Línea viva = port receta hinrcf10 al prototipo MoE v4 (V4S corriendo).
+Estado al 17-09 ~16:55 UTC:**
 
-1. **G8 CERRADA — corpus base nuevo = c1e** (corpus_v3_en.jsonl,
+1. **V4S EN COLA (job 29723166)**: continúa retrain_v4/g11000 con receta
+   hinrcf10 sobre train_ids_v4en.npz, +6K steps → 17000, LR 1e-4 flat.
+   Relanza solo vía watcher local `watch_v4s_done.sh` (nohup, log
+   data/watch_v4s_done.log) + AUTO_RESUBMIT para olas. Al COMPLETE:
+   battery holdout_clean automática (g0_run) + eval dev encadenado.
+   Resultado v4 flat para comparar: `runs/retrain_v4/
+   battery_logicdiff_v4holdout/logicdiff_summary.json` (L0 0.696/L1
+   0.634/L2 0.503/L3 0.496; num 0.420/neg 0.290).
+1b. **G8 CERRADA — corpus base nuevo = c1e** (corpus_v3_en.jsonl,
    train_ids_c1e.npz, 116.9M tok). c1e media L3 0.627 = backbone 0.626
    en v3_eval (recupera frontera); c1 con UNAM-ES crudo degradó a 0.583.
-   Nada en cola ecoreasoner (`squeue -u a474r867 | grep -E 'g[0-9]|c1'`).
 2. Leaderboard: `ssh kuhpc 'cd /beegfs/a474r867/ecoreasoner && python3
    scripts/leaderboard.py --runs runs'`. Top FIT: g1-cf05rand 0.495,
    g3-hi 0.492, g7-chnrep 0.489, g5-mrd 0.485, g8-c1e 0.482.
@@ -820,6 +827,32 @@ a batch gigante).. **Ganador: span-esqueleto.**
    la señal viene del curriculum/masking estructurado.
    Siguiente: portar role_mask/curriculum de hinrcf10 al MoE
    (o v4=verificador superficial + motor estructurado).
+   **V4S — PORT hinrcf10→MoE LANZADO (2026-09-17, job 29723166,
+   `v4s_launch.sh` + watcher `watch_v4s_done.sh`)**: continúa
+   `retrain_v4/checkpoint-g11000` (sembrado en
+   `runs/retrain_v4s`) con receta campeón sobre
+   `train_ids_v4en.npz`: MASK_TYPE=random + uniform
+   {b_l:0.30,b_h:0.99} + CURRICULUM (en step≥10000 → b_h=0.95)
+   + CF=1.0 + ROLE_MASK=0 + **WHOLE_STAGE=0** (clave: con ws=1
+   la prosa UNAM sin etiquetas cae a fallback span64 = gen
+   perdedor; con 0 recibe random-denso fiel a hi; CF sigue
+   enmascarando etapa candidata en docs esqueleto). Arch
+   idéntica al ckpt (768/12L/12H/8E top-1, vocab 126080 —
+   `train_mdlm_moe_v2.py` carga el ckpt de `train_mdlm_moe.py`
+   sin fricción: mismas clases MdLMMoE/MoEMLP + AdamW).
+   TARGET=17000 (+6K ≈74M tok = exposición v4en del brazo
+   flat), LR=1e-4 constante (LR_DECAY=none — cosine apagaría
+   el lr al final de la ventana), BATCH=4 accum=4 (16
+   seqs/update como G-runs), MIN_VRAM=40000 (excluye
+   Q6000-24G/V100). Eval automática: battery dense+base sobre
+   holdout_clean con eval-moe-v4.yaml (comparación directa
+   v4 L3 0.496 / hinrcf10 0.632) + eval dev v3_eval encadenado
+   por watcher → `battery_logicdiff_v3eval`. Lectura: si L2/L3
+   suben conservando L0/L1 → port funciona; si suben L2/L3
+   pero caen L0/L1 → los dos regímenes compiten → arquitectura
+   dos-modelos (v4 verificador superficial + motor
+   estructurado); si nada se mueve → la frontera es de
+   objetivo-desde-cero, no de receta aplicada tarde.
    COHORTE LAMBDA 2026 (papers ganadores): todos llevan
    coautor Jianwen Xie (Lambda) → grant = cómputo +
    colaboración. Ganan: agentes+RL (AgentFlow, ICLR'26 oral),
