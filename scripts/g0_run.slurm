@@ -96,7 +96,7 @@ finalize() {
     fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "resubmiting ola ($TAG) target=$TARGET_STEPS..."
-        sbatch --export=ALL "$0"
+        sbatch --export=ALL --job-name="${SLURM_JOB_NAME:-g0}" "$0"
         echo "ola siguiente enviada."
     else
         echo "auto-resubmit disabled"
