@@ -812,6 +812,14 @@ a batch gigante).. **Ganador: span-esqueleto.**
    ablación ES-crudo) — el resultado falsificable es la
    propuesta. Prioridad nube: ablaciones controladas > 1 run
    grande.
+   RESULTADO V4 (2026-09-17, checkpoint-g11000, holdout_clean):
+   L0 0.696 / L1 0.634 / L2 0.503 / L3 0.496 vs hinrcf10
+   L0 0.546 / L1 0.529 / L2 0.676 / L3 0.632. INVERSIÓN:
+   el MoE+prosa gana superficial (L0/L1) pero cae a azar en
+   inferencial (L2/L3). CONCLUSIÓN: más corpus ≠ razonamiento;
+   la señal viene del curriculum/masking estructurado.
+   Siguiente: portar role_mask/curriculum de hinrcf10 al MoE
+   (o v4=verificador superficial + motor estructurado).
    COHORTE LAMBDA 2026 (papers ganadores): todos llevan
    coautor Jianwen Xie (Lambda) → grant = cómputo +
    colaboración. Ganan: agentes+RL (AgentFlow, ICLR'26 oral),

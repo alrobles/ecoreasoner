@@ -1,0 +1,51 @@
+# eval-moe-v4.yaml — config de EVAL para el prototipo dLLM-MoE v4.
+# Mismo bloque eval que f0-span-v3-role (comparabilidad con la frontera),
+# model: la arquitectura real del retrain_v4 (MoE 768/12L/12H/8E top-1).
+
+job:
+  name: eval-moe-v4
+  partition: sixhour
+  gres: gpu:1
+  cpus: 8
+  mem: 40G
+  time: "00:50:00"
+
+model:
+  vocab: 126080
+  hidden: 768
+  layers: 12
+  heads: 12
+  ff_mult: 4
+  seq_len: 768
+  n_experts: 8
+  k: 1
+  use_rope: false
+  weight_tying: false
+
+train:
+  mask_type: span
+  mask_p: 0.15
+  mask_schedule: uniform
+  span_len: 64
+  curriculum: 0
+  whole_stage: true
+  lr: 2.0e-4
+  lr_decay: cosine
+  lr_min_ratio: 0.1
+  warmup: 200
+  grad_clip: 1.0
+  ema_decay: 0.0
+
+eval:
+  mask_p: 0.15
+  n_pairs: 256
+  temp: 1.0
+  steps: 8
+  max_new: 128
+  batch: 8
+
+out:
+  dir: /beegfs/a474r867/ecoreasoner/runs
+  tag: eval-moe-v4
+
+seed: 7331
