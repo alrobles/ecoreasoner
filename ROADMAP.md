@@ -695,17 +695,17 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ##5. PARA RETOMAR RÁPIDO(checklist)
 
-**Línea viva = port receta hinrcf10 al prototipo MoE v4 (V4S corriendo).
-Estado al 17-09 ~16:55 UTC:**
+**Línea viva = prototipo v4s (MoE + receta hinrcf10) — PORT VERIFICADO.
+Estado al 17-09 ~18:00 UTC:**
 
-1. **V4S EN COLA (job 29723166)**: continúa retrain_v4/g11000 con receta
-   hinrcf10 sobre train_ids_v4en.npz, +6K steps → 17000, LR 1e-4 flat.
-   Relanza solo vía watcher local `watch_v4s_done.sh` (nohup, log
-   data/watch_v4s_done.log) + AUTO_RESUBMIT para olas. Al COMPLETE:
-   battery holdout_clean automática (g0_run) + eval dev encadenado.
+1. **V4S COMPLETO (checkpoint-g17000)**: holdout_clean dense L0 0.612 /
+   L1 0.566 / L2 0.694*** / **L3 0.600***; dev v3_eval **L3 0.627** =
+   hinrcf10 (0.626). neg 0.574, num 0.383, ppl_proxy 926 (el mejor).
+   La receta estructurada se transplanta al MoE: superficie + inferencia
+   en UN modelo. Artefactos: `runs/retrain_v4s/{battery_logicdiff,
+   battery_logicdiff_v3eval,battery_verdict_*,ppl_proxy.json}`.
    Resultado v4 flat para comparar: `runs/retrain_v4/
-   battery_logicdiff_v4holdout/logicdiff_summary.json` (L0 0.696/L1
-   0.634/L2 0.503/L3 0.496; num 0.420/neg 0.290).
+   battery_logicdiff_v4holdout/` (L0 0.696/L1 0.634/L2 0.503/L3 0.496).
 1b. **G8 CERRADA — corpus base nuevo = c1e** (corpus_v3_en.jsonl,
    train_ids_c1e.npz, 116.9M tok). c1e media L3 0.627 = backbone 0.626
    en v3_eval (recupera frontera); c1 con UNAM-ES crudo degradó a 0.583.
@@ -853,6 +853,33 @@ Estado al 17-09 ~16:55 UTC:**
    dos-modelos (v4 verificador superficial + motor
    estructurado); si nada se mueve → la frontera es de
    objetivo-desde-cero, no de receta aplicada tarde.
+   **V4S — RESULTADO (2026-09-17 ~12:30 UTC, checkpoint-g17000,
+   6K steps en ~80min tras 2 olas muertas en nodos sin GPU)**:
+   **EL PORT FUNCIONA.** holdout_clean dense: L0 0.612 / L1
+   0.566 / **L2 0.694*** / **L3 0.600*** (n=1767) vs v4 flat
+   0.696/0.634/0.503/0.496 vs hinrcf10 0.546/0.529/0.676/0.632.
+   Dev v3_eval dense: L0 0.600/L1 0.563/L2 0.659/**L3 0.627**
+   = EMPATE con hinrcf10 (0.626) con superficial mejor en
+   todos los niveles. Subtipos holdout: direction 0.724,
+   temporal_word 0.744, mechanism 0.625, causal_word 0.583,
+   **negation 0.574** (vs 0.290 flat — cerca del piso 0.6),
+   number 0.383 (piso estructural intacto), temporal_phrase
+   0.362. **ppl_proxy 926** — el MEJOR medido (hinrcf10 ~2988,
+   champ 2043): el MoE absorbe la receta estructurada SIN el
+   coste de LM que paga el modelo chico. Lectura: los dos
+   regímenes NO compiten de fondo — un solo modelo puede
+   tener superficie + inferencia; la receta estructurada se
+   transplanta a arch mayor y corpus mayor. El flat con los
+   mismos +3K steps había CAÍDO a azar → el delta es la
+   receta, no los steps. L3 0.600 queda a 3p.p. del hinrcf10
+   en holdout (pero empata en dev); número sigue siendo la
+   frontera dura (~0.38-0.42 en TODAS las configs). Cadena
+   autosuficiente verificada: seed → launch → 2 olas muertas
+   (nodos sin GPU, guard VRAM reencoló) → complete → battery
+   auto → watcher → dev eval. Nota: la 1a ola se spooleó con
+   g0_run previo al fix de job-name → su resubmit heredó
+   nombre "g0" (inocuo; las olas posteriores ya llevan el
+   nombre del launcher).
    COHORTE LAMBDA 2026 (papers ganadores): todos llevan
    coautor Jianwen Xie (Lambda) → grant = cómputo +
    colaboración. Ganan: agentes+RL (AgentFlow, ICLR'26 oral),
