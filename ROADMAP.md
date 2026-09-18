@@ -757,6 +757,16 @@ Estado al 17-09 ~18:00 UTC:**
    temporal 0-18%. Expansión propuesta medida: direction→57%,
    causal_word→58%, temporal→77-80%, negation→100%, number→98%.
    Tabla completa en EVOG9-V5-DESIGN §4.
+4d. **G9 — RESULTADO (18-09) + G10 LANZADA**: campeón `g9-ema-s1`
+   (EMA_DECAY=0.999): dev L3 0.642/num 0.327/neg 0.698, FIT 0.4845;
+   holdout_clean L3 **0.619*** (vs v4s 0.600 → EMA suma +1.9pt en el
+   árbitro), num 0.394, neg 0.613, direction 0.738. Lecturas: fresh
+   6pt abajo (continuidad suma), numwl sacrifica negación, corrective
+   dosis fina = ruido neutro, number plano → binding no cobertura.
+   **G10 (jobs 29856679-83, `g10_launch.sh`)**: 2×2 sweep
+   CONTR_W{0.3,1.0}×MARGIN{1.0,2.0} + control ep3, continuación
+   g20000→23000 con EMA ON, clase mutable ya expandida (d5306c0).
+   Watcher `watch_g10_done.sh` local → `data/G10_DONE.flag`.
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).

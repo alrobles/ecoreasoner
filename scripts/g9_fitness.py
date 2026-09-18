@@ -33,9 +33,11 @@ def load_arm(run_dir):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", default="/beegfs/a474r867/ecoreasoner/runs")
+    ap.add_argument("--glob", default="g9-*",
+                    help="patron de runs a evaluar (g9-*, g10-*)")
     a = ap.parse_args()
     rows = []
-    for d in sorted(glob.glob(os.path.join(a.runs, "g9-*"))):
+    for d in sorted(glob.glob(os.path.join(a.runs, a.glob))):
         tag = os.path.basename(d)
         done = os.path.exists(os.path.join(d, "training_complete.flag"))
         r = load_arm(d)

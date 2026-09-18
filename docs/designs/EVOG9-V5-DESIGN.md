@@ -97,6 +97,31 @@ techa el techo? curriculum completo b_h 0.30→0.95 |
   load-bearing mutada — necesita build step de datos).
 - `seq1024` (pos-emb 768→1024 rompe ckpt; solo en brazo fresh).
 
+## 3b. G9 — RESULTADO FINAL (18-09, 8/8 evaluados dev v3_eval)
+
+| brazo | L3 | num | neg | FIT |
+|---|---|---|---|---|
+| **ema** | **0.6421** | 0.3269 | 0.6977 | **0.4845** |
+| corrmd | 0.6274 | 0.3077 | 0.6512 | 0.4675 |
+| numwl | 0.6232 | 0.3077 | 0.4186 | 0.4654 |
+| ep2 (control +steps) | 0.6189 | 0.3077 | 0.6047 | 0.4633 |
+| corrlo ×2 seeds | 0.6106 | 0.3077 | 0.7093 | 0.4591 |
+| scratch ×2 seeds | 0.5621 | 0.3077 | 0.3023 | 0.4219 |
+
+**Campeón: `g9-ema-s1`. Holdout_clean (ema_model.pt@g20000, n=1767):**
+L0 0.624 / L1 0.585 / L2 0.684 / **L3 0.619*** — vs backbone v4s 0.600
+→ EMA suma +1.9pt en el árbitro. Subtipos: number 0.394 (n=193),
+negation 0.613, direction 0.738, causal_word 0.597, temporal_phrase
+0.464 (sigue herido vs flat 0.573).
+
+Lecturas: (1) weight averaging generaliza mejor — el gen ganador queda
+ON en G10; (2) fresh-from-scratch queda 6pt abajo → el pre-historial
+flat no techaba, la continuidad suma; (3) number plano ~0.31 dev /
+0.39 holdout en TODOS los brazos → confirma que no es de cobertura ni
+de steps: es binding de valor; (4) numwl sacrifica negación (−0.23)
+sin ganar number — mal trato, gen descartado; (5) corrective bimodal
+otra vez (0.585/0.636) → dosis fina es ruido neutro.
+
 ## 4. Ruta más allá de G9 — revisada con lecciones Nemotron (17-09)
 
 Estudio completo: `docs/NEMOTRON-LECCIONES.md`. Tres lecciones medidas
