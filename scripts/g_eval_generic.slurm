@@ -28,7 +28,8 @@ case "$GPU_NAME" in
   *"PRO 6000"*|*Blackwell*) OVL="--overlay $BASE/blackwell-torch.overlay:ro"; PY=$VENV/bin/python;;
   *) OVL=""; PY=python3;;
 esac
-CKPT=$(ls -d "$RUNDIR"/checkpoint-g* | sort -V | tail -1)/model.pt
+CKPT_FILE=${CKPT_FILE:-model.pt}
+CKPT=$(ls -d "$RUNDIR"/checkpoint-g* | sort -V | tail -1)/$CKPT_FILE
 echo "eval $RUNDIR ckpt=$CKPT gpu=$GPU_NAME pairs=$PAIRS modes=$MODES -> $OUTDIR_NAME"
 # shellcheck disable=SC2086
 apptainer exec --nv $OVL "$SIF" "$PY" \

@@ -135,8 +135,13 @@ def stage_collect(out_dir):
         except json.JSONDecodeError:
             continue
         pid = r.get("pid")
-        src = r.get("src", "")
-        key = f"pmid:{pid}" if pid else f"h:{norm_text_key(r.get('text',''))}"
+        src = r.get("src") or r.get("source", "")
+        if pid and str(pid).startswith("PMC"):
+            key = f"pmc:{pid}"
+        elif pid:
+            key = f"pmid:{pid}"
+        else:
+            key = f"h:{norm_text_key(r.get('text',''))}"
         if src == "skeleton" and r.get("text"):
             if key not in skel_by_key:
                 skel_by_key[key] = {
@@ -167,10 +172,41 @@ def stage_collect(out_dir):
     print("[collect] DONE", dict(stats))
 
 
+_BS = None
+
+
+def _skel_work(rec):
+    """Worker picklable: mismo orden que build_skeleton.main
+    (abstract -> imrad -> phrases -> need_obs)."""
+    global _BS
+    if _BS is None:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import build_skeleton as _m
+        _BS = _m
+    try:
+        text = rec["text"]
+        stages = {}
+        ab = _BS.abstract_structured(text)
+        if ab:
+            stages.update(ab)
+        if len({k for k in _BS._STAGES if k in stages}) < 3:
+            im = _BS.imrad_sections(text)
+            if im:
+                stages.update(im)
+        if len({k for k in _BS._STAGES if k in stages}) < 3:
+            for k, v in _BS.phrases_fallback(text).items():
+                stages.setdefault(k, v)
+        stages = _BS.need_obs(text, stages)
+        nst = len([k for k in _BS._STAGES if stages.get(k)])
+        if nst >= 3:
+            return rec["key"], _BS.serialize(stages), nst
+    except Exception:
+        pass
+    return None
+
+
 def stage_skeleton(out_dir, workers=8):
     """Completa skeleton_db con esqueletos extraidos de papers que no tienen."""
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import build_skeleton as BS
     from multiprocessing import Pool
 
     skel_path = f"{out_dir}/skeleton_db.jsonl"
@@ -182,66 +218,59 @@ def stage_skeleton(out_dir, workers=8):
             pass
     print(f"[skeleton] ya existen {len(have)} esqueletos")
 
-    def work(rec):
-        """Mismo orden que build_skeleton.main: abstract -> imrad -> phrases."""
-        try:
-            text = rec["text"]
-            stages = {}
-            ab = BS.abstract_structured(text)
-            if ab:
-                stages.update(ab)
-            if len({k for k in BS._STAGES if k in stages}) < 3:
-                im = BS.imrad_sections(text)
-                if im:
-                    stages.update(im)
-            if len({k for k in BS._STAGES if k in stages}) < 3:
-                for k, v in BS.phrases_fallback(text).items():
-                    stages.setdefault(k, v)
-            stages = BS.need_obs(text, stages)
-            nst = len([k for k in BS._STAGES if stages.get(k)])
-            if nst >= 3:
-                return rec["key"], BS.serialize(stages), nst
-        except Exception:
-            pass
-        return None
+    def gen():
+        for line in open(f"{out_dir}/papers_db.jsonl", errors="replace"):
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if r["key"] in have or r["kind"] in ("unam-en", "synth"):
+                continue
+            if len(r["text"]) < 800:      # sin masa para extraer
+                continue
+            yield {"key": r["key"], "text": r["text"], "domain": r.get("domain")}
 
-    todo = []
-    for line in open(f"{out_dir}/papers_db.jsonl", errors="replace"):
-        try:
-            r = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if r["key"] in have or r["kind"] in ("unam-en", "synth"):
-            continue
-        if len(r["text"]) < 800:      # sin masa suficiente para extraer
-            continue
-        todo.append(r)
-    print(f"[skeleton] por procesar: {len(todo)}")
-    added = 0
+    added = 0; seen_n = 0
     with Pool(workers) as pool, open(skel_path, "a") as out:
-        for i, res in enumerate(pool.imap_unordered(work, todo, chunksize=64)):
+        for res in pool.imap_unordered(_skel_work, gen(), chunksize=64):
+            seen_n += 1
             if res:
                 k, sk, ne = res
                 out.write(json.dumps({"key": k, "skeleton": sk,
                                       "etapas": ne, "src": "extracted"},
                                      ensure_ascii=False) + "\n")
                 added += 1
-            if (i + 1) % 20000 == 0:
-                print(f"[skeleton] {i+1}/{len(todo)} added={added}", flush=True)
-    print(f"[skeleton] DONE added={added} total={len(have)+added}")
+            if seen_n % 20000 == 0:
+                out.flush()
+                print(f"[skeleton] {seen_n} seen, added={added}", flush=True)
+    print(f"[skeleton] DONE seen={seen_n} added={added} total={len(have)+added}")
 
 
 def stage_stats(out_dir):
-    n = Counter(); skel = 0
+    n = Counter(); sk = Counter()
     for line in open(f"{out_dir}/skeleton_db.jsonl", errors="replace"):
-        skel += 1
+        try:
+            s = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        sk["total"] += 1
+        sk[f"src:{s.get('src')}"] += 1
+        sk[f"etapas:{s.get('etapas')}"] += 1
+    tok_est = 0
     for line in open(f"{out_dir}/papers_db.jsonl", errors="replace"):
-        r = json.loads(line)
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
         n[f"kind:{r['kind']}"] += 1
         n[f"lang:{r.get('lang')}"] += 1
         n[f"dom:{r.get('domain')}"] += 1
-    print(json.dumps(dict(n), indent=1)[:4000])
-    print("skeletons:", skel)
+        tok_est += len(r["text"]) // 4   # ~4 chars/token aprox
+    rep = {"papers": dict(n), "skeletons": dict(sk),
+           "tokens_est": tok_est}
+    print(json.dumps(rep, indent=1)[:6000])
+    with open(f"{out_dir}/corpus_stats.json", "w") as f:
+        json.dump(rep, f, indent=2)
 
 
 if __name__ == "__main__":
