@@ -103,14 +103,34 @@ Estudio completo: `docs/NEMOTRON-LECCIONES.md`. Tres lecciones medidas
 del Kaggle que reordenan G10:
 
 1. **Cobertura antes que objetivo.** El ganador abandonó cryptarithm
-   (~8% resoluble) y ganó barriendo el resto. Nuestra medida 17-09:
-   las mutaciones `number` del eval tocan ~1094 tokens únicos pero
-   `is_num` solo cubre los 10 dígitos sueltos (**~1%**). El hinge
-   implementado no puede enseñar "20.6" vs "16.5" — los tokens
-   multi-dígito no son mutables. **Prerequisito G10: expandir la clase
-   mutable** (`_NUMBER_RE` → "contiene dígito tras normalize", con
-   alternativa del mismo pool expandido) y re-medir cobertura sobre los
-   diffs del eval antes de lanzar cualquier brazo contrastive.
+   (~8% resoluble) y ganó barriendo el resto. **Audit 18-09
+   (`scripts/audit_mutable_coverage.py`, alineación SequenceMatcher
+   sobre pairs_L3 dev n=475 y holdout n=1632)** — corrige la estimación
+   previa (~1%, que contaba ruido de desfase posicional):
+
+   | subtipo | n_hold | mutable actual | expansión propuesta (medida) |
+   |---|---|---|---|
+   | number | 193 | 85.7% (dígitos sueltos) | **97.9%** (`num_piece`) |
+   | negation | 155 | 64.0% (is_flip) | **100%** (+auxiliares/verbos reporte) |
+   | direction_word | 778 | 10.1% | **56.5%** (+inflecciones+símbolos) |
+   | causal_word | 216 | 0.0% | **58.4%** (+conectivas) |
+   | causal_phrase | 166 | 2.6% | **32.0%** (phrases multi-token, más duro) |
+   | temporal_word | 39 | 0.0% | **79.5%** |
+   | temporal_phrase | 138 | 17.8% | **77.3%** |
+   | environment/mechanism | 81 | 0.0% | 50–64% (+familias open-class frecuentes) |
+
+   **Conclusión invertida**: `number` NO falla por cobertura (ya 85%) —
+   falla porque el swap dígito↔dígito exige *binding* del valor correcto
+   desde el contexto (razonamiento), no solo discriminación local. La
+   clase mutable sí tiene huecos reales en los subtipos léxicos —
+   `direction`/`causal`/`temporal` mutan palabras que la tabla no cubre
+   (inflecciones `increased/reduced`, conectivas `however/therefore`,
+   `because/despite`, temporales `acute/chronic`, `initial/final`…)
+   y símbolos (`≥↔≤`, `→`, `±`, `=` en byte-BPE). Esos subtipos puntúan
+   bien *a pesar* de la cobertura — la expansión es barata y ayuda al
+   hinge, pero ya no es el cuello demostrado. El audit está en
+   `scripts/audit_mutable_coverage.py` (standalone, fallback
+   tokenizer.json sin transformers).
 2. **Solo datos verificados** (v12: 12.2% respuestas erróneas → modelo
    confiadamente erróneo). `hneg-data` vía knn_edges debe filtrar a
    mutaciones cuyo target quede dentro de la clase mutable expandida;
@@ -122,7 +142,7 @@ del Kaggle que reordenan G10:
 
 | paso | qué | criterio |
 |---|---|---|
-| 0 | expandir `_NUMBER_RE`/tabla mutable + re-medir cobertura sobre diffs de pairs_L3 | cobertura >50% de tokens-diff number |
+| 0 | expandir tabla mutable: `_NUMBER_RE`→`num_piece` + flip-table con las familias medidas (dirección inflecciones, conectivas causales, temporales, símbolos, auxiliares neg) — lista exacta del audit | re-audit: direction>50%, causal>40%, temporal>60%, number>95% |
 | 1 | `g10-contr-s1/s2`: backbone = ganador G9, `CONTR_W={0.3,1.0}` × `CONTR_MARGIN={1.0,2.0}` | ΔL3 y Δnumber vs backbone |
 | 2 | `g10-contrcov-s1`: mismo brazo SIN expansión de cobertura | aísla si el efecto es el gen o la tabla |
 | 3 | `g10-hneg-s1`: corpus += pares knn_edges verificados (mutación dentro de clase mutable) | Δnum/neg |
