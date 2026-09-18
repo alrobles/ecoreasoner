@@ -589,6 +589,11 @@ def sample_mask_fraction(schedule, step, device="cpu"):
 # y entidades. Con --role_mask ausente el camino es identico al V3.1.
 
 _NUMBER_RE = re.compile(r"^[+-]?(\d+([.,]\d+)?|\d*\.\d+)(\s*%)?$")
+# G10 (audit 18-09): la clase mutable numerica cubre tambien las piezas
+# atomicas de numeros multi-token ('.', ',', '%', signos) — las mutaciones
+# del eval retokenizan el numero y el diff cae en esas piezas (~98% cov).
+_NUM_PIECE_RE = re.compile(r"^[.,%+\-−]$|^\d+$")
+_ANY_DIGIT_RE = re.compile(r"\d")
 _ROLE_SCORE_CACHE = {}
 
 
@@ -776,9 +781,116 @@ _CORRUPT_FLIP_TEXT = {
     "positive": ["negative"],
     "negative": ["positive"],
     "significant": ["negligible", "marginal"],
+    # --- expansion G10 (audit 18-09, pares 1:1 medidos del eval) ---
+    # direccion: inflecciones + familias nuevas
+    "increased": ["reduced", "decreased"],
+    "reduced": ["increased", "enhanced"],
+    "decreased": ["increased"],
+    "increase": ["decrease", "reduce"],
+    "decrease": ["increase"],
+    "greater": ["smaller"],
+    "smaller": ["greater"],
+    "enhanced": ["suppressed", "reduced"],
+    "suppressed": ["enhanced"],
+    "improve": ["worsen", "impair"],
+    "worsen": ["improve"],
+    "improved": ["worsened"],
+    "worsened": ["improved"],
+    "associated": ["unrelated"],
+    "unrelated": ["associated"],
+    "presence": ["absence"],
+    "absence": ["presence"],
+    "raises": ["lowers"],
+    "lowers": ["raises"],
+    "stronger": ["weaker"],
+    "weaker": ["stronger"],
+    "elevated": ["reduced"],
+    "larger": ["smaller"],
+    "fewer": ["more"],
+    "exceeds": ["falls"],
+    "gain": ["loss"],
+    "loss": ["gain"],
+    # causal: conectivas contrastivas (however<->therefore etc.)
+    "however": ["therefore", "thus", "consequently"],
+    "therefore": ["however", "nevertheless"],
+    "thus": ["nevertheless", "however"],
+    "nevertheless": ["thus", "therefore"],
+    "conversely": ["consequently", "similarly"],
+    "consequently": ["conversely"],
+    "because": ["despite", "although"],
+    "despite": ["because"],
+    "although": ["because"],
+    "hence": ["however"],
+    "whereas": ["therefore"],
+    "nonetheless": ["therefore"],
+    "moreover": ["however"],
+    "furthermore": ["however"],
+    "instead": ["additionally"],
+    # temporal: familias medidas
+    "early": ["late"],
+    "late": ["early"],
+    "initial": ["final"],
+    "final": ["initial"],
+    "initially": ["finally"],
+    "finally": ["initially"],
+    "acute": ["chronic"],
+    "chronic": ["acute"],
+    "rapidly": ["gradually"],
+    "gradually": ["rapidly"],
+    "rapid": ["gradual", "slow"],
+    "gradual": ["rapid"],
+    "long": ["short"],
+    "short": ["long"],
+    "longer": ["shorter"],
+    "shorter": ["longer"],
+    "earlier": ["later"],
+    "later": ["earlier"],
+    "temporary": ["permanent"],
+    "permanent": ["temporary"],
+    "transient": ["persistent"],
+    "persistent": ["transient"],
+    "delayed": ["immediate"],
+    "immediate": ["delayed"],
+    "brief": ["prolonged"],
+    "prolonged": ["brief"],
+    # verbos de reporte / polaridad (negation auxiliares)
+    "supports": ["contradicts"],
+    "contradicts": ["supports"],
+    "confirms": ["refutes"],
+    "refutes": ["confirms"],
+    "consistent": ["inconsistent"],
+    "inconsistent": ["consistent"],
+    # entorno / mecanismo (open-class frecuentes del eval)
+    "temperature": ["light"],
+    "elevation": ["latitude"],
+    "latitude": ["elevation"],
+    "nitrogen": ["phosphorus"],
+    "phosphorus": ["nitrogen"],
+    "drought": ["flooding"],
+    "flooding": ["drought"],
+    "host": ["parasite"],
+    "parasite": ["host"],
+    "prey": ["predator"],
+    "predator": ["prey"],
+    # simbolos de relacion (byte-BPE observados): <= <-> >=, -> <-> <-,
+    # = <-> '!='-like, +- <-> similares. Claves = strings del vocab
+    # YA EN MINUSCULAS (el lookup hace .lower() antes de indexar).
+    "âł": ["âī¥", ">", "="],          # ~'<=' -> >=, >, =
+    "âī¥": ["âł", "<", "="],          # '>=' -> <=, <, =
+    "âī¤": ["âī¥", ">"],              # '<=' (otra forma) -> >=
+    "âģī": ["âĩĳ", "âĩķ"],            # '~->' -> '<-'
+    "âĩĵ": ["âĩĳ"],                   # '->' -> '<-'
+    "âĩĳ": ["âĩĵ"],                   # '<-' -> '->'
+    "â±": ["<", ">"],                 # '+-' -> direcciones
+    "<": [">", "âī¥"],
+    ">": ["<", "âł"],
+    "=": ["<", ">"],
 }
 _NEG_WORDS = {"not", "no", "never", "cannot", "without", "nor",
-              "neither", "fails", "fail", "failed"}
+              "neither", "fails", "fail", "failed", "did", "does",
+              "found", "find", "showed", "show", "suggests", "suggest",
+              "indicates", "indicate", "demonstrates", "demonstrated",
+              "reveals", "revealed"}
 _FLIP_K = 4  # max candidatos por token en la tabla de flips
 
 
@@ -789,6 +901,7 @@ def build_correction_tables(tok, vocab, device):
     for i, s in enumerate(strs):
         text2ids.setdefault(_normalize_token_text(s).lower(), []).append(i)
     is_num = torch.zeros(vocab, dtype=torch.bool)
+    is_numx = torch.zeros(vocab, dtype=torch.bool)
     is_flip = torch.zeros(vocab, dtype=torch.bool)
     is_neg = torch.zeros(vocab, dtype=torch.bool)
     flip_cand = torch.full((vocab, _FLIP_K), -1, dtype=torch.long)
@@ -799,6 +912,8 @@ def build_correction_tables(tok, vocab, device):
         if _NUMBER_RE.match(t):
             is_num[i] = True
             num_ids.append(i)
+        if _NUMBER_RE.match(t) or _NUM_PIECE_RE.match(t):
+            is_numx[i] = True
         if tl in _NEG_WORDS:
             is_neg[i] = True
         if tl in _CORRUPT_FLIP_TEXT:
@@ -816,6 +931,7 @@ def build_correction_tables(tok, vocab, device):
     sel_w[is_num | is_flip] += float(ARGS.corrective_boost)
     return {
         "is_num": is_num.to(device), "is_flip": is_flip.to(device),
+        "is_numx": is_numx.to(device),
         "flip_cand": flip_cand.to(device),
         "num_ids": torch.tensor(num_ids or [0], dtype=torch.long, device=device),
         "lw": lw.to(device), "sel_w": sel_w.to(device),
@@ -873,7 +989,7 @@ def _contrast_alts(orig_ids, tables, vocab, device):
     flip_cand (siempre != orig); el resto no se contrasta (filtrado fuera).
     """
     alt = (orig_ids + 1) % vocab                      # fallback != orig
-    num_m = tables["is_num"][orig_ids]
+    num_m = tables["is_numx"][orig_ids]
     if bool(num_m.any()):
         pool = tables["num_ids"]
         idx = orig_ids[num_m]
@@ -1435,7 +1551,7 @@ def main():
             # enmascaradas mutables (digito/negacion/direccion) — alineacion
             # directa con la metrica pairwise del eval, sin forward extra.
             tgt_mp = xb.reshape(-1)[mp]
-            mutable = CORRUPT["is_num"][tgt_mp] | CORRUPT["is_flip"][tgt_mp]
+            mutable = CORRUPT["is_numx"][tgt_mp] | CORRUPT["is_flip"][tgt_mp]
             if ARGS.contr_p < 1.0:
                 mutable = mutable & (torch.rand(mutable.numel(),
                                                 device=xb.device)

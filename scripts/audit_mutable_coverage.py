@@ -111,10 +111,10 @@ _PROPOSED_FLIP = set(_FLIP_SET) | {
     "phosphorus", "drought", "flooding", "salinity", "host",
     "parasite", "prey", "predator",
 }
-# Simbolos relacion (byte-BPE observados): 'âł'~≤ 'âģī'~→ 'Â±'=± 'âī¥'=≥
-# '>' '<' '=' + flechas; mutacion tipica = flip direccion o borrado.
-_PROPOSED_FLIP |= {"âł", "âī¥", "âī¤", "âģī", "âĨĴ", "âĨĲ", "Â±",
-                   "<", ">", "=", "âĪĀ"}
+# Simbolos relacion (byte-BPE, claves ya en minusculas como el lookup):
+# 'âł'~≤ 'âģī'~→ 'â±'=± 'âī¥'=≥ + > < = flechas.
+_PROPOSED_FLIP |= {"âł", "âī¥", "âī¤", "âģī", "âĩĵ", "âĩĳ", "â±",
+                   "<", ">", "=", "âĪā"}
 
 RULES = {"current": rule_current, "has_digit": rule_has_digit,
          "num_piece": rule_num_piece,
