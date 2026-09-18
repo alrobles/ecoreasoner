@@ -41,6 +41,20 @@ registro; la ruta puede cambiar si migramos de directorio, el código no.
 
 - Los shards `_c0.._c3` se unen a `fulltext_corpus_all.jsonl` (ETAPA 1).
 
+### ETAPA 1.5 — CONSOLIDADO DEDUPLICADO (papers_db, 18-09)
+
+| Código | Ruta | Registro | desc |
+|---|---|---|---|
+| `1x_papersdb` | `data/papersdb/papers_db.jsonl` | **3,141,540 docs** · ~10.5B tok est. | **DB canónica deduplicada** de todos los corpus: key = pmid/pmcid/arxiv/doi o hash texto; prioridad fulltext>abstract. kind: 288,256 fulltext · 2,810,499 abstract · 40,756 synth · 2,029 unam-en. lang: 3.12M en / 23.4K es. 4.86M duplicados eliminados (v5 ⊂ v6, eco_corpus_v2 ⊂ v6). |
+| `1x_skeldb` | `data/papersdb/skeleton_db.jsonl` | **1,036,993 esqueletos** | key→esqueleto (etapas≥3). src: 263,829 reused_v4en + 773,164 extracted (abstract-struct → IMRaD → phrases). |
+| `1x_stats` | `data/papersdb/corpus_stats.json` | — | stats canónicas (`scripts/consolidate_papers.py stats`) |
+
+- Dominios principales: bioc 380K, phylo 320K, genom 302K, medgen 302K,
+  microbio 263K, eco 260K, phys-* 169K, climate 80K, marine 86K.
+- **Regla**: papers_db es la fuente de verdad de texto; skeleton_db la capa
+  estructural. Ninguno es corpus de entrenamiento directo — la elegibilidad
+  pasa por filtrado/curriculum aparte (lección Nemotron: volumen≠señal).
+
 ### ETAPA 2 — CORPUS DE PRETRAIN (input directo de Fase A)
 
 |Odigo | Tipo | V (reg) | tamaño | token/pal | desc |

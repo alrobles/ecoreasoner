@@ -738,6 +738,25 @@ Estado al 17-09 ~18:00 UTC:**
    saturar margen). OJO: cobertura tablas estrecha (num_ids=10,
    flip_ids=104/126k) — si G10 no mueve, auditar _NUMBER_RE primero.
    Pendiente G10: hneg-data (knn_edges) y corrective a dosis que G9 fije.
+4c. **CORPUS CONSOLIDADO `papers_db` — COMPLETO (18-09)**:
+   `scripts/consolidate_papers.py` (stages collect/skeleton/stats) →
+   `data/papersdb/`. **papers_db.jsonl: 3,141,540 docs únicos**
+   (~10.5B tok est.) deduplicados por pmid/pmcid/arxiv/doi/hash —
+   4.86M duplicados eliminados (v5 ⊂ v6 entero; eco_corpus_v2 aportó 0).
+   kind: 288,256 fulltext · 2,810,499 abstract · 40,756 synth ·
+   2,029 unam-en. **skeleton_db.jsonl: 1,036,993 esqueletos**
+   (263,829 reused v4en + 773,164 extraídos: abstract-struct → IMRaD
+   → phrases, umbral ≥3 etapas; ~27% yield sobre 2.81M candidatos).
+   Registrado como `1x_papersdb`/`1x_skeldb` en dataset-registry.
+   Regla: DB ≠ corpus de entrenamiento — elegibilidad vía
+   filtrado/curriculum aparte (lección Nemotron).
+   **Audit cobertura mutable (G10 paso 0, 18-09)**:
+   `scripts/audit_mutable_coverage.py` sobre pairs_L3 dev+holdout —
+   number ya 85.7% cubierto (NO es cuello de cobertura: es binding de
+   valor); huecos reales en léxicos: direction 10%, causal_word 0%,
+   temporal 0-18%. Expansión propuesta medida: direction→57%,
+   causal_word→58%, temporal→77-80%, negation→100%, number→98%.
+   Tabla completa en EVOG9-V5-DESIGN §4.
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).
