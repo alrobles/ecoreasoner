@@ -696,7 +696,7 @@ a batch gigante).. **Ganador: span-esqueleto.**
 ##5. PARA RETOMAR RÁPIDO(checklist)
 
 **Línea viva = prototipo v4s (MoE + receta hinrcf10) — PORT VERIFICADO.
-Estado al 17-09 ~18:00 UTC:**
+Estado al 18-09 ~10:00 UTC:**
 
 1. **V4S COMPLETO (checkpoint-g17000)**: holdout_clean dense L0 0.612 /
    L1 0.566 / L2 0.694*** / **L3 0.600***; dev v3_eval **L3 0.627** =
@@ -710,8 +710,9 @@ Estado al 17-09 ~18:00 UTC:**
    train_ids_c1e.npz, 116.9M tok). c1e media L3 0.627 = backbone 0.626
    en v3_eval (recupera frontera); c1 con UNAM-ES crudo degradó a 0.583.
 2. Leaderboard: `ssh kuhpc 'cd /beegfs/a474r867/ecoreasoner && python3
-   scripts/leaderboard.py --runs runs'`. Top FIT: g1-cf05rand 0.495,
-   g3-hi 0.492, g7-chnrep 0.489, g5-mrd 0.485, g8-c1e 0.482.
+   scripts/leaderboard.py --runs runs'`. Top FIT (18-09): g10-ep3 0.498,
+   g1-cf05rand 0.495, g3-hi 0.492, retrain_v4s 0.492, g7-chnrep 0.489,
+   g9-ema 0.485, g10-contr 0.481.
 3. Frontera verificada (holdout limpio): hinrcf10 L3 0.632 / num 0.389 /
    neg 0.645. Piso a empujar: num+neg ≥0.6 simultáneos — num ~0.31-0.37
    en TODAS las configs; neg oscila 0.33-0.65 por seed (alta varianza).
@@ -767,6 +768,20 @@ Estado al 17-09 ~18:00 UTC:**
    CONTR_W{0.3,1.0}×MARGIN{1.0,2.0} + control ep3, continuación
    g20000→23000 con EMA ON, clase mutable ya expandida (d5306c0).
    Watcher `watch_g10_done.sh` local → `data/G10_DONE.flag`.
+4e. **G10 — RESULTADO (18-09): hinge contrastivo FALSADO.** Los 4
+   brazos contr quedaron bajo su propio control (media FIT 0.481 vs
+   0.498; negación colapsa 0.40-0.56 vs 0.74 dev). Campeón =
+   `g10-ep3-s1` (control +steps, CONTR_W=0): dev L3 0.6505/num 0.346/
+   neg 0.744, FIT 0.4983. **Holdout_clean (ema@g23000, n=1767): L3
+   0.620 — plano vs backbone 0.619**; num 0.394 IDÉNTICO (techo
+   estructural confirmado: ni cobertura 98% ni hinge ni steps lo
+   movieron → se declara binding, se deja de invertir); neg 0.703
+   (+9pt, única ganancia que transfiere); ppl_proxy ~990 vs 781
+   backbone (el CE de denoising se degradó). Dev-holdout divergen:
+   +0.8pt dev no generalizó. **Criterio parada: 1ª gen sin movimiento
+   en holdout.** Tabla completa + lecturas: EVOG9-V5-DESIGN §3c.
+   Pendiente decisión: `hneg-data` (knn_edges, único gen de datos) o
+   cerrar GA como negativo-controlado si G11 tampoco mueve.
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).

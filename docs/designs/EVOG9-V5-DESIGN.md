@@ -122,6 +122,48 @@ de steps: es binding de valor; (4) numwl sacrifica negación (−0.23)
 sin ganar number — mal trato, gen descartado; (5) corrective bimodal
 otra vez (0.585/0.636) → dosis fina es ruido neutro.
 
+## 3c. G10 — RESULTADO FINAL (18-09, 5/5 evaluados dev v3_eval)
+
+2×2 sweep `CONTR_W{0.3,1.0}×MARGIN{1.0,2.0}` sobre `g9-ema-s1@g20000`
+(continuación +3K→23000, EMA ON, clase mutable ya expandida ~98% num /
+57% dir / 58% causal / 77-80% temporal / 100% neg) + control ep3
+(CONTR_W=0, mismos steps).
+
+| brazo | contr_w/margin | L3 | num | neg | FIT |
+|---|---|---|---|---|---|
+| **ep3 (control)** | 0 | **0.6505** | 0.3462 | **0.7442** | **0.4983** |
+| contr-s4 | 1.0/1.0 | 0.6379 | 0.3462 | 0.4884 | 0.4920 |
+| contr-s1 | 0.3/2.0 | 0.6316 | 0.3269 | 0.5116 | 0.4793 |
+| contr-s2 | 1.0/2.0 | 0.6274 | 0.3269 | 0.3953 | 0.4771 |
+| contr-s3 | 0.3/1.0 | 0.6253 | 0.3269 | 0.5581 | 0.4761 |
+| media contr | — | 0.6305 | 0.3317 | 0.4884 | 0.4811 |
+
+**Campeón: `g10-ep3-s1`. Holdout_clean (ema_model.pt@g23000, n=1767):**
+L0 0.632 / L1 0.586 / L2 0.695 / **L3 0.620** — vs backbone g9-ema-s1
+0.619 → **plano** (+0.0006). Subtipos: number 0.394 (idéntico),
+negation 0.703 (+9pt, única ganancia que transfiere), direction 0.720,
+causal_word 0.583, temporal_phrase 0.464 (idéntico).
+ppl_proxy: todos los g10 ~887–1012 vs 781 del backbone — la
+continuación +3K degradó el CE de denoising ~+20% aunque la
+discriminación dev subió.
+
+Lecturas: (1) **hinge contrastivo FALSADO a esta escala/dosis**: 4/4
+brazos bajo su propio control en FIT y L3; la presión de margen sobre
+mutables colapsa la negación (0.40–0.56 vs 0.74) y causal_word
+(0.49–0.55 vs 0.59). El objetivo estilo min-logprob no transfiere
+(contra la validación externa Nemotron). `contrcov` queda moot — no
+hay efecto que aislar. (2) **number = techo estructural CONFIRMADO**
+(plan §4 paso 4): cobertura 98% + hinge + steps → 0.33 dev / 0.394
+holdout idéntico al backbone. Se declara techo: no es cobertura ni
+objetivo, es binding de valor; se deja de invertir. (3) **dev-holdout
+divergen**: dev L3 +0.8pt pero holdout plano — el dev n=475 vende
+mejoras que no generalizan; lo único que cruzó el árbitro fue negación
+(+9pt holdout). (4) El estado del GA: EMA + más steps da migajas.
+(5) Criterio de parada §4: G10 es la **1ª generación sin movimiento
+en holdout** (0.6191→0.6197). Único gen de datos pendiente:
+`hneg-data` (knn_edges verificados) — si G11 tampoco mueve el holdout,
+cerrar GA y escribir el mapa como negativo-controlado.
+
 ## 4. Ruta más allá de G9 — revisada con lecciones Nemotron (17-09)
 
 Estudio completo: `docs/NEMOTRON-LECCIONES.md`. Tres lecciones medidas
