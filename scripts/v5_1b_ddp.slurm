@@ -40,13 +40,17 @@ NTASKS=${SLURM_NTASKS:-3}
 mkdir -p "$OUT" "$BASE/logs"
 
 # --- auto-adaptacion por VRAM (env override gana) ---
-VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1 | tr -dc '0-9')
+# NB: sin `head` — con pipefail, head cierra el pipe y nvidia-smi muere por
+# SIGPIPE (141) de forma aleatoria. sed/awk leen todo el input.
+VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | sed -n '1p' | tr -dc '0-9')
 VRAM_MIB=${VRAM_MIB:-0}
-GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "?")
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | sed -n '1p' || echo "?")
 if [ "${VRAM_MIB:-0}" -ge 40000 ]; then
     BATCH=${BATCH:-4}; ACCUM=${ACCUM:-1}; CKPT_FLAG=${CKPT_FLAG:-}; ZERO_FLAG=${ZERO_FLAG:-}
+    EMA_ARGS=${EMA_ARGS:---ema_device cuda}   # EMA en GPU: en CPU cuesta ~25s/step (1.1B params)
 else
     BATCH=${BATCH:-1}; ACCUM=${ACCUM:-4}; CKPT_FLAG=${CKPT_FLAG:---grad_ckpt}; ZERO_FLAG=${ZERO_FLAG:---zero1}
+    EMA_ARGS=${EMA_ARGS:---ema_device cpu --ema_every 8}  # q6000 no cabe EMA-GPU; amortizar 8x
 fi
 # batch efectivo constante: NTASKS*BATCH*ACCUM*768 tok/step en todas las islas
 
@@ -92,7 +96,7 @@ srun --export=ALL -n "$NTASKS" /usr/bin/apptainer exec --nv \
         --mask_schedule_args '{"b_l":0.30,"b_h":0.99}' \
         --curriculum --candidate_focus 1.0 \
         --ema_decay 0.999 --ckpt_every 500 \
-        $CKPT_FLAG $ZERO_FLAG \
+        $CKPT_FLAG $ZERO_FLAG $EMA_ARGS \
         --max_steps "$TARGET_STEPS" &
 SRUN_PID=$!
 set +e; wait "$SRUN_PID"; TRAIN_X=$?; set -e

@@ -78,6 +78,13 @@ def parse():
                    help="max norm para clip_grad_norm (0=desactivado)")
     p.add_argument("--ema_decay", type=float, default=0.0,
                    help="decay para EMA de pesos (0=desactivado, tipico 0.9999)")
+    p.add_argument("--ema_device", type=str, default="cpu",
+                   choices=["cpu", "cuda"],
+                   help="device del state_dict EMA: cpu (lento, ~30s/step en 1B) "
+                        "o cuda (requiere ~4.5GB libres por rank)")
+    p.add_argument("--ema_every", type=int, default=1,
+                   help="actualizar EMA cada N steps (decay efectivo beta^N, "
+                        "misma escala temporal); amortigua el costo en CPU")
     p.add_argument("--weight_tying", action="store_true",
                    help="compartir pesos tok_emb -> head")
     p.add_argument("--use_rope", action="store_true",
@@ -1254,10 +1261,10 @@ def _save_checkpoint_locked(tag):
     torch.save({"optimizer": glob_opt.state_dict()}, tmp_o)
     os.replace(tmp_m, ckpt/"model.pt")
     os.replace(tmp_o, ckpt/"optimizer.pt")
-    # EMA
+    # EMA (a cpu para que el ckpt sea portable cpu/gpu)
     if glob_ema_sd[0] is not None:
         tmp_e = ckpt/f"ema_model.pt.tmp.{pid}"
-        torch.save({"ema_model": glob_ema_sd[0]}, tmp_e)
+        torch.save({"ema_model": {k: v.detach().to("cpu") for k, v in glob_ema_sd[0].items()}}, tmp_e)
         os.replace(tmp_e, ckpt/"ema_model.pt")
     (OUT/"state.json").write_text(json.dumps(
         {"step": g, "checkpoint": f"checkpoint-g{g}", "updated": time.time()}))
@@ -1274,11 +1281,14 @@ def _save_checkpoint_locked(tag):
         shutil.rmtree(f, ignore_errors=True)
     log(f"  checkpoint g{g} guardado")
 
+def _ema_dev():
+    return DEVICE if (ARGS.ema_device == "cuda" and torch.cuda.is_available()) else "cpu"
+
 def _init_ema_state():
     if ARGS.ema_decay > 0 and glob_ema_sd[0] is None:
         m = glob_model.module if isinstance(glob_model, torch.nn.parallel.DistributedDataParallel) else glob_model
-        glob_ema_sd[0] = {k: v.detach().to("cpu") for k, v in m.state_dict().items()}
-        log("  EMA inicializada desde modelo")
+        glob_ema_sd[0] = {k: v.detach().clone().to(_ema_dev()) for k, v in m.state_dict().items()}
+        log(f"  EMA inicializada desde modelo (dev={_ema_dev()})")
 
 
 def _try_load(ck, step):
@@ -1290,7 +1300,8 @@ def _try_load(ck, step):
         glob_opt.load_state_dict(torch.load(ck/"optimizer.pt", map_location="cpu")["optimizer"])
         # EMA
         if (ck/"ema_model.pt").exists():
-            glob_ema_sd[0] = torch.load(ck/"ema_model.pt", map_location="cpu")["ema_model"]
+            glob_ema_sd[0] = {k: v.to(_ema_dev()) for k, v in
+                              torch.load(ck/"ema_model.pt", map_location="cpu")["ema_model"].items()}
             log("  EMA cargada")
         else:
             _init_ema_state()
@@ -1498,16 +1509,16 @@ def main():
     def _init_ema():
         if ARGS.ema_decay > 0 and glob_ema_sd[0] is None:
             m = getattr(glob_model, "module", glob_model)
-            glob_ema_sd[0] = {k: v.detach().to("cpu") for k, v in m.state_dict().items()}
+            glob_ema_sd[0] = {k: v.detach().clone().to(_ema_dev()) for k, v in m.state_dict().items()}
 
-    def _update_ema():
-        if glob_ema_sd[0] is None:
+    def _update_ema(step):
+        if glob_ema_sd[0] is None or (step + 1) % ARGS.ema_every != 0:
             return
         m = getattr(glob_model, "module", glob_model)
         sd = m.state_dict()
-        beta = ARGS.ema_decay
-        for k in glob_ema_sd[0]:
-            glob_ema_sd[0][k] = (beta * glob_ema_sd[0][k] + (1 - beta) * sd[k].detach().to("cpu")).to("cpu")
+        beta = ARGS.ema_decay ** ARGS.ema_every  # misma escala temporal
+        for k, ev in glob_ema_sd[0].items():
+            ev.mul_(beta).add_(sd[k].detach().to(ev.device), alpha=1.0 - beta)
 
     def _log_config():
         cfg = {
@@ -1663,7 +1674,7 @@ def main():
             if ARGS.grad_clip > 0:
                 torch.nn.utils.clip_grad_norm_(glob_model.parameters(), ARGS.grad_clip)
             glob_opt.step(); glob_opt.zero_grad(set_to_none=True)
-            _update_ema()
+            _update_ema(step)
         LAST_LOSS[0] = loss.item(); STEPS_DONE[0] = step+1
         if ddp: torch.distributed.barrier()
         if (not ddp or rank==0) and step % 10 == 0: log(f"step {step} loss {loss.item():.4f}")
