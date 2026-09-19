@@ -8,6 +8,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:3
 #SBATCH --constraint="q6000|a100|l40|a40|q8000|pro6000"
+#SBATCH --prefer="l40|a40|q8000|pro6000|a100"
 #SBATCH --mem=170G
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/v5_1b_%j.out
@@ -20,6 +21,8 @@
 #
 # FLOTA FLEXIBLE: constraint+gres=gpu:3 aterriza en CUALQUIER isla NVIDIA
 # >=3 GPUs (q6000x3/4, a100x3, l40x4, a40x4; excluye mi210=AMD y v100<3GPU).
+# --prefer = plan aprobado: islas rapidas (l40/a40 ~9.7K tok/s) primero,
+# q6000 (~3.5K tok/s) como pool de respaldo continuo cuando esten ocupadas.
 # Auto-adapta al VRAM: >=40GB -> bs4 accum1 (sin ckpt/zero1);
 # <40GB (q6000) -> bs1 accum4 + grad_ckpt + --zero1 (opt shardado /N).
 # El optimizer.pt consolidado ZeRO es formato estandar -> las olas pueden
