@@ -71,6 +71,7 @@ finalize() {
     fi
 }
 handle_signal() {
+    SIGNAL_RECEIVED=1
     echo "=== SIGUSR1 $(date -u) — guardando ola ==="
     if [ -n "${SRUN_PID:-}" ] && kill -0 "$SRUN_PID"; then
         kill -USR1 "$SRUN_PID" 2>/dev/null || true
@@ -80,6 +81,76 @@ handle_signal() {
 }
 trap handle_signal USR1
 trap 'echo SIGTERM; exit 1' TERM
+
+# --- WATCHDOG (regla aprobada): si la ola cayo en isla lenta (<40GB), vigilar
+# islas rapidas durante WATCHDOG_SECS. Si una se desocupa -> USR1 al propio
+# batch -> path graceful (ckpt + exit 42 + resubmit) -> --prefer aterriza en
+# la isla rapida. Ventana solo al inicio: despues el AUTO_RESUBMIT natural.
+WATCHDOG_SECS=${WATCHDOG_SECS:-3600}
+WATCHDOG_POLL=${WATCHDOG_POLL:-120}
+FAST_GRES_RE="a100|l40|a40|q8000|pro6000"
+WATCHDOG_LOG="$OUT/watchdog.log"
+
+node_free_fast() {
+    # Recursos libres en un nodo: >=3 GPU, >=12 CPU, >=170G mem, estado usable
+    local line st cfg alloc cfg_gpu=0 alloc_gpu=0 cfg_cpu=0 alloc_cpu=0 cfg_mem=0 alloc_mem=0
+    line=$(scontrol show node -o "$1" 2>/dev/null) || return 1
+    st=$(echo "$line" | grep -oE "State=[A-Z_+]+" | cut -d= -f2)
+    case "$st" in
+        IDLE|MIXED|ALLOCATED) ;;
+        *) return 1;;   # DRAIN/DOWN/RESV/FAIL/PLANNED/etc
+    esac
+    cfg=$(echo "$line" | grep -oE "CfgTRES=[^ ]*"); alloc=$(echo "$line" | grep -oE "AllocTRES=[^ ]*")
+    cfg_gpu=$(echo "$cfg" | grep -oE "gres/gpu=[0-9]+" | cut -d= -f2); cfg_gpu=${cfg_gpu:-0}
+    alloc_gpu=$(echo "$alloc" | grep -oE "gres/gpu=[0-9]+" | cut -d= -f2); alloc_gpu=${alloc_gpu:-0}
+    cfg_cpu=$(echo "$cfg" | grep -oE "cpu=[0-9]+" | cut -d= -f2); cfg_cpu=${cfg_cpu:-0}
+    alloc_cpu=$(echo "$alloc" | grep -oE "cpu=[0-9]+" | cut -d= -f2); alloc_cpu=${alloc_cpu:-0}
+    cfg_mem=$(echo "$cfg" | grep -oE "mem=[0-9]+" | cut -d= -f2); cfg_mem=${cfg_mem:-0}
+    alloc_mem=$(echo "$alloc" | grep -oE "mem=[0-9]+" | cut -d= -f2); alloc_mem=${alloc_mem:-0}
+    [ $((cfg_gpu - alloc_gpu)) -ge 3 ] && [ $((cfg_cpu - alloc_cpu)) -ge 12 ] && \
+        [ $((cfg_mem - alloc_mem)) -ge 170000 ]
+}
+
+probe_startable() {
+    # Gate autoritativo: Slurm confirma que un job 3-GPU en isla rapida
+    # arrancaria ya (--test-only no encola, solo estima).
+    local out tstart now
+    out=$(sbatch --test-only --nodes=1 --ntasks=3 --ntasks-per-node=3 \
+        --cpus-per-task=4 --gres=gpu:3 --mem=170G --time=05:50:00 \
+        --partition=sixhour --constraint="$FAST_GRES_RE" \
+        --prefer="l40|a40|q8000|pro6000|a100" "$SCRIPTS/v5_1b_ddp.slurm" 2>&1)
+    tstart=$(echo "$out" | grep -oE "to start at [0-9T:-]+" | grep -oE "[0-9T:-]+" | tail -1)
+    if [ -z "$tstart" ]; then echo "watchdog probe: $out" >> "$WATCHDOG_LOG"; return 1; fi
+    now=$(date +%s); gap=$(( $(date -d "$tstart" +%s 2>/dev/null || echo 9999999999) - now ))
+    echo "watchdog probe: $1 start=${tstart} gap=${gap}s" >> "$WATCHDOG_LOG"
+    [ "$gap" -le 900 ]   # scheduler corre en bloques; <=15min = "arranca ya"
+}
+
+watchdog() {
+    [ "${VRAM_MIB:-0}" -ge 40000 ] && return 0   # ya en isla rapida
+    command -v scontrol >/dev/null || { echo "watchdog: scontrol no disponible" >> "$WATCHDOG_LOG"; return 0; }
+    echo "[$(date)] watchdog ON: isla lenta (${GPU_NAME:-?}), ventana ${WATCHDOG_SECS}s" >> "$WATCHDOG_LOG"
+    local deadline=$(( $(date +%s) + WATCHDOG_SECS )) node n g cand
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep "$WATCHDOG_POLL"
+        kill -0 "$SRUN_PID" 2>/dev/null || return 0   # srun ya salio
+        cand=""
+        while read -r n g; do
+            [ -z "$n" ] && continue
+            case "$g" in *a100*|*l40*|*a40*|*pro6000*|*q8000*) ;; *) continue;; esac
+            if node_free_fast "$n" && probe_startable "$n"; then cand=$n; break; fi
+        done <<EOF
+$(sinfo -N -h -t idle,mixed -o "%N %G" 2>/dev/null)
+EOF
+        if [ -n "$cand" ]; then
+            echo "[$(date)] WATCHDOG: isla rapida libre ($cand) — moviendo ola" >> "$WATCHDOG_LOG"
+            echo "[$(date)] WATCHDOG: isla rapida libre ($cand) — ckpt + resubmit"
+            kill -USR1 $$
+            return 0
+        fi
+    done
+    echo "[$(date)] watchdog OFF: ventana cerrada, ola continua en isla lenta" >> "$WATCHDOG_LOG"
+}
 
 export MASTER_ADDR=$(hostname)
 export MASTER_PORT=29517
@@ -102,7 +173,10 @@ srun --export=ALL -n "$NTASKS" /usr/bin/apptainer exec --nv \
         $CKPT_FLAG $ZERO_FLAG $EMA_ARGS \
         --max_steps "$TARGET_STEPS" &
 SRUN_PID=$!
+watchdog &   # solo actua si VRAM<40GB; vigila islas rapidas la 1a hora
+WD_PID=$!
 set +e; wait "$SRUN_PID"; TRAIN_X=$?; set -e
+kill "$WD_PID" 2>/dev/null || true
 echo "=== srun exit $TRAIN_X ==="
 case "$TRAIN_X" in
     0) echo "COMPLETE" > "$FLAG"; exit 0;;
