@@ -40,6 +40,10 @@ TARGET_STEPS=${TARGET_STEPS:-1300000}
 AUTO_RESUBMIT=${AUTO_RESUBMIT:-1}
 N_EXPERTS=${N_EXPERTS:-16}
 NTASKS=${SLURM_NTASKS:-3}
+# Forma de la ola (persistida via export en resubmits; el watchdog la puede
+# cambiar escribiendo $OUT/.wd_shape antes del resubmit graceful):
+SHAPE_N=${SHAPE_N:-$NTASKS}
+SHAPE_G=${SHAPE_G:-gpu:$NTASKS}
 mkdir -p "$OUT" "$BASE/logs"
 
 # --- auto-adaptacion por VRAM (env override gana) ---
@@ -48,11 +52,13 @@ mkdir -p "$OUT" "$BASE/logs"
 VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | sed -n '1p' | tr -dc '0-9')
 VRAM_MIB=${VRAM_MIB:-0}
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | sed -n '1p' || echo "?")
+# batch efectivo constante 12*NTASKS*768 tok/step en todas las islas/formas
+PW=$((12 / NTASKS)); [ "$PW" -lt 1 ] && PW=1
 if [ "${VRAM_MIB:-0}" -ge 40000 ]; then
-    BATCH=${BATCH:-4}; ACCUM=${ACCUM:-1}; CKPT_FLAG=${CKPT_FLAG:-}; ZERO_FLAG=${ZERO_FLAG:-}
+    BATCH=${BATCH:-$PW}; ACCUM=${ACCUM:-1}; CKPT_FLAG=${CKPT_FLAG:-}; ZERO_FLAG=${ZERO_FLAG:-}
     EMA_ARGS=${EMA_ARGS:---ema_device cuda}   # EMA en GPU: en CPU cuesta ~25s/step (1.1B params)
 else
-    BATCH=${BATCH:-1}; ACCUM=${ACCUM:-4}; CKPT_FLAG=${CKPT_FLAG:---grad_ckpt}; ZERO_FLAG=${ZERO_FLAG:---zero1}
+    BATCH=${BATCH:-1}; ACCUM=${ACCUM:-$PW}; CKPT_FLAG=${CKPT_FLAG:---grad_ckpt}; ZERO_FLAG=${ZERO_FLAG:---zero1}
     EMA_ARGS=${EMA_ARGS:---ema_device cpu --ema_every 8}  # q6000 no cabe EMA-GPU; amortizar 8x
 fi
 # batch efectivo constante: NTASKS*BATCH*ACCUM*768 tok/step en todas las islas
@@ -65,8 +71,14 @@ finalize() {
     FINALIZED=1
     if [ -f "$FLAG" ]; then echo "complete"; cat "$FLAG"; exit 0; fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
-        echo "relanzando ola $WAVE_ID..."
-        sbatch --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS" \
+        local sn=$SHAPE_N sg=$SHAPE_G
+        if [ -f "$OUT/.wd_shape" ]; then
+            sn=$(cat "$OUT/.wd_shape" 2>/dev/null); rm -f "$OUT/.wd_shape"
+            sg="gpu:$sn"; echo "watchdog pidio cambio de forma -> ntasks=$sn"
+        fi
+        echo "relanzando ola $WAVE_ID (ntasks=$sn gres=$sg)..."
+        sbatch --ntasks="$sn" --ntasks-per-node="$sn" --gres="$sg" \
+            --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS,SHAPE_N=$sn,SHAPE_G=$sg" \
             "$SCRIPTS/v5_1b_ddp.slurm" 2>/dev/null || true
     fi
 }
@@ -92,7 +104,7 @@ FAST_GRES_RE="a100|l40|a40|q8000|pro6000"
 WATCHDOG_LOG="$OUT/watchdog.log"
 
 node_free_fast() {
-    # Recursos libres en un nodo: >=3 GPU, >=12 CPU, >=170G mem, estado usable
+    # $1=nodo $2=min GPUs libres. Tambien exige >=4 CPU por task y >=170G.
     local line st cfg alloc cfg_gpu=0 alloc_gpu=0 cfg_cpu=0 alloc_cpu=0 cfg_mem=0 alloc_mem=0
     line=$(scontrol show node -o "$1" 2>/dev/null) || return 1
     st=$(echo "$line" | grep -oE "State=[A-Z_+]+" | cut -d= -f2)
@@ -107,49 +119,60 @@ node_free_fast() {
     alloc_cpu=$(echo "$alloc" | grep -oE "cpu=[0-9]+" | cut -d= -f2); alloc_cpu=${alloc_cpu:-0}
     cfg_mem=$(echo "$cfg" | grep -oE "mem=[0-9]+" | cut -d= -f2); cfg_mem=${cfg_mem:-0}
     alloc_mem=$(echo "$alloc" | grep -oE "mem=[0-9]+" | cut -d= -f2); alloc_mem=${alloc_mem:-0}
-    [ $((cfg_gpu - alloc_gpu)) -ge 3 ] && [ $((cfg_cpu - alloc_cpu)) -ge 12 ] && \
+    [ $((cfg_gpu - alloc_gpu)) -ge "$2" ] && [ $((cfg_cpu - alloc_cpu)) -ge $((4 * $2)) ] && \
         [ $((cfg_mem - alloc_mem)) -ge 170000 ]
 }
 
 probe_startable() {
-    # Gate autoritativo: Slurm confirma que un job 3-GPU en isla rapida
-    # arrancaria ya (--test-only no encola, solo estima).
-    local out tstart now
-    out=$(sbatch --test-only --nodes=1 --ntasks=3 --ntasks-per-node=3 \
-        --cpus-per-task=4 --gres=gpu:3 --mem=170G --time=05:50:00 \
+    # $1 = ntasks de la forma a probar. Gate autoritativo: Slurm confirma
+    # que un job en isla rapida arrancaria ya (--test-only solo estima).
+    local nt=${1:-3} out tstart now gap
+    out=$(sbatch --test-only --nodes=1 --ntasks=$nt --ntasks-per-node=$nt \
+        --cpus-per-task=4 --gres=gpu:$nt --mem=170G --time=05:50:00 \
         --partition=sixhour --constraint="$FAST_GRES_RE" \
         --prefer="l40|a40|q8000|pro6000|a100" "$SCRIPTS/v5_1b_ddp.slurm" 2>&1)
     tstart=$(echo "$out" | grep -oE "to start at [0-9T:-]+" | grep -oE "[0-9T:-]+" | tail -1)
-    if [ -z "$tstart" ]; then echo "watchdog probe: $out" >> "$WATCHDOG_LOG"; return 1; fi
+    if [ -z "$tstart" ]; then echo "watchdog probe(nt=$nt): $out" >> "$WATCHDOG_LOG"; return 1; fi
     now=$(date +%s); gap=$(( $(date -d "$tstart" +%s 2>/dev/null || echo 9999999999) - now ))
-    echo "watchdog probe: $1 start=${tstart} gap=${gap}s" >> "$WATCHDOG_LOG"
-    [ "$gap" -le 900 ]   # scheduler corre en bloques; <=15min = "arranca ya"
+    echo "watchdog probe(nt=$nt): start=${tstart} gap=${gap}s" >> "$WATCHDOG_LOG"
+    [ "$gap" -le 5400 ]  # scheduler estima en bloques ~25min; <=1.5h = "arranca ya"
+}
+
+scan_island() {
+    # $1 = min GPUs libres. Eco del 1er nodo rapido con recursos suficientes.
+    local need=$1 n g
+    while read -r n g; do
+        [ -z "$n" ] && continue
+        case "$g" in *a100*|*l40*|*a40*|*pro6000*|*q8000*) ;; *) continue;; esac
+        node_free_fast "$n" "$need" && { echo "$n"; return 0; }
+    done <<EOF
+$(sinfo -N -h -t idle,mixed -o "%N %G" 2>/dev/null)
+EOF
+    return 1
 }
 
 watchdog() {
-    [ "${VRAM_MIB:-0}" -ge 40000 ] && return 0   # ya en isla rapida
+    # Activo si: isla lenta (VRAM<40G) O forma degradada (NTASKS<3 en rapida,
+    # p.ej. 2xpro6000) — entonces vigila upgrade a isla de 3 GPUs.
+    local slow=0; [ "${VRAM_MIB:-0}" -lt 40000 ] && slow=1
+    { [ "$slow" = 1 ] || [ "$NTASKS" -lt 3 ]; } || return 0
     command -v scontrol >/dev/null || { echo "watchdog: scontrol no disponible" >> "$WATCHDOG_LOG"; return 0; }
-    echo "[$(date)] watchdog ON: isla lenta (${GPU_NAME:-?}), ventana ${WATCHDOG_SECS}s" >> "$WATCHDOG_LOG"
-    local deadline=$(( $(date +%s) + WATCHDOG_SECS )) node n g cand
+    echo "[$(date)] watchdog ON: gpu=${GPU_NAME:-?} vram=${VRAM_MIB} ntasks=$NTASKS slow=$slow ventana=${WATCHDOG_SECS}s" >> "$WATCHDOG_LOG"
+    local deadline=$(( $(date +%s) + WATCHDOG_SECS )) mv="" n3 n2
     while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep "$WATCHDOG_POLL"
         kill -0 "$SRUN_PID" 2>/dev/null || return 0   # srun ya salio
-        cand=""
-        while read -r n g; do
-            [ -z "$n" ] && continue
-            case "$g" in *a100*|*l40*|*a40*|*pro6000*|*q8000*) ;; *) continue;; esac
-            if node_free_fast "$n" && probe_startable "$n"; then cand=$n; break; fi
-        done <<EOF
-$(sinfo -N -h -t idle,mixed -o "%N %G" 2>/dev/null)
-EOF
-        if [ -n "$cand" ]; then
-            echo "[$(date)] WATCHDOG: isla rapida libre ($cand) — moviendo ola" >> "$WATCHDOG_LOG"
-            echo "[$(date)] WATCHDOG: isla rapida libre ($cand) — ckpt + resubmit"
+        mv=""
+        if n3=$(scan_island 3) && probe_startable 3; then mv=3
+        elif [ "$slow" = 1 ] && n2=$(scan_island 2) && probe_startable 2; then mv=2; fi
+        if [ -n "$mv" ]; then
+            echo "$mv" > "$OUT/.wd_shape"
+            echo "[$(date)] WATCHDOG: isla rapida libre (${n3:-$n2}) -> ola de $mv ranks, ckpt+resubmit" | tee -a "$WATCHDOG_LOG"
             kill -USR1 $$
             return 0
         fi
     done
-    echo "[$(date)] watchdog OFF: ventana cerrada, ola continua en isla lenta" >> "$WATCHDOG_LOG"
+    echo "[$(date)] watchdog OFF: ventana cerrada" >> "$WATCHDOG_LOG"
 }
 
 export MASTER_ADDR=$(hostname)
