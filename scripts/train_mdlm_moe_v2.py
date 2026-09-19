@@ -437,6 +437,23 @@ def build_batches():
         VB = tok.vocab_size
         if ARGS.data_cache.endswith(".npz"):
             # NUEVO v2: packing con EOS y longitudes por documento
+            # Corpus grande: preferir <cache>.ids.npy crudo -> np.load(mmap)
+            # comparte page cache entre ranks (~46GB total, no por rank).
+            raw_ids = ARGS.data_cache + ".ids.npy"
+            if os.path.exists(raw_ids):
+                arr = np.load(raw_ids, mmap_mode="r")  # int32 memmap
+                if int(arr[:50_000_000].max()) >= VB:
+                    log(f"GUARDIA: tokens >= vocab({VB}) en head -> clamp a 0")
+                all_ids = torch.from_numpy(np.ascontiguousarray(arr)) \
+                    if not arr.flags["C_CONTIGUOUS"] else torch.from_numpy(arr)
+                b = ARGS.batch_size
+                n = (arr.shape[0] // (b * ARGS.seq_len)) * (b * ARGS.seq_len)
+                buf = all_ids[:n].view(b, -1)
+                batches = [buf[:, i*ARGS.seq_len:(i+1)*ARGS.seq_len]
+                           for i in range(buf.size(1)//ARGS.seq_len)]
+                log(f"cache ids.npy (memmap int32): {arr.shape[0]/1e9:.2f}B tokens, "
+                    f"{len(batches)} batches ({time.time()-t0:.1f}s)")
+                return tok, batches
             npz = np.load(ARGS.data_cache)
             arr = npz["ids"]
             lengths = npz["lengths"]
@@ -445,10 +462,24 @@ def build_batches():
                 nbad = int((arr >= VB).sum())
                 log(f"GUARDIA: {nbad} tokens >= vocab({VB}) -> clamp a 0")
                 arr = np.where(arr >= VB, 0, arr)
-            all_ids = arr.astype(np.int64)
             if eos_id >= VB:
                 log(f"GUARDIA: eos_id({eos_id}) >= vocab({VB}) -> reemplazar por 0")
                 eos_id = 0
+            if arr.size > 500_000_000:
+                # corpus grande sin .ids.npy: vistas int32 del array plano
+                # (docs ya llevan EOS dentro; ~46GB/rank en vez de ~700GB del
+                # pack por listas Python). Buffers por columna = cada fila del
+                # batch lee una region distinta del corpus.
+                all_ids = torch.from_numpy(arr)  # int32, sin copia int64
+                b = ARGS.batch_size
+                n = (arr.size // (b * ARGS.seq_len)) * (b * ARGS.seq_len)
+                buf = all_ids[:n].view(b, -1)
+                batches = [buf[:, i*ARGS.seq_len:(i+1)*ARGS.seq_len]
+                           for i in range(buf.size(1)//ARGS.seq_len)]
+                log(f"cache npz (vista int32): {arr.size/1e9:.2f}B tokens, "
+                    f"{len(batches)} batches ({time.time()-t0:.1f}s)")
+                return tok, batches
+            all_ids = arr.astype(np.int64)
             batches = _pack_with_eos(all_ids, lengths, eos_id, ARGS.batch_size, ARGS.seq_len)
             # re-clamp tras packing por si el npz contenía tokens fuera de rango
             for b in batches:
@@ -1521,7 +1552,7 @@ def main():
         log(f"mras on: gamma={ARGS.mras_gamma} ema={ARGS.mras_ema} "
             f"floor={ARGS.mras_floor}")
     for step in range(STEPS_DONE[0], ARGS.max_steps):
-        xb = batches[it % nb].to(DEVICE); it += 1
+        xb = batches[it % nb].to(DEVICE).long(); it += 1
         B, T = xb.shape
         # scores semanticos por token (cacheados); solo se calculan con --role_mask
         role_scores = None

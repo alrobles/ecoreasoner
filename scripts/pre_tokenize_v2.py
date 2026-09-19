@@ -13,7 +13,7 @@ Uso:
   python3 pre_tokenize_v2.py --input data/train_skeleton.jsonl \
       --tokenizer <dir> --out data/train_ids_skeleton_v2.npz [--workers 16]
 """
-import argparse, json, os, time
+import argparse, json, os, shutil, time
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -175,8 +175,10 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     np.savez(args.out, ids=arr, lengths=lengths, vocab_size=int(vocab),
              eos_id=int(eos_id))
-    # limpia las partes (quedan solo el npz + meta)
-    import shutil
+    # conserva los .npy crudos (memmap-friendly): el trainer los prefiere para
+    # caches grandes (page cache compartida entre ranks DDP en el mismo nodo)
+    os.replace(ids_npy, args.out + ".ids.npy")
+    os.replace(ln_npy, args.out + ".lengths.npy")
     shutil.rmtree(parts_dir, ignore_errors=True)
 
     meta = {

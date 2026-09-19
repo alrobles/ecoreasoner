@@ -40,7 +40,8 @@ NTASKS=${SLURM_NTASKS:-3}
 mkdir -p "$OUT" "$BASE/logs"
 
 # --- auto-adaptacion por VRAM (env override gana) ---
-VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo 0)
+VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1 | tr -dc '0-9')
+VRAM_MIB=${VRAM_MIB:-0}
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "?")
 if [ "${VRAM_MIB:-0}" -ge 40000 ]; then
     BATCH=${BATCH:-4}; ACCUM=${ACCUM:-1}; CKPT_FLAG=${CKPT_FLAG:-}; ZERO_FLAG=${ZERO_FLAG:-}
