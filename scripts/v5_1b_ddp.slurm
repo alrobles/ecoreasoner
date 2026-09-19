@@ -33,6 +33,7 @@ TARGET_STEPS=${TARGET_STEPS:-600000}
 AUTO_RESUBMIT=${AUTO_RESUBMIT:-1}
 BATCH=${BATCH:-1}
 ACCUM=${ACCUM:-4}
+N_EXPERTS=${N_EXPERTS:-16}
 NTASKS=${SLURM_NTASKS:-4}
 mkdir -p "$OUT" "$BASE/logs"
 
@@ -45,7 +46,7 @@ finalize() {
     if [ -f "$FLAG" ]; then echo "complete"; cat "$FLAG"; exit 0; fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "relanzando ola $WAVE_ID..."
-        sbatch --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,BATCH=$BATCH,ACCUM=$ACCUM" \
+        sbatch --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,BATCH=$BATCH,ACCUM=$ACCUM,N_EXPERTS=$N_EXPERTS" \
             "$SCRIPTS/v5_1b_ddp.slurm" 2>/dev/null || true
     fi
 }
@@ -71,13 +72,13 @@ srun --export=ALL -n "$NTASKS" /usr/bin/apptainer exec --nv \
     "$SIF" python3 "$SCRIPTS/train_mdlm_moe_v2.py" \
         --data dummy --data_cache "$DATA_CACHE" --output "$OUT" \
         --hidden 768 --layers 12 --heads 12 \
-        --n_experts 16 --expert_k 1 --ff_mult 4 \
+        --n_experts "$N_EXPERTS" --expert_k 1 --ff_mult 4 \
         --seq_len 768 --batch_size "$BATCH" --grad_accum "$ACCUM" \
         --lr 2e-4 --warmup 800 --lr_decay none \
         --mask_type random --mask_schedule uniform \
         --mask_schedule_args '{"b_l":0.30,"b_h":0.99}' \
         --curriculum --candidate_focus 1.0 \
-        --ema_decay 0.999 \
+        --ema_decay 0.999 --grad_ckpt \
         --max_steps "$TARGET_STEPS" &
 SRUN_PID=$!
 set +e; wait "$SRUN_PID"; TRAIN_X=$?; set -e

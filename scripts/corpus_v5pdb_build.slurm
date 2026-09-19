@@ -5,12 +5,14 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=24
-#SBATCH --mem=180G
+#SBATCH --mem=160G
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/cv5pdb_%j.out
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/cv5pdb_%j.err
 # Corpus v5 para el 1B: papers_db (EN, min 200 chars) + mix esqueletos
 # v4hneg -> corpus_v5_pdb.jsonl -> pretok --split-long -> train_ids_v5pdb.npz
 # --split-long preserva fulltexts en ventanas 768 (no trunca tokens).
+# PRETOK_ONLY=1: salta el build (corpus ya existe) y solo corre pretok.
+# El pretok vuelca ids a .npy parciales en disco -> RAM acotada (~workers*block).
 set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
 SIF=$BASE/pytorch-cuda.sif
@@ -22,10 +24,13 @@ NPZ=$BASE/data/train_ids_v5pdb.npz
 
 echo "[$(hostname)] corpus_v5_pdb build $(date -u)"
 
+if [ "${PRETOK_ONLY:-0}" != "1" ]; then
 # 1) filtrar papers_db EN + mezclar esqueletos
 python3 $BASE/scripts/build_papersdb_corpus.py \
   --db "$DB" --out "$OUT" --skel "$SKEL" --min-chars 200
+fi
 
+rm -rf "$NPZ.parts"
 # 2) pretokenize con ventanas (preserva tokens de fulltexts)
 apptainer exec "$SIF" python3 $BASE/scripts/pre_tokenize_v2.py \
   --input "$OUT" --tokenizer "$TOK" \

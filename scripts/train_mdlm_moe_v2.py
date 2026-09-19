@@ -157,6 +157,9 @@ def parse():
     p.add_argument("--tokenizer", default="/beegfs/a474r867/hf-cache/models--GSAI-ML--LLaDA-8B-Instruct/snapshots/08b83a6feb34df1a6011b80c3c00c7563e963b07")
     p.add_argument("--output", required=True)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--grad_ckpt", action="store_true",
+                   help="Activation checkpointing por bloque: recomputa activaciones "
+                        "en backward en vez de guardarlas (~-30%% memoria activ, ~+25%% step)")
     return p.parse_args()
 ARGS = parse()
 if ARGS.mask_schedule_args:
@@ -356,8 +359,10 @@ class MdLMMoE(nn.Module):
         h = self.tok_emb(ids)
         if not self.use_rope:
             h = h + self.pos(torch.arange(T, device=ids.device))
+        ckpt = getattr(self, "_grad_ckpt", False) and self.training
         for b in self.blocks:
-            h = b(h)
+            h = (torch.utils.checkpoint.checkpoint(b, h, use_reentrant=False)
+                 if ckpt else b(h))
         hidden = self.ln_f(h)
         logits = self.head(hidden)
         if output_hidden_states:
@@ -1381,6 +1386,9 @@ def main():
     ARGS.vocab = tok.vocab_size
     if rank==0: log(f"using vocab_size={ARGS.vocab} (from tokenizer)")
     glob_model = build_model().to(DEVICE)
+    glob_model._grad_ckpt = ARGS.grad_ckpt
+    if ARGS.grad_ckpt:
+        log("grad_ckpt ON: activaciones por bloque recomputadas en backward")
     nparam = glob_model.n_params()
     # active params ~ dense (attn/gate/emb) + activated expert weights (k/n_experts of MoE)
     if ARGS.n_experts > 1:
@@ -1397,7 +1405,8 @@ def main():
     else:
         active_n = nparam
         log(f"model: total={nparam/1e6:.1f}M (dense)")
-    glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr, weight_decay=0.01)
+    glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr, weight_decay=0.01,
+                                 fused=torch.cuda.is_available())
 
     def _set_lr(step):
         # WARMUP REAL (2026-09-08, auditoria 1.8) + cosine/WSD v2

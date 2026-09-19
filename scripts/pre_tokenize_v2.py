@@ -94,10 +94,22 @@ def main():
     args = ap.parse_args()
 
     t0 = time.time()
-    all_ids = []
-    all_lengths = []
     clipped = 0
     n_lines = 0
+    n_tok = 0
+    # Los IDs se vuelcan a .npy parciales en disco (una por bloque) en vez de
+    # acumular una lista de Python (~28B/int -> ~400GB para 15B tok).
+    parts_dir = args.out + ".parts"
+    os.makedirs(parts_dir, exist_ok=True)
+    blk_i = 0
+    def save_part(ids, lens):
+        nonlocal blk_i, n_tok
+        np.save(os.path.join(parts_dir, f"ids_{blk_i:05d}.npy"),
+                np.asarray(ids, dtype=np.int32))
+        np.save(os.path.join(parts_dir, f"lens_{blk_i:05d}.npy"),
+                np.asarray(lens, dtype=np.int32))
+        n_tok += len(ids)
+        blk_i += 1
     # streaming por bloques: el corpus puede ser ~40GB, no cabe en RAM entero
     with ProcessPoolExecutor(max_workers=args.workers) as ex, open(args.input) as f:
         pending = []
@@ -121,18 +133,35 @@ def main():
                 # drena los más viejos para acotar RAM
                 while len(pending) > args.workers * 2:
                     ids, lens, cl = pending.pop(0).result()
-                    all_ids.extend(ids); all_lengths.extend(lens); clipped += cl
+                    save_part(ids, lens); clipped += cl
                 print(f"[{time.strftime('%H:%M:%S')}] {n_lines} lineas, "
-                      f"{len(all_ids)/1e6:.0f}M tok acum", flush=True)
+                      f"{n_tok/1e6:.0f}M tok acum", flush=True)
         flush()
         for fu in pending:
             ids, lens, cl = fu.result()
-            all_ids.extend(ids); all_lengths.extend(lens); clipped += cl
+            save_part(ids, lens); clipped += cl
     print(f"[{time.strftime('%H:%M:%S')}] leidas {n_lines} lineas de {args.input}",
           flush=True)
 
-    arr = np.array(all_ids, dtype=np.int32)
-    lengths = np.array(all_lengths, dtype=np.int32)
+    # concatena partes via memmap (RAM acotada) -> ids.npy/lengths.npy finales
+    import glob as _glob
+    id_parts = sorted(_glob.glob(os.path.join(parts_dir, "ids_*.npy")))
+    ln_parts = sorted(_glob.glob(os.path.join(parts_dir, "lens_*.npy")))
+    def concat_parts(parts, dst):
+        total = sum(int(np.load(p, mmap_mode="r").shape[0]) for p in parts)
+        out = np.lib.format.open_memmap(dst, mode="w+", dtype=np.int32,
+                                        shape=(total,))
+        off = 0
+        for p in parts:
+            a = np.load(p, mmap_mode="r")
+            out[off:off + a.shape[0]] = a
+            off += a.shape[0]
+        out.flush()
+        return dst
+    ids_npy = concat_parts(id_parts, os.path.join(parts_dir, "_ids_final.npy"))
+    ln_npy = concat_parts(ln_parts, os.path.join(parts_dir, "_lens_final.npy"))
+    arr = np.load(ids_npy, mmap_mode="r")
+    lengths = np.load(ln_npy, mmap_mode="r")
 
     tok = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=True,
                                         local_files_only=True)
@@ -146,10 +175,13 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     np.savez(args.out, ids=arr, lengths=lengths, vocab_size=int(vocab),
              eos_id=int(eos_id))
+    # limpia las partes (quedan solo el npz + meta)
+    import shutil
+    shutil.rmtree(parts_dir, ignore_errors=True)
 
     meta = {
         "n_tokens": int(arr.size),
-        "n_docs_usable": len(lengths),
+        "n_docs_usable": int(lengths.shape[0]),
         "n_docs_clipped": int(clipped),
         "seq_len": args.seq_len,
         "vocab_size": tok.vocab_size,
