@@ -78,6 +78,18 @@ vía productiva, horizonte corto. Ver `docs/designs/ecoreasoner-Fase3-DESIGN-new
 ### Paper 1 (systems: entrenamiento heterogéneo + harness)—en paralelo
 ### Paper 2 (tesis desde-cero, positiva o negativa limpia)—[ ]
 
+### Backlog de arquitectura (trucos guardados — evaluar tras v5-1b)
+
+Decididos en conversación 2026-09-19. Ninguno aplica a la corrida en curso;
+candidatos para la siguiente iteración si v5-1b muestra señal sana.
+
+| truco | qué es | cuándo aplica |
+|---|---|---|
+| **DeepSeekMoE** | expertos finos + shared (ej. 32 top-2 + 1 shared en vez de 16 top-1). Mismo FLOPs/token, mejor especialización y menos redundancia | **aplica ya** — ~40 líneas en `mlp`/`experts` + flag. Variante `v5-1b-moefine` comparable contra la corrida base |
+| **MLA** (DeepSeek) | K,V comprimidos a latente low-rank (~512) con up-proj absorbida. Cache KV 5-10× menor | **NO aplica aún**: dLLM no decodifica secuencial → no hay KV cache que comprimir. Relevante solo si hacemos generación larga por bloques + cache de bloques congelados (ver abajo). Nota: sin RoPE la implementación es más limpia |
+| **KV-cache por bloques** (Fast-dLLM) | en generación semi-AR por bloques, cachear K/V de bloques ya revelados entre pasos de denoising | cuando generemos salidas >768 tok; acelera decode largo |
+| KV cache (recordatorio) | tamaño = 2·L·kv_heads·head_dim·bytes·seq·batch | solo existe en decode AR — en denoising cada paso recomputa todo el canvas |
+
 ---
 
 ## 2. RESULTADO del micro-sweep F0 (fuente de verdad: runs/index.jsonl + docs/results/MICRO-SWEEP-F0-RESULTADOS.md)
