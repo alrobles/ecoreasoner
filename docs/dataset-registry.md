@@ -63,8 +63,15 @@ registro; la ruta puede cambiar si migramos de directorio, el código no.
 | `2_pretrain_3` | **corpus v3 activo** | v3 | 6.6G, 1,011,449 docs | ~1.7B tok | v2 + 1,728 EcoEvoRxiv; **≈ este es el que entrena** (Fase A 27324545) |
 | `2_ids_3` | `train_ids_v3.npy` | token-only | 1.4G, 363,234,015 tok | | **pre-tokenizado de 2_pretrain_3** (evita re-tokenizar). usado por train_*.py `--data_cache` |
 | `2_ids_3_meta` | `train_ids_v3.npy.meta.json` | meta | | | metadata del npy (n_tokens, seq_len, vocab) |
+| `2_pretrain_4en` | `data/corpus_v4_en.jsonl` | v4en (activo GA G8-G11) | 1.0G, **306,614 docs** | ~130M tok | corpus v3_en + UNAM traducido (sin ES crudo — lección g8-c1). Esqueletos con etapas `[OBSERVACION]..[CONCLUSION]` |
+| `2_ids_4en` | `data/train_ids_v4en.npz` | token-only | 531M | | pretok de `2_pretrain_4en` (`pre_tokenize_v2.py`, seq 768, ids+lengths+eos) |
+| `2_hneg_pairs` | `data/hneg_pairs.jsonl` | aux gen-G11 | 70M, **20,444 docs** | | pair-docs minados de `emb_v1/audit_skeleton_v2/knn_edges.tsv` (sim≥0.93 dedup, diff mutable verificado, ≤768 tok/doc; `build_hneg_pairs.py`) |
+| `2_pretrain_4hneg` | `data/corpus_v4hneg.jsonl` | v4hneg (exp. G11) | 1.08G, **327,058 docs** | 132.5M tok | `2_pretrain_4en` + `2_hneg_pairs` |
+| `2_ids_4hneg` | `data/train_ids_v4hneg.npz` | token-only | 531M, 132,540,055 tok | | pretok de `2_pretrain_4hneg`, 0 docs clipped, eos_id=0 |
 
-- **Regla**: `2_pretrain_3` es el corpus de pretrain **actual**; `2_ids_3` es su tokenización **única**. Las cadenas de Fase B y E usan estos nombres.
+- **Regla**: `2_pretrain_3` fue el corpus Fase A; el GA evolutivo (G8+) entrena
+  sobre `2_pretrain_4en`/`2_ids_4en`. `2_pretrain_4hneg` es el corpus del
+  experimento G11 (último gen de datos). Las cadenas de Fase B y E usan estos nombres.
 
 ### ETAPA 3 — DESTILACIÓN (input de Fase B/C)
 

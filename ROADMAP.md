@@ -782,6 +782,28 @@ Estado al 18-09 ~10:00 UTC:**
    en holdout.** Tabla completa + lecturas: EVOG9-V5-DESIGN §3c.
    Pendiente decisión: `hneg-data` (knn_edges, único gen de datos) o
    cerrar GA como negativo-controlado si G11 tampoco mueve.
+4f. **G11 `hneg-data` — LANZADA (19-09 ~02:18 UTC, jobs
+   29908809-11)**. Diseño decidido tras auditar el grafo kNN
+   (`emb_v1/audit_skeleton_v2/knn_edges.tsv`, 4.79M edges, med 0.906):
+   los near-miss son papers del mismo tema con diffs extensos — los
+   minimal-pairs limpios a nivel frase/etapa dan ~0 bajo filtros
+   estrictos. Reinterpretación: **pair-docs** = dos esqueletos reales
+   vecinos concatenados en un solo doc de ≤768 tok, con ≥1 diff en
+   clase mutable verificada (Nemotron: sin fabricar negativos, ambos
+   argumentos reales en la misma ventana → el enmascarado debe ligar
+   cada valor a su propio contexto). Builder `build_hneg_pairs.py`:
+   edges sim≥0.93 dedup (152,308), docs con etapas parseadas, skip
+   len (112,685 = 74% pares fulltext largos), skip nomut (213),
+   max_per_doc=2 → **20,444 pair-docs** (18,388 num_diff 90% +
+   2,056 flip_only), todos lang=en/src=hneg_knn.
+   Corpus: `corpus_v4hneg.jsonl` = v4en 306,614 + hneg 20,444 =
+   327,058 docs → `train_ids_v4hneg.npz` 132.5M tok, 0 clipped
+   (`corpus_v4hneg_build.slurm`, job 29908615). Brazos (continuación
+   g10-ep3-s1@g23000 → 26000, EMA ON, idéntico cfg G10):
+   `g11-hneg-s1`/`g11-hneg-s2` sobre hneg, `g11-ep4-s1` control +steps
+   sobre v4en. Watcher `watch_g11_done.sh` local →
+   `data/G11_DONE.flag`. Si no mueve holdout → cerrar GA como
+   negativo-controlado y pivotar a L2 chat-SFT.
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).
