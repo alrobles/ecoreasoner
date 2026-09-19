@@ -3,23 +3,27 @@
 #SBATCH --partition=sixhour
 #SBATCH --time=05:50:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=4
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks=3
+#SBATCH --ntasks-per-node=3
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:q6000:4
+#SBATCH --gres=gpu:3
+#SBATCH --constraint="q6000|a100|l40|a40|q8000|pro6000"
 #SBATCH --mem=170G
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/v5_1b_%j.out
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/v5_1b_%j.err
 # V5-1B: pretrain DESDE CERO del MdLMMoE ~1.13B (768h/12L/16 expertos k=1,
-# ~285M activos) sobre train_ids_v5pdb.npz (papers_db EN ~10B tok +
-# mix esqueletos). DDP intra-nodo 4x q6000 (fp32 ~18GB/tarjeta: bs2 ok).
+# ~285M activos) sobre train_ids_v5pdb.npz (11.96B tok, 17.4M docs).
 # Receta = la campeona del GA: random+uniform b_l=0.30,b_h=0.99 +
 # curriculum + CF1.0 + EMA 0.999. Olas: SIGUSR1@300 + AUTO_RESUBMIT
 # (patron mdlm_retrain_v4: cada ola resume el ultimo checkpoint-gN).
 #
-# Para nodo a100/pro6000: cambiar gres a gpu:a100:3 o gpu:pro6000:2 +
-# ntasks acorde + BATCH=4. Para 2xq6000 PoC: ntasks=2, gres=gpu:q6000:2.
+# FLOTA FLEXIBLE: constraint+gres=gpu:3 aterriza en CUALQUIER isla NVIDIA
+# >=3 GPUs (q6000x3/4, a100x3, l40x4, a40x4; excluye mi210=AMD y v100<3GPU).
+# Auto-adapta al VRAM: >=40GB -> bs4 accum1 (sin ckpt/zero1);
+# <40GB (q6000) -> bs1 accum4 + grad_ckpt + --zero1 (opt shardado /N).
+# El optimizer.pt consolidado ZeRO es formato estandar -> las olas pueden
+# migrar entre configs sin romper resume.
 set -euo pipefail
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 BASE=/beegfs/a474r867/ecoreasoner
@@ -29,15 +33,23 @@ DATA_CACHE=${DATA_CACHE:-$BASE/data/train_ids_v5pdb.npz}
 OUT=${WAVE_OUT:-$BASE/runs/v5-1b}
 WAVE_ID=${WAVE_ID:-v5-1b}
 FLAG=$OUT/training_complete.flag
-TARGET_STEPS=${TARGET_STEPS:-600000}
+TARGET_STEPS=${TARGET_STEPS:-1300000}
 AUTO_RESUBMIT=${AUTO_RESUBMIT:-1}
-BATCH=${BATCH:-1}
-ACCUM=${ACCUM:-4}
 N_EXPERTS=${N_EXPERTS:-16}
-NTASKS=${SLURM_NTASKS:-4}
+NTASKS=${SLURM_NTASKS:-3}
 mkdir -p "$OUT" "$BASE/logs"
 
-echo "[$(date)] V5-1B $WAVE_ID DDP=$NTASKS (corpus=$DATA_CACHE, target=$TARGET_STEPS)"
+# --- auto-adaptacion por VRAM (env override gana) ---
+VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 || echo 0)
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "?")
+if [ "${VRAM_MIB:-0}" -ge 40000 ]; then
+    BATCH=${BATCH:-4}; ACCUM=${ACCUM:-1}; CKPT_FLAG=${CKPT_FLAG:-}; ZERO_FLAG=${ZERO_FLAG:-}
+else
+    BATCH=${BATCH:-1}; ACCUM=${ACCUM:-4}; CKPT_FLAG=${CKPT_FLAG:---grad_ckpt}; ZERO_FLAG=${ZERO_FLAG:---zero1}
+fi
+# batch efectivo constante: NTASKS*BATCH*ACCUM*768 tok/step en todas las islas
+
+echo "[$(date)] V5-1B $WAVE_ID DDP=$NTASKS gpu=$GPU_NAME vram=${VRAM_MIB}MiB bs=$BATCH acc=$ACCUM (corpus=$DATA_CACHE, target=$TARGET_STEPS)"
 
 FINALIZED=0
 finalize() {
@@ -46,7 +58,7 @@ finalize() {
     if [ -f "$FLAG" ]; then echo "complete"; cat "$FLAG"; exit 0; fi
     if [ "$AUTO_RESUBMIT" = "1" ]; then
         echo "relanzando ola $WAVE_ID..."
-        sbatch --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,BATCH=$BATCH,ACCUM=$ACCUM,N_EXPERTS=$N_EXPERTS" \
+        sbatch --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS" \
             "$SCRIPTS/v5_1b_ddp.slurm" 2>/dev/null || true
     fi
 }
@@ -78,7 +90,8 @@ srun --export=ALL -n "$NTASKS" /usr/bin/apptainer exec --nv \
         --mask_type random --mask_schedule uniform \
         --mask_schedule_args '{"b_l":0.30,"b_h":0.99}' \
         --curriculum --candidate_focus 1.0 \
-        --ema_decay 0.999 --grad_ckpt \
+        --ema_decay 0.999 --ckpt_every 500 \
+        $CKPT_FLAG $ZERO_FLAG \
         --max_steps "$TARGET_STEPS" &
 SRUN_PID=$!
 set +e; wait "$SRUN_PID"; TRAIN_X=$?; set -e

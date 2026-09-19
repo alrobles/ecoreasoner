@@ -160,6 +160,11 @@ def parse():
     p.add_argument("--grad_ckpt", action="store_true",
                    help="Activation checkpointing por bloque: recomputa activaciones "
                         "en backward en vez de guardarlas (~-30%% memoria activ, ~+25%% step)")
+    p.add_argument("--zero1", action="store_true",
+                   help="ZeRO-1: estados del optimizador shardados entre ranks DDP "
+                        "(memoria fija /world). Solo con ddp>1; mismo AdamW por dentro.")
+    p.add_argument("--ckpt_every", type=int, default=50,
+                   help="steps entre checkpoints (con zero1 el optimizer.pt pesa ~9GB)")
     return p.parse_args()
 ARGS = parse()
 if ARGS.mask_schedule_args:
@@ -1298,10 +1303,23 @@ def resume():
         if _try_load(ck, step):
             return
 
+def _consolidate_zero1():
+    """ZeRO-1: consolidate_state_dict es COLECTIVO (lo llaman TODOS los ranks;
+    solo rank0 escribe). Se llama tras zero_grad -> grads liberados y el gather
+    de ~9GB en rank0 cabe en la tarjeta."""
+    if hasattr(glob_opt, "consolidate_state_dict") and torch.distributed.is_initialized():
+        glob_opt.zero_grad(set_to_none=True)
+        glob_opt.consolidate_state_dict(to=0)
+
 def _handle_sig(sig, frm):
     log("SIGUSR1 — guardando ola y saliendo 42")
     r = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", "0")))
     w = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS", "1")))
+    if w > 1:
+        # todos los ranks reciben USR1 via srun -> todos consolidan
+        _consolidate_zero1()
+        if r != 0:
+            raise SystemExit(42)
     if w <= 1 or r == 0:
         # ANTI-REENTRADA (2026-09-08, auditoria 1.1): si USR1 llega mientras el
         # hilo principal esta dentro de _save_checkpoint (flock LOCK_EX tomado),
@@ -1405,8 +1423,25 @@ def main():
     else:
         active_n = nparam
         log(f"model: total={nparam/1e6:.1f}M (dense)")
-    glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr, weight_decay=0.01,
-                                 fused=torch.cuda.is_available())
+    if ARGS.zero1 and ddp and world > 1:
+        # ZeRO-1: estados AdamW shardados entre ranks (memoria fija /world).
+        # params+grads siguen replicados (DDP hace el allreduce de grads).
+        from torch.distributed.optim import ZeroRedundancyOptimizer
+        glob_opt = ZeroRedundancyOptimizer(
+            glob_model.parameters(), optimizer_class=torch.optim.AdamW,
+            lr=ARGS.lr, weight_decay=0.01,
+            parameters_as_bucket_view=True,
+            fused=torch.cuda.is_available())
+        log(f"optimizer: ZeroRedundancyOptimizer(AdamW) shardado en {world} ranks")
+    else:
+        glob_opt = torch.optim.AdamW(glob_model.parameters(), lr=ARGS.lr,
+                                     weight_decay=0.01,
+                                     fused=torch.cuda.is_available())
+
+    def _opt_groups():
+        # ZeroRed guarda los param_groups reales en el optimizador interno
+        o = getattr(glob_opt, "optim", glob_opt)
+        return o.param_groups
 
     def _set_lr(step):
         # WARMUP REAL (2026-09-08, auditoria 1.8) + cosine/WSD v2
@@ -1426,7 +1461,7 @@ def main():
                 lr = ARGS.lr_min_ratio * ARGS.lr + (1 - progress) * (ARGS.lr - ARGS.lr_min_ratio * ARGS.lr)
         else:
             lr = ARGS.lr
-        for g in glob_opt.param_groups:
+        for g in _opt_groups():
             g["lr"] = lr
 
     def _init_ema():
@@ -1601,7 +1636,10 @@ def main():
         LAST_LOSS[0] = loss.item(); STEPS_DONE[0] = step+1
         if ddp: torch.distributed.barrier()
         if (not ddp or rank==0) and step % 10 == 0: log(f"step {step} loss {loss.item():.4f}")
-        if (not ddp or rank==0) and step % 50 == 0: _save_checkpoint("step")
+        if step % ARGS.ckpt_every == 0:
+            _consolidate_zero1()          # colectivo: todos los ranks
+            if not ddp or rank==0: _save_checkpoint("step")
+    _consolidate_zero1()
     if not ddp or rank==0: _save_checkpoint("final")
     if ddp: torch.distributed.destroy_process_group()
     if not ddp or rank==0: log("COMPLETE")

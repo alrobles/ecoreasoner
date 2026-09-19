@@ -835,6 +835,25 @@ Estado al 18-09 ~10:00 UTC:**
    OOM en bs2; expandable_segments), lr 2e-4 w800 flat, EMA 0.999,
    TARGET 600K steps (~7B tok/pasada), olas AUTO_RESUBMIT. Alternativas:
    a100×3/nodo (bs4) o pro6000×2. ETA ~1-2 semanas encadenado.
+4i. **v5-1b LANZADO (19-09 ~09:42, job 29913343)**. Corpus final:
+   `train_ids_v5pdb.npz` **11.96B tok / 17,384,808 docs** (split-long:
+   3.44M lineas → ventanas 768), eos_id=0, 4,597 clipped (job 29913286;
+   pretok reescrito a .npy parciales en disco — la lista Python OOM-kill
+   a ~15B tok). Smokes 4×q6000 destaparon en cadena: EMA pre-DDP (fix
+   getattr), temporales foreach AdamW (fix fused=True), activaciones
+   backward (fix --grad_ckpt), y 1.13B fp32+AdamW (18GB fijos) no cabe
+   en q6000 → **--zero1: ZeroRedundancyOptimizer(AdamW) sharda estados
+   entre ranks** (~12.4GB fijos/rank, bs1+ckpt ~14GB). Consolidate es
+   colectivo (tras zero_grad, gather 9GB en rank0); optimizer.pt es
+   formato estandar → **resume cross-config y cross-world-size**
+   (verificado: ckpt de 4 ranks cargo en 3). **Flota flexible**: slurm
+   con gres=gpu:3 + constraint NVIDIA (excluye mi210=AMD/v100<3GPU)
+   aterriza en cualquier isla libre (q6000/a100/l40/a40/q8000/pro6000)
+   y auto-adapta por VRAM: ≥40GB→bs4 acc1 plano; <40GB→bs1 acc4
+   +ckpt+zero1. **Ola 1 aterrizo en 3×L40** (46GB). Batch efectivo
+   constante 9,216 tok/step en toda la flota. TARGET=1.3M steps
+   (~1 pasada de 12B tok); ETA ~4-6 dias si se sostienen islas grandes,
+   mas si cae a q6000 (~2K tok/s/isla).
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).
