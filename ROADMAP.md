@@ -804,6 +804,37 @@ Estado al 18-09 ~10:00 UTC:**
    sobre v4en. Watcher `watch_g11_done.sh` local →
    `data/G11_DONE.flag`. Si no mueve holdout → cerrar GA como
    negativo-controlado y pivotar a L2 chat-SFT.
+4g. **G11 — RESULTADO (19-09): hneg-data ~plano, GA CERRADO.**
+   Dev: control `g11-ep4-s1` FIT 0.5015 (L3 0.657/num 0.346/neg 0.721)
+   vs hneg×2 FIT 0.4919 (L3 0.647/num 0.337/neg 0.791). **Holdout_clean
+   (n=1767): hneg-s1 L3 0.622 > ep4-s1 L3 0.612 (+1pt)** — invierte el
+   orden del dev pero dentro del ruido; número sin mover (techo binding
+   declarado en G10 se sostiene). Lectura: los pair-docs dan una señal
+   débil que no rompe el techo → **GA cerrado como negativo-controlado**
+   (2 genes seguidos sin movimiento real en holdout: hinge falsado,
+   hneg-data ~plano). Pivot ejecutado: L2 chat-SFT + escala 1B.
+4h. **PIVOT A "MODELO QUE HABLA" (19-09, decisión Angel)**: dos tracks.
+   (a) **Chat-SFT pipeline** sobre g10-ep3-s1-EMA: `build_sft_chat.py`
+   (sciq 11,679 + smoltalk 25,000 → 36,677 pares `[USER]/[ASSISTANT]` EN),
+   `sft_pretok.py` (npz con resp_starts — eos clampeado a 0 como v2),
+   `sft_mdlm.py` (receta LLaDA 2.3: prompt visible, response enmascarada
+   t~U(0,1), CE solo en response; EMA en GPU; ckpts compatibles con eval),
+   `sft_mdlm.slurm` (job 29912600, bs8 lr2e-5 ep3, RTX8000). Nota: teachers
+   chinos vetados en cluster → dataset público (sciq+smoltalk).
+   (b) **Pretrain ~1B desde cero** (`v5-1b`): cfg 768h×12L×**16 expertos
+   k=1 → 1.13B total / 285M activos** (mismo cómputo/token que el 676M —
+   top-1 abarata capacidad). Corpus `corpus_v5_pdb.jsonl` = papers_db EN
+   completo (3,118,153 docs: 285K fulltext + 2.79M abstract + 40.7K synth
+   + 2K unam-en) + 327,058 esqueletos v4hneg = 3.44M docs ~10B tok est
+   (`build_papersdb_corpus.py`, job 29912603); pretok `pre_tokenize_v2.py
+   --split-long` (ventanas 768 preservan tokens de fulltexts; streaming
+   por bloques para no cargar 40GB en RAM). DDP: el trainer v2 YA tenía
+   DDP multi-nodo (portado de v1) pero `_init_ema`/`_update_ema` usaban
+   `.module` antes del wrap → fix getattr (smoke 29912620 lo cazó).
+   `v5_1b_ddp.slurm`: 4×q6000 intra-nodo (bs1 accum4 — fp32 ~22GB/tarjeta
+   OOM en bs2; expandable_segments), lr 2e-4 w800 flat, EMA 0.999,
+   TARGET 600K steps (~7B tok/pasada), olas AUTO_RESUBMIT. Alternativas:
+   a100×3/nodo (bs4) o pro6000×2. ETA ~1-2 semanas encadenado.
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).

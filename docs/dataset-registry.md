@@ -68,10 +68,16 @@ registro; la ruta puede cambiar si migramos de directorio, el código no.
 | `2_hneg_pairs` | `data/hneg_pairs.jsonl` | aux gen-G11 | 70M, **20,444 docs** | | pair-docs minados de `emb_v1/audit_skeleton_v2/knn_edges.tsv` (sim≥0.93 dedup, diff mutable verificado, ≤768 tok/doc; `build_hneg_pairs.py`) |
 | `2_pretrain_4hneg` | `data/corpus_v4hneg.jsonl` | v4hneg (exp. G11) | 1.08G, **327,058 docs** | 132.5M tok | `2_pretrain_4en` + `2_hneg_pairs` |
 | `2_ids_4hneg` | `data/train_ids_v4hneg.npz` | token-only | 531M, 132,540,055 tok | | pretok de `2_pretrain_4hneg`, 0 docs clipped, eos_id=0 |
+| `2_pretrain_5pdb` | `data/corpus_v5_pdb.jsonl` | v5pdb (run 1B) | **3,445,211 docs** | ~10B tok est | papers_db EN completo (285K fulltext + 2.79M abstract + 40.7K synth + 2K unam-en) + 327K esqueletos v4hneg; `build_papersdb_corpus.py` |
+| `2_ids_5pdb` | `data/train_ids_v5pdb.npz` | token-only | | | pretok `2_pretrain_5pdb` con `--split-long` (ventanas 768, preserva fulltexts) |
+| `2_sft_chat1` | `data/chat_sft_v1.jsonl` | sft chat v1 | 38M, **36,677 pares** | 8.2M tok | sciq 11,679 + smoltalk 25,000 → `{prompt,response}` `[USER]/[ASSISTANT]`; `build_sft_chat.py` |
+| `2_ids_sft1` | `data/sft_ids_v1.npz` | token-only | | | pretok de `2_sft_chat1` con `resp_starts` (frontera prompt/response); `sft_pretok.py` |
 
 - **Regla**: `2_pretrain_3` fue el corpus Fase A; el GA evolutivo (G8+) entrena
   sobre `2_pretrain_4en`/`2_ids_4en`. `2_pretrain_4hneg` es el corpus del
-  experimento G11 (último gen de datos). Las cadenas de Fase B y E usan estos nombres.
+  experimento G11 (último gen de datos). `2_pretrain_5pdb`/`2_ids_5pdb` es el
+  corpus del pretrain ~1B (v5-1b). `2_sft_chat1`/`2_ids_sft1` alimenta el
+  chat-SFT (`sft_mdlm.py`). Las cadenas de Fase B y E usan estos nombres.
 
 ### ETAPA 3 — DESTILACIÓN (input de Fase B/C)
 

@@ -1422,13 +1422,13 @@ def main():
 
     def _init_ema():
         if ARGS.ema_decay > 0 and glob_ema_sd[0] is None:
-            m = glob_model.module if ddp else glob_model
+            m = getattr(glob_model, "module", glob_model)
             glob_ema_sd[0] = {k: v.detach().to("cpu") for k, v in m.state_dict().items()}
 
     def _update_ema():
         if glob_ema_sd[0] is None:
             return
-        m = glob_model.module if ddp else glob_model
+        m = getattr(glob_model, "module", glob_model)
         sd = m.state_dict()
         beta = ARGS.ema_decay
         for k in glob_ema_sd[0]:

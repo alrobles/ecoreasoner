@@ -34,7 +34,7 @@ def _clamp(ids, vocab, eos_id):
 
 
 def encode_batch(args):
-    lines, tok_path, max_len, field = args
+    lines, tok_path, max_len, field, split_long = args
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(tok_path, trust_remote_code=True,
                                         local_files_only=True)
@@ -53,7 +53,22 @@ def encode_batch(args):
             t = json.loads(line).get(field, "")
         except Exception:
             continue
-        ids = tok.encode(t, add_special_tokens=False)[:max_len - 1]
+        ids = tok.encode(t, add_special_tokens=False)
+        if split_long and len(ids) > max_len - 1:
+            # ventanas consecutivas de max_len-1 + EOS: preserva TODOS los
+            # tokens del doc (fulltexts no se truncan). Cada ventana es un
+            # "doc" para el packing; la cola <4 tok se descarta.
+            wins = [ids[i:i + max_len - 1] for i in range(0, len(ids), max_len - 1)]
+            for w in wins:
+                if len(w) >= 4:
+                    w, eos_id = _clamp(w, vocab, eos_id)
+                    w.append(eos_id)
+                    ids_all.extend(w)
+                    lengths.append(len(w))
+                else:
+                    clipped += 1
+            continue
+        ids = ids[:max_len - 1]
         if len(ids) >= 4:
             ids, eos_id = _clamp(ids, vocab, eos_id)
             ids.append(eos_id)
@@ -72,29 +87,49 @@ def main():
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--seq_len", type=int, default=768)
     ap.add_argument("--field", default="text", help="campo JSON con el texto")
+    ap.add_argument("--split-long", action="store_true",
+                    help="docs >seq_len se cortan en ventanas (preserva tokens)")
+    ap.add_argument("--read-block", type=int, default=200000,
+                    help="lineas por bloque de lectura (streaming, limita RAM)")
     args = ap.parse_args()
 
     t0 = time.time()
-    with open(args.input) as f:
-        lines = f.readlines()
-    n_lines = len(lines)
-    print(f"[{time.strftime('%H:%M:%S')}] leidos {n_lines} lineas de {args.input}", flush=True)
-
-    chunk = max(1, len(lines) // args.workers)
-    chunks = [lines[i:i + chunk] for i in range(0, len(lines), chunk)]
     all_ids = []
     all_lengths = []
     clipped = 0
-    with ProcessPoolExecutor(max_workers=args.workers) as ex:
-        futs = [ex.submit(encode_batch, (ch, args.tokenizer, args.seq_len, args.field))
-                for ch in chunks]
-        for i, fu in enumerate(futs):
+    n_lines = 0
+    # streaming por bloques: el corpus puede ser ~40GB, no cabe en RAM entero
+    with ProcessPoolExecutor(max_workers=args.workers) as ex, open(args.input) as f:
+        pending = []
+        block = []
+        def flush():
+            nonlocal block
+            if not block:
+                return
+            chunk = max(1, len(block) // args.workers)
+            for i in range(0, len(block), chunk):
+                pending.append(ex.submit(
+                    encode_batch,
+                    (block[i:i + chunk], args.tokenizer, args.seq_len,
+                     args.field, args.split_long)))
+            block = []
+        for line in f:
+            block.append(line)
+            n_lines += 1
+            if len(block) >= args.read_block:
+                flush()
+                # drena los más viejos para acotar RAM
+                while len(pending) > args.workers * 2:
+                    ids, lens, cl = pending.pop(0).result()
+                    all_ids.extend(ids); all_lengths.extend(lens); clipped += cl
+                print(f"[{time.strftime('%H:%M:%S')}] {n_lines} lineas, "
+                      f"{len(all_ids)/1e6:.0f}M tok acum", flush=True)
+        flush()
+        for fu in pending:
             ids, lens, cl = fu.result()
-            all_ids.extend(ids)
-            all_lengths.extend(lens)
-            clipped += cl
-            print(f"[{time.strftime('%H:%M:%S')}] chunk {i + 1}/{len(futs)} listo "
-                  f"({len(all_ids)/1e6:.1f}M tok acum)", flush=True)
+            all_ids.extend(ids); all_lengths.extend(lens); clipped += cl
+    print(f"[{time.strftime('%H:%M:%S')}] leidas {n_lines} lineas de {args.input}",
+          flush=True)
 
     arr = np.array(all_ids, dtype=np.int32)
     lengths = np.array(all_lengths, dtype=np.int32)
@@ -121,6 +156,7 @@ def main():
         "eos_id": int(eos_id),
         "input": args.input,
         "field": args.field,
+        "split_long": bool(args.split_long),
         "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     meta_path = args.out + ".meta.json"
