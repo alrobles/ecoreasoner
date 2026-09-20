@@ -90,24 +90,33 @@ def load_docs(npz_path):
     d = np.load(npz_path)
     ids, lens, starts = d["ids"], d["lengths"], d["resp_starts"]
     eos = int(d["eos_id"])
-    docs, off = [], 0
-    for L, s in zip(lens, starts):
-        docs.append((ids[off:off+L], int(s)))
+    ends = d["resp_ends"] if "resp_ends" in d else None
+    counts = d["span_counts"] if "span_counts" in d else None
+    docs, off, soff = [], 0, 0
+    for di, L in enumerate(lens):
+        if ends is not None and counts is not None:
+            ns = int(counts[di])
+            spans = [(int(starts[soff+j]), int(ends[soff+j])) for j in range(ns)]
+            soff += ns
+        else:                                # formato viejo: span unico
+            spans = [(int(starts[di]), int(L))]
+        docs.append((ids[off:off+L], spans))
         off += L
-    log(f"data: {len(docs)} pares, {off/1e6:.1f}M tok, eos={eos}")
+    log(f"data: {len(docs)} docs, {off/1e6:.1f}M tok, eos={eos}")
     return docs, eos
 
 
 def collate(batch, eos):
-    """batch de (ids, resp_start) -> tensor padded + máscaras."""
+    """batch de (ids, spans) -> tensor padded + máscaras."""
     B = len(batch)
     x = torch.full((B, ARGS.seq_len), eos, dtype=torch.long)
     resp_mask = torch.zeros(B, ARGS.seq_len, dtype=torch.bool)  # posiciones response
     keep = []
-    for i, (ids, s) in enumerate(batch):
+    for i, (ids, spans) in enumerate(batch):
         L = min(len(ids), ARGS.seq_len)
         x[i, :L] = torch.as_tensor(ids[:L], dtype=torch.long)
-        resp_mask[i, s:L] = True
+        for s, e in spans:
+            resp_mask[i, s:min(e, L)] = True
         keep.append(L)
     return x, resp_mask, keep
 

@@ -65,11 +65,15 @@ def main():
     ap.add_argument("--max-q", type=int, default=400)
     ap.add_argument("--min-a", type=int, default=8)
     ap.add_argument("--max-a", type=int, default=512)
+    ap.add_argument("--multiturn", action="store_true",
+                    help="lee {turns:[{q,a}]} y emite formato turns "
+                         "(un dialogo por linea); filtra turno a turno")
     a = ap.parse_args()
 
     seen_q = set()
     n_in = n_kept = n_dup = n_recall = n_num = n_len = 0
-    files = sorted(glob.glob(os.path.join(a.indir, "qa_raw_shard*.jsonl")))
+    pat = "qa_mt_shard*.jsonl" if a.multiturn else "qa_raw_shard*.jsonl"
+    files = sorted(glob.glob(os.path.join(a.indir, pat)))
     if not files and os.path.isfile(a.indir):
         files = [a.indir]
     with open(a.out, "w", encoding="utf-8") as fout:
@@ -82,10 +86,43 @@ def main():
                 ptext = rec.get("passage", "")
                 pset = set(content_words(ptext))
                 pnums = {norm_num(n) for n in _NUM.findall(ptext)}
+
+                def ok(q, an):
+                    return (len(q) <= a.max_q
+                            and a.min_a <= len(an) <= a.max_a
+                            and recall(an, pset) >= a.min_recall
+                            and numbers_ok(an, pnums))
+
+                if a.multiturn:
+                    turns = [{"q": p["q"].strip(), "a": p["a"].strip()}
+                             for p in rec.get("turns", [])]
+                    n_in += 1
+                    # prefijo valido: un dialogo se corta en el primer
+                    # turno no-grounded (los turnos dependen entre si)
+                    good = []
+                    for t in turns:
+                        if ok(t["q"], t["a"]):
+                            good.append(t)
+                        else:
+                            break
+                    if len(good) >= 2:
+                        key = " ".join(good[0]["q"].lower().split())
+                        if key in seen_q:
+                            n_dup += 1
+                            continue
+                        seen_q.add(key)
+                        fout.write(json.dumps({
+                            "turns": good, "pid": rec.get("pid"),
+                            "src": "qa-mt"}, ensure_ascii=False) + "\n")
+                        n_kept += 1
+                    else:
+                        n_len += 1
+                    continue
+
                 for pair in rec.get("qa", []):
                     n_in += 1
                     q, an = pair["q"].strip(), pair["a"].strip()
-                    if len(q) > a.max_q or not (a.min_a <= len(an) <= a.max_a):
+                    if not (a.min_a <= len(an) <= a.max_a) or len(q) > a.max_q:
                         n_len += 1
                         continue
                     key = " ".join(q.lower().split())
