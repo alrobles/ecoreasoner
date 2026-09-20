@@ -10,13 +10,15 @@
 #SBATCH --mem=80G
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/qagen_%A_%a.out
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/qagen_%A_%a.err
-# QA synth pipeline: teacher Qwen2.5-14B-Instruct genera K pares por pasaje
-# (patrón mt_vllm.slurm). Shard via SLURM_ARRAY_TASK_ID.
-# Constraint >=40GB: 14B bf16 ~28GB no cabe en q6000 (24GB).
+# QA synth pipeline: teacher OLMo-2-13B-Instruct (Ai2, Apache 2.0)
+# genera K pares por pasaje (patrón mt_vllm.slurm). Shard via ARRAY_TASK_ID.
+# Constraint >=40GB: 13B bf16 ~26GB no cabe en q6000 (24GB).
+# Qwen2.5 quedó vetado por restricción de modelos chinos — output en
+# data/qa_raw_QUAR_qwen (no usar para SFT).
 set -euo pipefail
 BASE=/beegfs/a474r867
 SIF=$BASE/ecoreasoner/pytorch-cuda.sif
-MODEL=${MODEL:-Qwen/Qwen2.5-14B-Instruct}
+MODEL=${MODEL:-allenai/OLMo-2-1124-13B-Instruct}
 NSHARDS=${NSHARDS:-4}
 SHARD=$(( ${SHARD_BASE:-0} + ${SLURM_ARRAY_TASK_ID:-0} ))
 INDIR=${INDIR:-$BASE/ecoreasoner/data/qa_passages.jsonl}

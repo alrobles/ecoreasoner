@@ -13,7 +13,7 @@ groundedness es trabajo de qa_filter.py — aquí solo se genera y se parsea.
 Uso (dentro del SIF con PYTHONPATH=pylibs_vllm):
   python3 qa_gen.py --indir data/qa_passages.jsonl \
       --outdir data/qa_raw --shard 0 --nshards 1 \
-      --model Qwen/Qwen2.5-14B-Instruct --k 4 --maxdocs 256
+      --model allenai/OLMo-2-1124-13B-Instruct --k 4 --maxdocs 256
 """
 import argparse
 import glob
@@ -28,12 +28,17 @@ Requirements:
 - Every answer must be fully supported by the passage — no outside knowledge.
 - Cover diverse types when the passage allows: definitional ("What is X?"), relational/causal ("How does X affect Y?"), numerical ("What value is reported for X?"), and negation ("What did the authors NOT find?").
 - Answers: 1-3 concise sentences.
-- Output STRICT JSON only: [{{"q": "...", "a": "..."}}, ...]
+- Output STRICT JSON only, no other text, no markdown fences.
+
+Example of the required output format:
+[{{"q": "What mechanism mediates the observed effect?", "a": "The effect is mediated by X binding to Y."}}]
 
 Passage:
 \"\"\"
 {passage}
-\"\"\""""
+\"\"\"
+
+JSON array:"""
 
 _JSON_BLOCK = re.compile(r"\[.*\]", re.S)
 
@@ -88,12 +93,12 @@ def main():
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--shard", type=int, default=0)
     ap.add_argument("--nshards", type=int, default=1)
-    ap.add_argument("--model", default="Qwen/Qwen2.5-14B-Instruct")
+    ap.add_argument("--model", default="allenai/OLMo-2-1124-13B-Instruct")
     ap.add_argument("--k", type=int, default=4, help="pares QA por pasaje")
     ap.add_argument("--maxdocs", type=int, default=256,
                     help="pasajes por oleada de generate()")
     ap.add_argument("--maxlen", type=int, default=4096)
-    ap.add_argument("--max-new", type=int, default=512)
+    ap.add_argument("--max-new", type=int, default=640)
     ap.add_argument("--temp", type=float, default=0.7)
     ap.add_argument("--gmu", type=float, default=0.90)
     ap.add_argument("--dtype", default="bfloat16",
