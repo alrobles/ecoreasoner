@@ -30,6 +30,24 @@ ARCH = dict(vocab=126080, hidden=768, layers=12, heads=12,
             ff_mult=4, seq_len=768, n_experts=8, k=1)
 
 
+def detect_arch(sd):
+    """Deriva dims del state_dict (G8-G11: 8 experts; v5-1b: 16)."""
+    arch = dict(ARCH)
+    emb = sd["tok_emb.weight"]
+    arch["vocab"], arch["hidden"] = emb.shape[0] - 1, emb.shape[1]
+    if "pos.weight" in sd:
+        arch["seq_len"] = sd["pos.weight"].shape[0]
+    layers = {int(m.group(1)) for k in sd
+              if (m := re.search(r"blocks\.(\d+)\.", k))}
+    exps = {int(m.group(1)) for k in sd
+            if (m := re.search(r"experts\.(\d+)\.", k))}
+    if layers:
+        arch["layers"] = max(layers) + 1
+    if exps:
+        arch["n_experts"] = max(exps) + 1
+    return arch
+
+
 def load_model_class():
     """Importa MdLMMoE de train_mdlm_moe_v2.py sin correr main."""
     path = REPO / "scripts" / "train_mdlm_moe_v2.py"
@@ -64,12 +82,13 @@ def resolve_ckpt(p, ema=False):
 
 def load_model(ckpt_path, dev):
     MdLMMoE = load_model_class()
-    model = MdLMMoE(**ARCH).to(dev)
     ck = torch.load(ckpt_path, map_location=dev)
     if isinstance(ck, dict) and "model" in ck:
         ck = ck["model"]
     if isinstance(ck, dict) and "ema_model" in ck:
         ck = ck["ema_model"]
+    arch = detect_arch(ck)
+    model = MdLMMoE(**arch).to(dev)
     try:
         model.load_state_dict(ck, strict=True)
     except RuntimeError:
@@ -79,7 +98,7 @@ def load_model(ckpt_path, dev):
         else:
             raise
     model.eval()
-    return model
+    return model, arch
 
 
 def generate(model, prompt_ids, max_new, steps, temp, rng, mask_id):
@@ -116,22 +135,35 @@ def main():
     ap.add_argument("--max-new", type=int, default=128)
     ap.add_argument("--temp", type=float, default=0.7)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--prompt", action="append", default=[],
+                    help="modo batch: genera para cada prompt y sale (no-REPL)")
     args = ap.parse_args()
 
     from transformers import AutoTokenizer
     dev = torch.device(args.device)
     ckpt = resolve_ckpt(args.ckpt, ema=args.ema)
     print(f"[proto] ckpt={ckpt} dev={dev}")
-    model = load_model(ckpt, dev)
-    mask_id = ARCH["vocab"]
+    model, arch = load_model(ckpt, dev)
+    mask_id = arch["vocab"]
     tok = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=True)
     rng = random.Random(args.seed)
     torch.manual_seed(args.seed)
-    print(f"[proto] listo ({model.n_params()/1e6:.0f}M params). "
+    print(f"[proto] listo ({model.n_params()/1e6:.0f}M params, "
+          f"{arch['n_experts']} experts). "
           f"steps={args.steps} max_new={args.max_new} temp={args.temp}")
-    print("[proto] /steps N /new N /temp F /quit — o escribe texto para continuar")
 
     steps, max_new, temp = args.steps, args.max_new, args.temp
+    if args.prompt:
+        for line in args.prompt:
+            prompt_ids = tok(line, add_special_tokens=False)["input_ids"]
+            prompt_ids = prompt_ids[-(arch["seq_len"] - max_new):]
+            out = generate(model, prompt_ids, max_new, steps, temp, rng,
+                           mask_id)
+            new_ids = [t for t in out[len(prompt_ids):] if t != mask_id]
+            print(f"\n=== PROMPT: {line}\n{tok.decode(new_ids)}")
+        return
+    print("[proto] /steps N /new N /temp F /quit — o escribe texto para continuar")
+
     while True:
         try:
             line = input("\n>> ").strip()
@@ -152,7 +184,7 @@ def main():
             print(f"[proto] steps={steps} max_new={max_new} temp={temp}")
             continue
         prompt_ids = tok(line, add_special_tokens=False)["input_ids"]
-        prompt_ids = prompt_ids[-(ARCH["seq_len"] - max_new):]
+        prompt_ids = prompt_ids[-(arch["seq_len"] - max_new):]
         out = generate(model, prompt_ids, max_new, steps, temp, rng, mask_id)
         new_ids = [t for t in out[len(prompt_ids):] if t != mask_id]
         print(tok.decode(new_ids))
