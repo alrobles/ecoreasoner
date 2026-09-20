@@ -154,15 +154,15 @@ tier elite curado. Embedder permitido: multilingual-e5-small (Microsoft).
 
 ## Tier elite Devin/SWE-2-Max (2026-09-20)
 
-Experimento multi-agente/multi-máquina: 40 sesiones `devin -p` (swe-2-max,
-free promo) en 4-5 máquinas reumanlab, 430 pasajes de `2_qa_pass` con
-provenance por pid. 860 candidatos → 747 validados por `qa_filter`
-(87%). Lección: `--permission-mode dangerous` necesario para que las
+Experimento multi-agente/multi-máquina: ~72 sesiones `devin -p` (swe-2-max,
+free promo) en 4-5 máquinas reumanlab, ~1050 pasajes de `2_qa_pass` con
+provenance por pid. ~3460 candidatos → 3339 validados por `qa_filter`
+(~90% tras dedup global). Lección: `--permission-mode dangerous` necesario para que las
 sesiones lean líneas largas sin bloquearse en non-interactive;
-throughput ~50 pares/min en flota limpia.
+throughput ~50-96 pares/min en flota limpia (8 sesiones/máquina).
 
 | id | archivo | n | notas |
 |---|---|---|---|
-| `2_qa_devin_elite` | `data/qa_devin_elite.jsonl` | **747** | pares con provenance completa (pid, type, machine, session, round, passage) |
-| `2_eval_devin` | `data/eval_devin_hard.jsonl` | **500** | held-out eval curado: 242 numerical + 162 multihop + 81 negation — NUNCA entrenar |
-| `2_sft_devin_supp` | `data/qa_sft_devin_supp.jsonl` | **247** | supplement SFT formato `[USER]/[ASSISTANT]`, src=devin-elite:<pid> |
+| `2_qa_devin_elite` | `data/qa_devin_elite.jsonl` | **3339** | pares con provenance completa (pid, type, machine, session, round, passage) |
+| `2_eval_devin` | `data/eval_devin_hard.jsonl` | **3000** | held-out eval curado: 1055 numerical + 800 multihop + 820 causal + 324 negation — NUNCA entrenar |
+| `2_sft_devin_supp` | `data/qa_sft_devin_supp.jsonl` | **339** | supplement SFT formato `[USER]/[ASSISTANT]`, src=devin-elite:<pid> |
