@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# DEPRECATED 2026-09-20: dependia de un modelo de origen chino vetado
+# (Qwen / Tencent HY-MT / LLaDA weights / DeepSeek). Los pesos fueron
+# eliminados del cluster; este script ya no corre. El tokenizer LLaDA
+# (vocab 126080) sigue vivo SOLO como tokenizer de nuestro modelo.
 """Traducción ES->EN por BATCH en GPU de cluster (HY-MT1.5), sin serve/túneles.
 
 - Cada job slurm toma un shard: docs[i] con i % nshards == shard.

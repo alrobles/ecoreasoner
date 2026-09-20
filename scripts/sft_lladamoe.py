@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# DEPRECATED 2026-09-20: dependia de un modelo de origen chino vetado
+# (Qwen / Tencent HY-MT / LLaDA weights / DeepSeek). Los pesos fueron
+# eliminados del cluster; este script ya no corre. El tokenizer LLaDA
+# (vocab 126080) sigue vivo SOLO como tokenizer de nuestro modelo.
 """
 sft_lladamoe.py — SFT del LLaDA-MoE-7B-A1B-Instruct con las trazas L1
 (tool-calling ecologico). Receta del paper LLaDA (Secc 2.3):

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# DEPRECATED 2026-09-20: dependia de un modelo de origen chino vetado
+# (Qwen / Tencent HY-MT / LLaDA weights / DeepSeek). Los pesos fueron
+# eliminados del cluster; este script ya no corre. El tokenizer LLaDA
+# (vocab 126080) sigue vivo SOLO como tokenizer de nuestro modelo.
 """gen_distill_data.py — genera datos de destilación para el dLLM-MoE agentic.
 
 Toma los prompts canónicos de tool-call + los expande con variantes, y para cada

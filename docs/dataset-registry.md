@@ -134,3 +134,20 @@ registro; la ruta puede cambiar si migramos de directorio, el código no.
 
 > NOTA: los tamaños y contadores de la tabla son del 2026-08-27 y se revalidan con
 > `python3 scripts/dataset_catalog.py` (que lee el registro vivo desde el disco).
+## Purga de modelos de origen chino (2026-09-20)
+
+Política: prohibido usar modelos de origen chino. Eliminados ~145GB de pesos
+(Qwen2.5-14B, Qwen3.5-35B-A3B, Tencent HY-MT 1.8B/7B, LLaDA-8B/LLaDA-MoE-7B
+weights, BAAI bge-small, DeepSeek refs) y el output QA derivado de Qwen
+(`qa_raw_QUAR_qwen`, ~65k pares). ~40 scripts que dependían de esos pesos
+llevan header `DEPRECATED 2026-09-20`.
+
+**Dependencias no eliminables sin reentrenar** (decisión pendiente):
+- Tokenizer LLaDA-8B (vocab 126080): horneado en pesos v5-1b, `2_ids_5pdb`,
+  `2_ids_sft1` y todos los ckpts. Solo quedan archivos de tokenizer (~6MB).
+- 2,029 docs `unam-en` dentro de `2_pretrain_5pdb`/`2_ids_5pdb`: texto
+  traducido por HY-MT (Tencent), 0.06% del corpus, ya consumido por el run.
+
+**Teachers compliant activos**: OLMo-2-13B-Instruct (Ai2, Apache 2.0) para
+bulk QA (`qa_gen.slurm`, array 29921943); Devin/SWE-2-Max local para el
+tier elite curado. Embedder permitido: multilingual-e5-small (Microsoft).

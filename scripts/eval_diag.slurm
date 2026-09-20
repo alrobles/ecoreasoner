@@ -1,4 +1,8 @@
 #!/bin/bash
+# DEPRECATED 2026-09-20: dependia de un modelo de origen chino vetado
+# (Qwen / Tencent HY-MT / LLaDA weights / DeepSeek). Los pesos fueron
+# eliminados del cluster; este script ya no corre. El tokenizer LLaDA
+# (vocab 126080) sigue vivo SOLO como tokenizer de nuestro modelo.
 #SBATCH --partition=sixhour
 #SBATCH --time=00:15:00
 #SBATCH --nodes=1
