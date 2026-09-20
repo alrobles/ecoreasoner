@@ -123,6 +123,32 @@ def generate(model, prompt_ids, max_new, steps, temp, rng, mask_id):
     return ids.tolist()
 
 
+def generate_conf(model, prompt_ids, max_new, steps, temp, rng, mask_id):
+    """Denoising por confianza (estilo LLaDA): cada step samplea x0 en TODAS
+    las posiciones enmascaradas, toma la prob del token elegido como confianza,
+    revela las de MAYOR confianza y remasquea el resto. La fraccion revelada
+    crece linealmente hasta 100% en `steps` iteraciones."""
+    dev = next(model.parameters()).device
+    ids = torch.tensor(prompt_ids + [mask_id] * max_new,
+                       dtype=torch.long, device=dev)
+    with torch.no_grad():
+        for i in range(steps):
+            logits = model(ids.unsqueeze(0)).squeeze(0)
+            probs = (logits / max(temp, 1e-6)).softmax(-1)
+            still = (ids == mask_id).nonzero(as_tuple=True)[0]
+            if still.numel() == 0:
+                break
+            samp = torch.multinomial(probs[still], 1).squeeze(-1)
+            conf = probs[still].gather(-1, samp[:, None]).squeeze(-1)
+            ids[still] = samp
+            target = int(round(max_new * (1.0 - (i + 1) / steps)))
+            order = torch.argsort(conf)          # ascendente: peor primero
+            low = still[order[:min(target, still.numel())]]
+            if low.numel():
+                ids[low] = mask_id
+    return ids.tolist()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", required=True,
@@ -137,6 +163,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--prompt", action="append", default=[],
                     help="modo batch: genera para cada prompt y sale (no-REPL)")
+    ap.add_argument("--decode", choices=["remask", "conf"], default="conf",
+                    help="remask=remask aleatorio 15%%; conf=unmask por confianza")
     args = ap.parse_args()
 
     from transformers import AutoTokenizer
@@ -153,12 +181,13 @@ def main():
           f"steps={args.steps} max_new={args.max_new} temp={args.temp}")
 
     steps, max_new, temp = args.steps, args.max_new, args.temp
+    gen = generate_conf if args.decode == "conf" else generate
     if args.prompt:
         for line in args.prompt:
             prompt_ids = tok(line, add_special_tokens=False)["input_ids"]
             prompt_ids = prompt_ids[-(arch["seq_len"] - max_new):]
-            out = generate(model, prompt_ids, max_new, steps, temp, rng,
-                           mask_id)
+            out = gen(model, prompt_ids, max_new, steps, temp, rng,
+                      mask_id)
             new_ids = [t for t in out[len(prompt_ids):] if t != mask_id]
             print(f"\n=== PROMPT: {line}\n{tok.decode(new_ids)}")
         return
@@ -185,7 +214,7 @@ def main():
             continue
         prompt_ids = tok(line, add_special_tokens=False)["input_ids"]
         prompt_ids = prompt_ids[-(arch["seq_len"] - max_new):]
-        out = generate(model, prompt_ids, max_new, steps, temp, rng, mask_id)
+        out = gen(model, prompt_ids, max_new, steps, temp, rng, mask_id)
         new_ids = [t for t in out[len(prompt_ids):] if t != mask_id]
         print(tok.decode(new_ids))
     print("\n[proto] bye")
