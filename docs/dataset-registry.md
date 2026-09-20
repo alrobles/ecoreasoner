@@ -72,6 +72,9 @@ registro; la ruta puede cambiar si migramos de directorio, el código no.
 | `2_ids_5pdb` | `data/train_ids_v5pdb.npz` |  token-only | | | pretok `2_pretrain_5pdb` --split-long: **17,384,808 docs, 11,964,472,366 tok**, 47.9GB, eos_id=0, 4597 clipped |
 | `2_sft_chat1` | `data/chat_sft_v1.jsonl` | sft chat v1 | 38M, **36,677 pares** | 8.2M tok | sciq 11,679 + smoltalk 25,000 → `{prompt,response}` `[USER]/[ASSISTANT]`; `build_sft_chat.py` |
 | `2_ids_sft1` | `data/sft_ids_v1.npz` |  token-only | | | pretok de `2_sft_chat1` con `resp_starts` (frontera prompt/response); `sft_pretok.py` |
+| `2_qa_pass` | `data/qa_passages.jsonl` | pasajes QA | **150,620 pasajes** | | ventanas ~280-520 palabras de `2_pretrain_5pdb` (150k docs), LaTeX limpiado preservando math inline; `qa_extract.py` |
+| `2_qa_raw` | `data/qa_raw/qa_raw_shard*.jsonl` | QA crudo teacher | ~600k pares (est) | | Qwen2.5-14B-Instruct vLLM, 4 pares/pasaje, JSON estricto; `qa_gen.py`+`qa_gen.slurm` |
+| `2_sft_qa1` | `data/qa_sft_v1.jsonl` | sft QA v1 | ~550k pares (est) | | filtro groundedness (recall≥0.5 + números presentes en pasaje) + dedup → `{prompt,response}`; `qa_filter.py` |
 
 - **Regla**: `2_pretrain_3` fue el corpus Fase A; el GA evolutivo (G8+) entrena
   sobre `2_pretrain_4en`/`2_ids_4en`. `2_pretrain_4hneg` es el corpus del
