@@ -7,7 +7,8 @@ El corpus papers_db es LaTeX crudo. Este script:
   3. selecciona párrafos "claim-bearing" (números, verbos de hallazgo,
      conectivas) — el mismo criterio de rol que usa el masking,
   4. empaqueta 1-3 párrafos contiguos en ventanas ~280-520 palabras,
-  5. emite JSONL {"pid": doc_i, "text": pasaje}.
+  5. emite JSONL {"pid": "doc_i.seg_i", "text": pasaje} — pid único por
+     segmento (un doc puede emitir varios pasajes).
 
 Salida alimenta qa_gen.py (vLLM). Resume-friendly: --start/--limit por doc.
 
@@ -105,7 +106,8 @@ def main():
                     win.append(paras[j]); j += 1
                 if not win:
                     break
-                fout.write(json.dumps({"pid": di, "text": " ".join(win)},
+                fout.write(json.dumps({"pid": f"{di}.{made}",
+                                       "text": " ".join(win)},
                                       ensure_ascii=False) + "\n")
                 n_out += 1; made += 1; i = j + 1   # gap de 1 párrafo
             if n_doc % 20000 == 0:
