@@ -159,11 +159,20 @@ def main():
     rng = random.Random(ARGS.seed)
     torch.manual_seed(ARGS.seed)
     MdLMMoE = load_model_class()
-    model = MdLMMoE(**ARCH).to(DEVICE)
-    ck = torch.load(resolve_init(ARGS.init), map_location=DEVICE)
+    ck = torch.load(resolve_init(ARGS.init), map_location="cpu")
     for key in ("model", "ema_model"):
         if isinstance(ck, dict) and key in ck:
             ck = ck[key]
+    gw = ck.get("blocks.0.mlp.gate.weight")
+    if gw is not None:
+        ARCH["n_experts"] = gw.shape[0]
+    te = ck.get("tok_emb.weight")
+    if te is not None:
+        ARCH["vocab"], ARCH["hidden"] = te.shape[0] - 1, te.shape[1]
+    ARCH["layers"] = 1 + max(int(k.split(".")[1]) for k in ck
+                             if k.startswith("blocks."))
+    log(f"arch inferida del ckpt: {ARCH}")
+    model = MdLMMoE(**ARCH).to(DEVICE)
     model.load_state_dict(ck, strict=True)
     log(f"init: {resolve_init(ARGS.init)} ({model.n_params()/1e6:.0f}M)")
 

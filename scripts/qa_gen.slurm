@@ -31,6 +31,7 @@ export HF_HOME=$BASE/hf_cache
 export HF_HUB_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
 export VLLM_LOGGING_LEVEL=WARNING
+export VLLM_USE_V1=0  # V1 necesita numba (roto con numpy 2.4); V0 corre en todas las islas
 export TRITON_CACHE_DIR=$BASE/triton_cache
 echo "[$(hostname)] shard=$SHARD/$NSHARDS model=$MODEL indir=$INDIR"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
