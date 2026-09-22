@@ -18,6 +18,10 @@ Modos (--modes, separados por coma):
                 (mecanismo LogicDiff genuino; requiere --head)
   payload     — solo tokens "payload" del candidato enmascarados
                 (conectivas/verbos-relación/números/entidades; role_score>1)
+  consistency — candidato VISIBLE salvo el span que difiere ok↔bad
+                (mide binding con evidencia intra-candidato, que `dense`
+                destruye al enmascarar todo); reporta además argmax
+                generativo en el slot (gen_acc/gen_exact)
 
 Cada modo escribe <out-dir>/<mode>/battery_L{0..3}.json + battery.json,
 compatible con scripts/verdict.py --battery.
@@ -233,6 +237,46 @@ def _staged_ce(model, seq, cand_start, mask_id, order, cand_roles=None,
     return (total_ce / max(ntok, 1)), ntok
 
 
+def _common_affixes(a, b):
+    """Prefijo y sufijo comunes (sin solape) entre dos secuencias de ids.
+
+    Devuelve (p, s): el span divergente de `a` es a[p:len(a)-s] y el de
+    `b` es b[p:len(b)-s] (mismos p, s). Si un span queda vacío es una
+    inserción/borrado pura.
+    """
+    n, m = len(a), len(b)
+    p = 0
+    while p < n and p < m and a[p] == b[p]:
+        p += 1
+    s = 0
+    while s < n - p and s < m - p and a[n - 1 - s] == b[m - 1 - s]:
+        s += 1
+    return p, s
+
+
+def score_consistency(model, ctx, cand, p, s, mask_id):
+    """CE + argmax sobre el span divergente del candidato (resto visible).
+
+    cand[p:len(cand)-s] es la región mutada ok↔bad. Devuelve
+    (mean_ce, acc_token, exact) donde acc_token es la fracción de
+    posiciones del slot donde argmax == token verdadero y exact es 1.0
+    si TODAS coinciden.
+    """
+    dev = next(model.parameters()).device
+    seq = torch.tensor(list(ctx) + list(cand), dtype=torch.long, device=dev)
+    cs, n = len(ctx), len(cand)
+    lo, hi = p, n - s
+    if hi <= lo:                       # borrado puro: medir el vecino
+        lo, hi = max(0, min(p, n - 1)), max(0, min(p, n - 1)) + 1
+    pos = torch.arange(cs + lo, cs + hi, device=dev)
+    xm = seq.clone(); xm[pos] = mask_id
+    with torch.no_grad():
+        logits = model(xm.unsqueeze(0)).squeeze(0)
+    ce = F.cross_entropy(logits[pos], seq[pos]).item()
+    eq = (logits[pos].argmax(-1) == seq[pos])
+    return ce, float(eq.float().mean().item()), float(eq.all().item())
+
+
 def score_candidate(model, mode, ctx, cand, mask_p, rng, mask_id,
                     tok_strings=None, label_id_seqs=None, head=None,
                     role_cfg=None):
@@ -314,32 +358,57 @@ def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
     t0 = time.time()
     ok_wins, deltas = 0, []
     sub_wins, sub_n = {}, {}
-    with torch.no_grad():
-        for item in pairs:
-            ctx, ok, bad = item[:3]
-            subtype = item[3] if len(item) > 3 else None
-            l_ok = score_candidate(model, mode, ctx, ok, ecfg["mask_p"], rng,
-                                   mask_id, tok_strings, label_id_seqs, head,
-                                   role_cfg)
-            l_bad = score_candidate(model, mode, ctx, bad, ecfg["mask_p"], rng,
-                                    mask_id, tok_strings, label_id_seqs, head,
-                                    role_cfg)
-            w = l_ok < l_bad
-            ok_wins += w
-            deltas.append(l_bad - l_ok)
+    gen_acc_ok, gen_exact_ok, gen_acc_bad, gen_exact_bad = [], [], [], []
+    sub_gen_ok, sub_gen_bad = {}, {}
+    for item in pairs:
+        ctx, ok, bad = item[:3]
+        subtype = item[3] if len(item) > 3 else None
+        if mode == "consistency":
+            p, s = _common_affixes(ok, bad)
+            l_ok, a_ok, e_ok = score_consistency(model, ctx, ok, p, s,
+                                                 mask_id)
+            l_bad, a_bad, e_bad = score_consistency(model, ctx, bad, p, s,
+                                                    mask_id)
+            gen_acc_ok.append(a_ok); gen_exact_ok.append(e_ok)
+            gen_acc_bad.append(a_bad); gen_exact_bad.append(e_bad)
             if subtype:
-                sub_wins[subtype] = sub_wins.get(subtype, 0) + int(w)
-                sub_n[subtype] = sub_n.get(subtype, 0) + 1
+                sub_gen_ok.setdefault(subtype, []).append(e_ok)
+                sub_gen_bad.setdefault(subtype, []).append(e_bad)
+        else:
+            with torch.no_grad():
+                l_ok = score_candidate(model, mode, ctx, ok, ecfg["mask_p"],
+                                       rng, mask_id, tok_strings,
+                                       label_id_seqs, head, role_cfg)
+                l_bad = score_candidate(model, mode, ctx, bad, ecfg["mask_p"],
+                                        rng, mask_id, tok_strings,
+                                        label_id_seqs, head, role_cfg)
+        w = l_ok < l_bad
+        ok_wins += w
+        deltas.append(l_bad - l_ok)
+        if subtype:
+            sub_wins[subtype] = sub_wins.get(subtype, 0) + int(w)
+            sub_n[subtype] = sub_n.get(subtype, 0) + 1
     rep = {
         "pairwise_acc": round(ok_wins / len(pairs), 4),
         "n_pairs": len(pairs),
         "mean_delta": round(float(np.mean(deltas)) if deltas else 0.0, 5),
         "elapsed_s": round(time.time() - t0, 1),
     }
+    if mode == "consistency":
+        rep["gen_acc_ok"] = round(float(np.mean(gen_acc_ok)), 4)
+        rep["gen_exact_ok"] = round(float(np.mean(gen_exact_ok)), 4)
+        rep["gen_acc_bad"] = round(float(np.mean(gen_acc_bad)), 4)
+        rep["gen_exact_bad"] = round(float(np.mean(gen_exact_bad)), 4)
     if sub_n:
         rep["l3_subtype_acc"] = {
             s: {"acc": round(sub_wins[s] / sub_n[s], 4), "n": sub_n[s]}
             for s in sorted(sub_n)}
+        if mode == "consistency":
+            for s in rep["l3_subtype_acc"]:
+                rep["l3_subtype_acc"][s]["gen_exact_ok"] = round(
+                    float(np.mean(sub_gen_ok[s])), 4)
+                rep["l3_subtype_acc"][s]["gen_exact_bad"] = round(
+                    float(np.mean(sub_gen_bad[s])), 4)
     return rep
 
 

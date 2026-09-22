@@ -143,19 +143,22 @@ def _try_replace(text, mapping, case_sensitive=False, whole_phrases=None, subtyp
         for key, val in whole_phrases:
             if key in text:
                 return text.replace(key, val, 1), key, f"{subtype}_phrase"
-    words = text.split()
-    for i, w in enumerate(words):
-        key = w.strip(".,;:()").lower() if not case_sensitive else w.strip(".,;:()")
-        if key in mapping:
-            punct = w[len(w.rstrip(".,;:()")):]
-            prefix = w[:len(w) - len(w.lstrip())]
-            new = mapping[key]
-            if not case_sensitive:
-                # conservar capitalización aproximada
-                if w[0].isupper():
-                    new = new.capitalize()
-            words[i] = prefix + new + punct
-            return " ".join(words), key, f"{subtype}_word"
+    # span-replace sobre el texto original: NO split/join (eso normalizaba
+    # whitespace unicode \u2009/\xa0 -> el `bad` difería en N sitios, no solo
+    # en la mutación — detectado como diff_grande en el split inferable)
+    best = None
+    for key, val in mapping.items():
+        pat = re.compile(r"(?<!\w)" + re.escape(key) + r"(?!\w)",
+                         0 if case_sensitive else re.IGNORECASE)
+        m = pat.search(text)
+        if m and (best is None or m.start() < best[0].start()):
+            best = (m, key, val)
+    if best:
+        m, key, val = best
+        new = val
+        if not case_sensitive and m.group(0)[0].isupper():
+            new = val.capitalize()
+        return text[:m.start()] + new + text[m.end():], key, f"{subtype}_word"
     return None, None, None
 
 
