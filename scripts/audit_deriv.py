@@ -93,6 +93,38 @@ def audit(path, mold_cap=0.05):
     return {"n": len(docs), "mold_ok": ok_mold, "forcedness": pct}
 
 
+def ngram_leak(path, ref_files, n=8):
+    """Fracción de docs con ≥1 n-grama compartido con referencias.
+
+    Barato (sin modelo): detecta leak verbatímico — el único riesgo real
+    para un corpus sintético cuyo vocab comparte nombres de especies.
+    """
+    def ngrams(t):
+        w = re.findall(r"[a-záéíóúüñ0-9%]+", t.lower())
+        return {" ".join(w[i:i + n]) for i in range(len(w) - n + 1)}
+    ref_ng = set()
+    for f in ref_files:
+        if not f or not __import__("os").path.exists(f):
+            continue
+        for l in open(f):
+            try:
+                d = json.loads(l)
+            except Exception:
+                continue
+            for k in ("ok", "bad", "text", "question", "answer"):
+                if k in d:
+                    ref_ng |= ngrams(str(d[k]))
+    hits = []
+    for i, l in enumerate(open(path)):
+        d = json.loads(l)
+        if ngrams(d["text"]) & ref_ng:
+            hits.append(i)
+    pct = len(hits) / max(1, i + 1)
+    print(f"ngram-leak (n={n}): {len(hits)} docs ({pct:.2%}) comparten "
+          f"n-grama con {len(ref_files)} refs — {'OK' if pct < 0.01 else 'REVISAR'}")
+    return pct
+
+
 def leak_check(path, pairs_dir, eval_jsonl, thresh=0.9):
     try:
         from sentence_transformers import SentenceTransformer
@@ -129,12 +161,22 @@ def leak_check(path, pairs_dir, eval_jsonl, thresh=0.9):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("jsonl")
-    ap.add_argument("--leak", action="store_true")
+    ap.add_argument("--leak", action="store_true", help="embeddings e5 (HPC)")
+    ap.add_argument("--ngram-leak", action="store_true",
+                    help="check verbatímico n-gramas vs refs (sin GPU)")
+    ap.add_argument("--refs", nargs="*", default=None,
+                    help="jsonl(s) de referencia; default: pairs_L*.jsonl de --pairs")
     ap.add_argument("--pairs", default="runs/pairs_hard_v4_holdout_clean")
     ap.add_argument("--eval-jsonl", default=None)
     ap.add_argument("--mold-cap", type=float, default=0.05)
     args = ap.parse_args()
     audit(args.jsonl, args.mold_cap)
+    if args.ngram_leak:
+        import glob, os
+        refs = args.refs if args.refs is not None else \
+            glob.glob(os.path.join(args.pairs, "pairs_L*.jsonl")) + \
+            ([args.eval_jsonl] if args.eval_jsonl else [])
+        ngram_leak(args.jsonl, refs)
     if args.leak:
         leak_check(args.jsonl, args.pairs, args.eval_jsonl)
 
