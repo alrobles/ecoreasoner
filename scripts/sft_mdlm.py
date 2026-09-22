@@ -63,6 +63,8 @@ p.add_argument("--grad_clip", type=float, default=1.0)
 p.add_argument("--ema_decay", type=float, default=0.999)
 p.add_argument("--seq_len", type=int, default=768)
 p.add_argument("--save_every", type=int, default=500)
+p.add_argument("--step_offset", type=int, default=0,
+               help="offset del contador de steps (olas: ckpt-gN acumulativo)")
 p.add_argument("--seed", type=int, default=0)
 ARGS = p.parse_args()
 
@@ -183,7 +185,7 @@ def main():
     ema = {k: v.detach().clone() for k, v in model.state_dict().items()}
     glob.update(model=model, opt=opt, ema=ema)
 
-    step = 0
+    step = ARGS.step_offset
     n = len(docs)
     for ep in range(ARGS.epochs):
         order = list(range(n)); rng.shuffle(order)

@@ -27,6 +27,7 @@ EPOCHS=${EPOCHS:-3}
 EMA_FLAG=${EMA_FLAG:---ema}
 BS=${BS:-8}
 LR=${LR:-2e-5}
+OFFSET=${OFFSET:-0}
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 || echo "?")
 case "$GPU_NAME" in
   *"PRO 6000"*|*Blackwell*) OVL="--overlay $BASE/blackwell-torch.overlay:ro"; PY=$VENV/bin/python;;
@@ -36,5 +37,5 @@ echo "[sft] gpu=$GPU_NAME init=$INIT data=$DATA out=$OUT epochs=$EPOCHS bs=$BS l
 # shellcheck disable=SC2086
 apptainer exec --nv $OVL "$SIF" "$PY" $BASE/scripts/sft_mdlm.py \
   --init "$INIT" $EMA_FLAG --data_cache "$DATA" --output "$OUT" \
-  --epochs "$EPOCHS" --batch_size "$BS" --lr "$LR"
+  --epochs "$EPOCHS" --batch_size "$BS" --lr "$LR" --step_offset "$OFFSET"
 echo "=== SFT DONE $(date -u) ==="
