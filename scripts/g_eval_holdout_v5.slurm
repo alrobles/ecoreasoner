@@ -31,11 +31,12 @@ if [ "$EMA" = "1" ] && [ -f "$CKPT_DIR/ema_model.pt" ]; then
 else
     CKPT=$CKPT_DIR/model.pt
 fi
-echo "holdout eval $RUNDIR ckpt=$CKPT gpu=$GPU_NAME pairs=$PAIRS"
+OUTDIR=${OUTDIR:-$RUNDIR/battery_logicdiff_v4holdout}
+echo "holdout eval $RUNDIR ckpt=$CKPT gpu=$GPU_NAME pairs=$PAIRS out=$OUTDIR"
 # shellcheck disable=SC2086
 apptainer exec --nv $OVL "$SIF" "$PY" \
     "$BASE/harness/suite_smoke_logicdiff.py" \
     --ckpt "$CKPT" --config "$BASE/harness/configs/eval-moe-v5.yaml" \
     --pairs-dir "$PAIRS" \
-    --out-dir "$RUNDIR/battery_logicdiff_v4holdout" \
+    --out-dir "$OUTDIR" \
     --device cuda --modes dense

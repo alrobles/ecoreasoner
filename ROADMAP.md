@@ -893,6 +893,17 @@ Estado al 18-09 ~10:00 UTC:**
    esqueletos). Lectura: sft-v1 es shakedown del pipeline + punto de
    datos "SFT sobre backbone inmaduro"; la iteracion que importa es
    re-SFT desde un ckpt v5-1b mas maduro.
+   **sft-v1 COMPLETO (22-09, g35500 EMA)**: eval generativa
+   eval_devin_hard 3000 → gold_recall TOTAL 0.039, num_ok 65/2057
+   (3.2%; numerical 5/1035 el peor). Battery holdout_clean dense:
+   L0 0.693 / L1 0.688 / L2 0.574 / L3 0.492 — superficial el mas
+   alto medido (vs v4s 0.612/0.566) pero L3 en azar. Piso honesto
+   del "modelo que habla" v1: formato+tema OK, sustancia no.
+   **Curva L0-L3 en pretrain (instrumento p/ataque razonamiento)**:
+   `watch_v5_battery.sh` local — battery holdout_clean cada ~25K
+   steps del ckpt mas alto → `runs/v5-1b/battery_curve/g<N>` (EMA).
+   Si L2/L3 se mueven con escala → seguir escalando; si planos →
+   la via es datos (trazas premisa→paso→conclusion, L3 del arbol).
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).
