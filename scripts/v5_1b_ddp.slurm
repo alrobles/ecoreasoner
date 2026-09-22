@@ -92,7 +92,7 @@ handle_signal() {
     finalize
 }
 trap handle_signal USR1
-trap 'echo SIGTERM; exit 1' TERM
+trap 'echo SIGTERM; finalize; exit 1' TERM
 
 # --- WATCHDOG (regla aprobada): si la ola cayo en isla lenta (<40GB), vigilar
 # islas rapidas durante WATCHDOG_SECS. Si una se desocupa -> USR1 al propio

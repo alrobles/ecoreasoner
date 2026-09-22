@@ -9,7 +9,7 @@ Formato: `✓` = lectura completada y comprensión evaluada.
 
 | unidad | tema | lecturas hechas / total |
 |---|---|---|
-| U1 PyTorch core | tensors | L1 en curso (1/3 preguntas) |
+| U1 PyTorch core | tensors | L1 en curso (2/3 preguntas) |
 | | autograd | 0/2 |
 | | modules | 0/2 |
 | U2 Sistemas | ddp-zero | 0/2 |
@@ -25,7 +25,7 @@ Formato: `✓` = lectura completada y comprensión evaluada.
 
 | tema | asked | correct | pts | streak | last_seen | notas |
 |---|---|---|---|---|---|---|
-| tensors | 1 | 0 | 1 | 0 | 2026-09-19 | confundió shape de gate: dijo N×D, es N×n_experts |
+| tensors | 2 | 0 | 2 | 0 | 2026-09-21 | P1: confundió shape de gate (N×D vs N×n_experts). P2 (.float() pre-softmax): intuición correcta pero mecanismo vago — no mencionó colapso de logits en bf16 ni grads del balance_loss |
 | autograd | 0 | 0 | 0 | 0 | — | balance_loss detach vs diff, no_sync |
 | modules | 0 | 0 | 0 | 0 | — | register_buffer, state_dict, EMA |
 | ddp-zero | 0 | 0 | 0 | 0 | — | DDP wrap, ZeRO-1, consolidate |
@@ -54,4 +54,12 @@ Formato: `✓` = lectura completada y comprensión evaluada.
 - Comprensión 1/3: shape de `g` → **1 pt** (dijo N×D; correcto: N×n_experts,
   fila = distribución de routing del token).
 - Pendiente al reanudar: P2 (¿por qué `.float()` antes del softmax?) y P3.
+
+### 2026-09-21 — learn · tensors L1 (cont.)
+- Comprensión 2/3: `.float()` pre-softmax → **1 pt** (intuición "transformar en
+  alta precisión" correcta; faltó mecanismo: bf16 ~8 bits mantissa → logits
+  cercanos colapsan a ties + grads degradados en balance_loss).
+- P3 planteada (dispatch con k=2: ¿por cuántos expertos pasa un token, por qué
+  `+=`?) — sin responder; usuario salió del modo estudio.
+- Pendiente al reanudar: responder P3 → cerrar L1 → mini-quiz tensors.
 
