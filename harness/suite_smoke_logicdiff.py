@@ -257,10 +257,11 @@ def _common_affixes(a, b):
 def score_consistency(model, ctx, cand, p, s, mask_id):
     """CE + argmax sobre el span divergente del candidato (resto visible).
 
-    cand[p:len(cand)-s] es la región mutada ok↔bad. Devuelve
-    (mean_ce, acc_token, exact) donde acc_token es la fracción de
-    posiciones del slot donde argmax == token verdadero y exact es 1.0
-    si TODAS coinciden.
+    cand[p:len(cand)-s] es la región mutada ok↔bad. El score devuelto es
+    el SUM de CE (pseudo-loglik conjunta del slot) — el mean introduciría
+    sesgo de longitud: spans largos de tokens frecuentes ("did not show")
+    ganarían a spans cortos ("showed") aunque su conjunta sea peor.
+    Además devuelve (acc_token, exact) del argmax en el slot.
     """
     dev = next(model.parameters()).device
     seq = torch.tensor(list(ctx) + list(cand), dtype=torch.long, device=dev)
@@ -272,9 +273,9 @@ def score_consistency(model, ctx, cand, p, s, mask_id):
     xm = seq.clone(); xm[pos] = mask_id
     with torch.no_grad():
         logits = model(xm.unsqueeze(0)).squeeze(0)
-    ce = F.cross_entropy(logits[pos], seq[pos]).item()
+    ce_sum = F.cross_entropy(logits[pos], seq[pos], reduction="sum").item()
     eq = (logits[pos].argmax(-1) == seq[pos])
-    return ce, float(eq.float().mean().item()), float(eq.all().item())
+    return ce_sum, float(eq.float().mean().item()), float(eq.all().item())
 
 
 def score_candidate(model, mode, ctx, cand, mask_p, rng, mask_id,
