@@ -866,6 +866,26 @@ Estado al 18-09 ~10:00 UTC:**
    constante 9,216 tok/step en toda la flota. TARGET=1.3M steps
    (~1 pasada de 12B tok); ETA ~4-6 dias si se sostienen islas grandes,
    mas si cae a q6000 (~2K tok/s/isla).
+4j. **OPS 21-22/09 — cadena v5-1b rescatada + sft-v1 autonomo**:
+   (a) la cadena AUTO_RESUBMIT murio ~18h por race SIGTERM/finalize
+   (trap TERM hacia `exit 1` sin resubmit) — fix: `finalize` tambien
+   en trap TERM (guard FINALIZED evita double-submit); verificado:
+   la ola se auto-relazo a si misma (g124147 → job nuevo).
+   (b) **sft-v1 = SFT del backbone v5-1b** (init `sft_init_v5g94k`,
+   EMA del ckpt pretrain g94k) sobre `sft_ids_v1.npz` = 143,647 docs
+   (qa_sft_v1 143K pares OLMo-teacher + chat sciq/smoltalk). El
+   trainer no resumia y 1 epoca (~17955 steps bs8) no cabe en la
+   ventana 5.5h → `--step_offset` nuevo: ckpt-gN = steps ACUMULADOS
+   entre olas. Watcher local `watch_sft_v1.sh` encadena olas
+   (INIT=ultimo ckpt, OFFSET=ultimo gN) hasta TARGET_GN=35500 (~2 ep),
+   luego lanza AMBAS evals solo: `eval_qa_sft.slurm` (generativa,
+   eval_devin_hard 3000 held-out, decode conf, scoring = heuristicas
+   qa_filter gold-recall+num) y `g_eval_holdout_v5.slurm` (battery
+   discriminacion L0-L3, config nueva `eval-moe-v5.yaml` n_experts=16,
+   EMA) — gate de regresion post-SFT. Flag: data/SFT_V1_DONE.flag.
+   Estado al 22-09 ~04:40: v5-1b ~g124K/1.3M, sft-v1 ~g29.9K/35.5K.
+   Pendiente ritmo: v5-1b ~47K steps/dia observado → ~25 dias al
+   target, no 4-6 (islas grandes no se sostienen).
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).
