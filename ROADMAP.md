@@ -886,6 +886,13 @@ Estado al 18-09 ~10:00 UTC:**
    Estado al 22-09 ~04:40: v5-1b ~g124K/1.3M, sft-v1 ~g29.9K/35.5K.
    Pendiente ritmo: v5-1b ~47K steps/dia observado → ~25 dias al
    target, no 4-6 (islas grandes no se sostienen).
+   **Smoke eval_qa (g30000, 20q, temp 0.05 y 0.7 identico)**: pipeline
+   OK end-to-end pero salida degenerada en loop — el limite es el
+   BACKBONE sub-entrenado (~9% tokens), no el decode ni el SFT.
+   Control g10-ep3-s1 da sopa de numeros en prosa/chat (solo modela
+   esqueletos). Lectura: sft-v1 es shakedown del pipeline + punto de
+   datos "SFT sobre backbone inmaduro"; la iteracion que importa es
+   re-SFT desde un ckpt v5-1b mas maduro.
 5. UNAM (local /home/reumanlab/tesis_unam_scraper): flota w6-8 VIVA
    descargando (~1800 md nuevos + corrida_doct; slices 0-5 nunca
    lanzaron — decisión pendiente: 6 slices ×~977 docs más).
