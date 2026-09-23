@@ -148,6 +148,94 @@ it (i) beats control +2σ on `consistency` inferable AND (ii) does not
 regress on ≥2 of the four contrast instruments. A pairwise gain that
 evaporates under C1/C3 is declared a metric artifact, not a capability.
 
+## 8b. CONTRAST BATTERY RESULTS (2026-09-23)
+
+Implementation: `harness/build_pairs_fluent.py` (C1/C3), `--hf_model` backend
+(C2, LLaDA-8B-Instruct local snapshot), `consistency_profile` mode (C4),
+`scripts/c_contrast.slurm`. Pair sets: `runs/pairs_l3_fluent` (n=1200),
+`runs/pairs_l3_phys` (n=387, all `phys-*` docs held out), `runs/pairs_l3_inf`
+(n=1628). Checkpoints: b2-corr@g173001, b2-qa@g175501, b2-ctrl2@g178001
+(EMA; ckpt cleanup forced slightly different steps — comparability caveat).
+
+### C1 — fluent negatives (n=1200, closed-class grammatical swaps)
+
+| scorer | pairwise |
+|---|---|
+| b2-ctrl2 | **0.751** |
+| b2-qa | 0.750 |
+| b2-corr | 0.750 |
+| LLaDA-8B | 0.604 |
+
+Our model does *better* on fluent negatives than on the hard builder
+(0.75 vs 0.65). Fluency is NOT the channel the metric rewards — the
+negatives are grammatical and the model still separates them, and an
+external 8B dLLM agrees they are the easier set (0.604 > 0.507).
+
+### C2 — independent scorer (LLaDA-8B-Instruct, same pairs)
+
+| pair set | LLaDA-8B | ours (ctrl2) |
+|---|---|---|
+| inferable (n=1628) | **0.507 ≈ chance** | 0.652 |
+| fluent (n=1200) | 0.604 | 0.751 |
+| phys-holdout (n=387) | 0.631 | 0.669 |
+
+LLaDA-8B is at chance on our inferable pairs but above chance on both
+contrast sets. Reading: the hard-pair negatives encode a *builder/corpus
+fingerprint* our model learned and a general dLLM cannot see — but our
+model's edge survives domain transfer and fluency control, so the learned
+discrimination is not purely artifact.
+
+### C3 — domain holdout (phys-*, n=387)
+
+| arm | pairwise |
+|---|---|
+| b2-ctrl2 | 0.669 |
+| b2-qa | **0.685** |
+| b2-corr | 0.656 |
+| LLaDA-8B | 0.631 |
+
+Accuracy holds on a domain never seen in training or eval construction —
+the discrimination is not locked to bio/eco conventions. `b2-qa` leads on
+the held-out domain (+1.6 vs ctrl2), consistent with its small inferable
+edge — still sub-σ (n=387, σ≈2.4pts).
+
+### C4 — context-corruption profile (inferable, n=1628)
+
+| arm | 0% | 10% | 25% | 50% |
+|---|---|---|---|---|
+| b2-ctrl2 | 0.662 | 0.660 | 0.652 | 0.624 |
+| b2-qa | 0.659 | 0.654 | 0.647 | 0.616 |
+| b2-corr | 0.650 | 0.659 | 0.647 | 0.620 |
+
+**This is the most diagnostic result of the battery.** Destroying half the
+non-slot context costs only ~3-4 points. If the pairwise decision were
+context-bound verification, corrupting the context should cripple it —
+instead the model barely notices. The metric is largely ranking
+*candidate-side plausibility*; context contributes maybe ~4pts of signal.
+
+### Metric verdict (updated)
+
+**Partially trustworthy — and weaker than hoped.** What the 0.65 IS:
+real discrimination that generalizes across domains (C3), is not a fluency
+confound (C1), and beats an independent 8B dLLM (C2). What it is NOT:
+evidence of context-forced inference — C4 shows the decision is nearly
+insensitive to context integrity. The "verification" framing of §4 is not
+supported; "domain plausibility ranking" is the honest description.
+
+Consequences: (a) `gen_exact` (0.30) is the more honest measure of
+context-forced derivation — it requires *producing* the slot; (b) next
+pair sets must enforce context-necessity — e.g., pairs where both
+candidates are equally fluent and only context disambiguates (C4-flat
+curves are the signature to reject); (c) a C4 profile gate should join the
+pre-registered decision rule: a claimed reasoning gain whose curve is flat
+is not context-bound.
+
+### Arms status
+
+All three interventions remain statistically indistinguishable on every
+instrument (σ≈2-2.4pts at these n). Extensions to g193001 running
+(ctrl2 g178K+, qa g176K+, corr g173K+) — duration test still open.
+
 ---
 
 ## 9. Literature synthesis (2025-2026, post-pivot)
