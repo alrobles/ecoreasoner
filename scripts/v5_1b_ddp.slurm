@@ -38,6 +38,7 @@ WAVE_ID=${WAVE_ID:-v5-1b}
 FLAG=$OUT/training_complete.flag
 TARGET_STEPS=${TARGET_STEPS:-1300000}
 AUTO_RESUBMIT=${AUTO_RESUBMIT:-1}
+EXTRA_ARGS=${EXTRA_ARGS:-}   # flags extra al trainer (p.ej. corrective_p/contr_w)
 N_EXPERTS=${N_EXPERTS:-16}
 NTASKS=${SLURM_NTASKS:-3}
 # Forma de la ola (persistida via export en resubmits; el watchdog la puede
@@ -78,7 +79,7 @@ finalize() {
         fi
         echo "relanzando ola $WAVE_ID (ntasks=$sn gres=$sg)..."
         sbatch --ntasks="$sn" --ntasks-per-node="$sn" --gres="$sg" \
-            --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS,SHAPE_N=$sn,SHAPE_G=$sg" \
+            --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS,SHAPE_N=$sn,SHAPE_G=$sg,EXTRA_ARGS=$EXTRA_ARGS" \
             "$SCRIPTS/v5_1b_ddp.slurm" 2>/dev/null || true
     fi
 }
@@ -193,7 +194,7 @@ srun --export=ALL -n "$NTASKS" /usr/bin/apptainer exec --nv \
         --mask_schedule_args '{"b_l":0.30,"b_h":0.99}' \
         --curriculum --candidate_focus 1.0 \
         --ema_decay 0.999 --ckpt_every 500 \
-        $CKPT_FLAG $ZERO_FLAG $EMA_ARGS \
+        $CKPT_FLAG $ZERO_FLAG $EMA_ARGS $EXTRA_ARGS \
         --max_steps "$TARGET_STEPS" &
 SRUN_PID=$!
 watchdog &   # solo actua si VRAM<40GB; vigila islas rapidas la 1a hora

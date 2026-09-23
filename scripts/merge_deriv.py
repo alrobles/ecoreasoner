@@ -42,6 +42,9 @@ def load_npz_or_memmap(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--v5pdb", required=True)
+    ap.add_argument("--base", default=None,
+                    help="npz pre-construido como base (salta el subsample; "
+                         "garantiza stream base idéntico entre brazos)")
     ap.add_argument("--deriv", required=True)
     ap.add_argument("--base-tokens", type=int, default=400_000_000)
     ap.add_argument("--deriv-share", type=float, default=0.20)
@@ -51,37 +54,47 @@ def main():
     args = ap.parse_args()
 
     t0 = time.time()
-    ids, lens = load_npz_or_memmap(args.v5pdb)
-    n_docs = int(lens.size)
-    print(f"v5pdb: {n_docs} docs, {int(np.asarray(lens).sum())/1e9:.2f}B tok",
-          flush=True)
-    lens = np.asarray(lens)
-    off = np.zeros(n_docs + 1, dtype=np.int64)
-    np.cumsum(lens, out=off[1:])
+    if args.base:
+        # base pre-construida (mismo stream que otros brazos)
+        b_ids, b_lens = load_npz_or_memmap(args.base)
+        base_ids = np.asarray(b_ids).astype(np.int32)
+        base_lens = np.asarray(b_lens).astype(np.int32)
+        w = int(base_ids.size)
+        rng = np.random.default_rng(args.seed)
+        print(f"base pre-existente: {base_lens.size} docs, {w/1e6:.0f}M tok",
+              flush=True)
+    else:
+        ids, lens = load_npz_or_memmap(args.v5pdb)
+        n_docs = int(lens.size)
+        print(f"v5pdb: {n_docs} docs, {int(np.asarray(lens).sum())/1e9:.2f}B tok",
+              flush=True)
+        lens = np.asarray(lens)
+        off = np.zeros(n_docs + 1, dtype=np.int64)
+        np.cumsum(lens, out=off[1:])
 
-    rng = np.random.default_rng(args.seed)
-    # docs necesarios para ~base-tokens: muestrear hasta cubrir el cupo
-    est_mean = off[-1] / n_docs
-    n_pick = min(n_docs, int(args.base_tokens / est_mean * 1.05) + 100)
-    sel = np.sort(rng.choice(n_docs, size=n_pick, replace=False))
-    sel_tok = int(lens[sel].sum())
-    print(f"base subsample: {len(sel)} docs ~{sel_tok/1e6:.0f}M tok", flush=True)
+        rng = np.random.default_rng(args.seed)
+        # docs necesarios para ~base-tokens: muestrear hasta cubrir el cupo
+        est_mean = off[-1] / n_docs
+        n_pick = min(n_docs, int(args.base_tokens / est_mean * 1.05) + 100)
+        sel = np.sort(rng.choice(n_docs, size=n_pick, replace=False))
+        sel_tok = int(lens[sel].sum())
+        print(f"base subsample: {len(sel)} docs ~{sel_tok/1e6:.0f}M tok",
+              flush=True)
 
-    # pase secuencial: recolectar ids de los docs seleccionados
-    base_ids = np.empty(sel_tok, dtype=np.int32)
-    base_lens = lens[sel].astype(np.int32)
-    w = 0
-    cursor = 0  # offset actual en ids
-    for j, d in enumerate(sel):
-        ln = int(lens[d])
-        s, e = int(off[d]), int(off[d]) + ln
-        base_ids[w:w + ln] = ids[s:e]
-        w += ln
-        cursor = e
-        if j % 50000 == 0:
-            print(f"  gather {j}/{len(sel)} ({w/1e6:.0f}M tok)", flush=True)
-    base_ids = base_ids[:w]
-    print(f"base recolectada: {w/1e6:.1f}M tok en {time.time()-t0:.0f}s", flush=True)
+        # pase secuencial: recolectar ids de los docs seleccionados
+        base_ids = np.empty(sel_tok, dtype=np.int32)
+        base_lens = lens[sel].astype(np.int32)
+        w = 0
+        for j, d in enumerate(sel):
+            ln = int(lens[d])
+            s, e = int(off[d]), int(off[d]) + ln
+            base_ids[w:w + ln] = ids[s:e]
+            w += ln
+            if j % 50000 == 0:
+                print(f"  gather {j}/{len(sel)} ({w/1e6:.0f}M tok)", flush=True)
+        base_ids = base_ids[:w]
+        print(f"base recolectada: {w/1e6:.1f}M tok en {time.time()-t0:.0f}s",
+              flush=True)
 
     d_ids, d_lens = load_npz_or_memmap(args.deriv)
     d_ids = np.asarray(d_ids); d_lens = np.asarray(d_lens).astype(np.int32)
@@ -94,11 +107,12 @@ def main():
           flush=True)
 
     meta_common = {"vocab_size": 126080, "eos_id": 0}
-    np.savez(args.base_out, ids=base_ids, lengths=base_lens, **meta_common)
-    with open(args.base_out + ".meta.json", "w") as f:
-        json.dump({"n_tokens": int(w), "n_docs": int(base_lens.size),
-                   "src": "v5pdb_subsample", "seed": args.seed,
-                   "created": time.strftime("%Y-%m-%dT%H:%M:%S")}, f)
+    if not args.base:
+        np.savez(args.base_out, ids=base_ids, lengths=base_lens, **meta_common)
+        with open(args.base_out + ".meta.json", "w") as f:
+            json.dump({"n_tokens": int(w), "n_docs": int(base_lens.size),
+                       "src": "v5pdb_subsample", "seed": args.seed,
+                       "created": time.strftime("%Y-%m-%dT%H:%M:%S")}, f)
 
     # mezcla: base + deriv xK, docs intercalados (bloques aleatorios de origen)
     mix_ids = np.concatenate([base_ids] + [d_ids] * k)
