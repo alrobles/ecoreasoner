@@ -119,6 +119,33 @@ def load_model(args, mcfg):
     return model, dev
 
 
+class HFLogits:
+    """Adaptador: modelo HF (p.ej. LLaDA-8B) -> callable logits [T,V].
+
+    Permite usar el MISMO harness/scoring con un scorer externo (C2):
+    los pares ya están tokenizados con el tokenizer LLaDA (vocab idéntico),
+    solo cambia el forward y el mask_id.
+    """
+    def __init__(self, m):
+        self.m = m
+
+    def __call__(self, x):
+        return self.m(x).logits
+
+    def parameters(self):
+        return self.m.parameters()
+
+
+def load_hf_model(path, dev):
+    from transformers import AutoModel
+    m = AutoModel.from_pretrained(path, local_files_only=True,
+                                  trust_remote_code=True,
+                                  torch_dtype=torch.bfloat16).to(dev)
+    m.eval()
+    mask_id = getattr(m.config, "mask_token_id", None)
+    return HFLogits(m), mask_id
+
+
 def load_head(path, dev):
     d = torch.load(path, map_location=dev)
     cfg = d["config"]
@@ -254,7 +281,7 @@ def _common_affixes(a, b):
     return p, s
 
 
-def score_consistency(model, ctx, cand, p, s, mask_id):
+def score_consistency(model, ctx, cand, p, s, mask_id, corrupt_sel=None):
     """CE + argmax sobre el span divergente del candidato (resto visible).
 
     cand[p:len(cand)-s] es la región mutada ok↔bad. El score devuelto es
@@ -262,6 +289,10 @@ def score_consistency(model, ctx, cand, p, s, mask_id):
     sesgo de longitud: spans largos de tokens frecuentes ("did not show")
     ganarían a spans cortos ("showed") aunque su conjunta sea peor.
     Además devuelve (acc_token, exact) del argmax en el slot.
+
+    corrupt_sel: posiciones extra a enmascarar (perfil multi-timestep, C4).
+    Índices >=0 = absolutos; <0 = contados desde el final — permite aplicar
+    la MISMA corrupción en ok y bad aunque difieran en longitud del slot.
     """
     dev = next(model.parameters()).device
     seq = torch.tensor(list(ctx) + list(cand), dtype=torch.long, device=dev)
@@ -271,11 +302,27 @@ def score_consistency(model, ctx, cand, p, s, mask_id):
         lo, hi = max(0, min(p, n - 1)), max(0, min(p, n - 1)) + 1
     pos = torch.arange(cs + lo, cs + hi, device=dev)
     xm = seq.clone(); xm[pos] = mask_id
+    if corrupt_sel:
+        T = seq.shape[0]
+        for i in corrupt_sel:
+            xm[i if i >= 0 else T + i] = mask_id
     with torch.no_grad():
         logits = model(xm.unsqueeze(0)).squeeze(0)
     ce_sum = F.cross_entropy(logits[pos], seq[pos], reduction="sum").item()
     eq = (logits[pos].argmax(-1) == seq[pos])
     return ce_sum, float(eq.float().mean().item()), float(eq.all().item())
+
+
+def _corrupt_sel(cs, p, s, frac, rng):
+    """Selección compartida de posiciones no-slot a corromper (C4).
+
+    Devuelve índices: [0, cs+p) absolutos (ctx + prefijo cand, idénticos en
+    ok y bad) y -(i+1) para el sufijo (i-ésimo desde el final). Aplicar la
+    misma selección a ambos candidatos = contexto corrompido idéntico.
+    """
+    free = list(range(cs + p)) + [-(i + 1) for i in range(s)]
+    k = int(len(free) * frac)
+    return rng.sample(free, k) if k else []
 
 
 def score_candidate(model, mode, ctx, cand, mask_p, rng, mask_id,
@@ -361,9 +408,23 @@ def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
     sub_wins, sub_n = {}, {}
     gen_acc_ok, gen_exact_ok, gen_acc_bad, gen_exact_bad = [], [], [], []
     sub_gen_ok, sub_gen_bad = {}, {}
+    profile_lvls = [0.0, 0.1, 0.25, 0.5]
+    prof_wins = {x: 0 for x in profile_lvls}
     for item in pairs:
         ctx, ok, bad = item[:3]
         subtype = item[3] if len(item) > 3 else None
+        if mode == "consistency_profile":
+            # C4: acc del par a k tasas de corrupción del contexto no-slot.
+            # Misma selección corrompida en ok y bad (comparación justa).
+            p, s = _common_affixes(ok, bad)
+            for x in profile_lvls:
+                sel = _corrupt_sel(len(ctx), p, s, x, rng)
+                l_ok, _, _ = score_consistency(model, ctx, ok, p, s,
+                                               mask_id, corrupt_sel=sel)
+                l_bad, _, _ = score_consistency(model, ctx, bad, p, s,
+                                                mask_id, corrupt_sel=sel)
+                prof_wins[x] += int(l_ok < l_bad)
+            continue
         if mode == "consistency":
             p, s = _common_affixes(ok, bad)
             l_ok, a_ok, e_ok = score_consistency(model, ctx, ok, p, s,
@@ -389,6 +450,15 @@ def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
         if subtype:
             sub_wins[subtype] = sub_wins.get(subtype, 0) + int(w)
             sub_n[subtype] = sub_n.get(subtype, 0) + 1
+    if mode == "consistency_profile":
+        return {
+            "profile": {f"corrupt_{x:g}": round(prof_wins[x] / len(pairs), 4)
+                        for x in profile_lvls},
+            "n_pairs": len(pairs),
+            "pairwise_acc": round(prof_wins[0.0] / len(pairs), 4),
+            "mean_delta": 0.0,
+            "elapsed_s": round(time.time() - t0, 1),
+        }
     rep = {
         "pairwise_acc": round(ok_wins / len(pairs), 4),
         "n_pairs": len(pairs),
@@ -429,7 +499,7 @@ def _load_pairs(path, max_ctx, max_cand):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ckpt", required=True)
+    ap.add_argument("--ckpt", default=None)
     ap.add_argument("--config", required=True)
     ap.add_argument("--pairs-dir", required=True)
     ap.add_argument("--out-dir", required=True)
@@ -443,6 +513,9 @@ def main():
     ap.add_argument("--weight-tying", action="store_true")
     ap.add_argument("--model-override", default="",
                     help="JSON que pisa cfg['model'] (p.ej. '{\"hidden\":768,\"layers\":8}')")
+    ap.add_argument("--hf_model", default=None,
+                    help="C2: scorer externo HF (p.ej. snapshot LLaDA-8B) en "
+                         "lugar del ckpt MdLMMoE; usa su propio mask_token_id")
     ap.add_argument("--limit", type=int, default=0,
                     help="limitar pares por nivel (debug)")
     args = ap.parse_args()
@@ -456,7 +529,16 @@ def main():
     mask_id = args.mask_id if args.mask_id is not None else mcfg["vocab"]
     seed = cfg["seed"]; tag = cfg["out"]["tag"]
 
-    model, dev = load_model(args, mcfg)
+    if args.hf_model:
+        dev = torch.device(args.device)
+        model, hf_mask = load_hf_model(args.hf_model, dev)
+        if hf_mask is not None:
+            mask_id = hf_mask
+        print(f"[hf_model] {args.hf_model} mask_id={mask_id}")
+    else:
+        if not args.ckpt:
+            ap.error("--ckpt requerido si no se usa --hf_model")
+        model, dev = load_model(args, mcfg)
     modes = [m.strip() for m in args.modes.split(",") if m.strip()]
 
     need_tok = any(m in ("staged", "staged_rev", "staged_rand", "payload")
