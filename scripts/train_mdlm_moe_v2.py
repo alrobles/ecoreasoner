@@ -156,6 +156,11 @@ def parse():
                    help="margen del hinge contrastivo (nats de logprob)")
     p.add_argument("--contr_p", type=float, default=1.0,
                    help="fraccion de posiciones mutables contrastadas por step")
+    p.add_argument("--rebind_p", type=float, default=0.0,
+                   help="fraccion de posiciones numericas corruptas cuyo "
+                        "reemplazo viene de OTRO numero de la misma "
+                        "secuencia (rebind ctxnec: corregir exige binding; "
+                        "requiere corrective_p>0)")
     p.add_argument("--batch_size", type=int, default=1)
     p.add_argument("--data", nargs="*", default=[])
     p.add_argument("--data_cache", default=None,
@@ -1006,6 +1011,35 @@ def _corrupt_positions(x1, mp_local, tables, device):
     return vis_idx[sel]
 
 
+def _rebind_replacements(x1, cp_local, tables, device):
+    """Rebind (ctxnec): posiciones corruptas cuyo token original es numerico
+    reciben como reemplazo OTRO token numerico presente EN LA MISMA
+    secuencia x1. El valor 'malo' esta atestiguado en el documento ->
+    corregirlo exige binding contexto->slot, no plausibilidad global.
+
+    Devuelve (pos_local, rep_id) para las posiciones rebindeadas, o
+    (None, None). rebind_p = fraccion de posiciones elegibles.
+    """
+    orig = x1[cp_local]
+    num_m = tables["is_num"][orig]
+    if not bool(num_m.any()):
+        return None, None
+    pool = x1[tables["is_num"][x1]].unique()
+    if pool.numel() < 2:
+        return None, None
+    sel = cp_local[num_m]
+    if ARGS.rebind_p < 1.0:
+        sel = sel[torch.rand(sel.numel(), device=device) < ARGS.rebind_p]
+        if sel.numel() == 0:
+            return None, None
+    ri = torch.randint(0, pool.numel(), (sel.numel(),), device=device)
+    rep = pool[ri]
+    same = rep == x1[sel]
+    if bool(same.any()):
+        rep[same] = pool[(ri[same] + 1) % pool.numel()]
+    return sel, rep
+
+
 def _corrupt_replacements(orig_ids, tables, vocab, device):
     """Devuelve ids corruptos para orig_ids [N] (vectorizado)."""
     n = orig_ids.numel()
@@ -1552,6 +1586,7 @@ def main():
             or ARGS.loss_neg_w != 1.0 or ARGS.contr_w > 0):
         CORRUPT = build_correction_tables(tok, ARGS.vocab, device=DEVICE)
         log(f"corrective/numw on: p={ARGS.corrective_p} "
+            f"rebind_p={ARGS.rebind_p} "
             f"boost={ARGS.corrective_boost} num_ids={CORRUPT['n_num']} "
             f"flip_ids={CORRUPT['n_flip']} "
             f"loss_w(num={ARGS.loss_num_w}, neg={ARGS.loss_neg_w}) "
@@ -1589,6 +1624,7 @@ def main():
             n_masked_per_ex.append(n)
         mp_parts = []
         cp_parts = []
+        rb_pos, rb_rep = [], []
         for b_idx in range(B):
             xb_b = xb[b_idx:b_idx+1]
             mp_b = None
@@ -1609,6 +1645,12 @@ def main():
             if CORRUPT is not None and ARGS.corrective_p > 0:
                 cp_b = _corrupt_positions(xb_b, mp_b, CORRUPT, xb.device)
                 if cp_b is not None and cp_b.numel() > 0:
+                    if ARGS.rebind_p > 0:
+                        rp_b, rr_b = _rebind_replacements(
+                            xb_b, cp_b, CORRUPT, xb.device)
+                        if rp_b is not None:
+                            rb_pos.append(rp_b + b_idx * T)
+                            rb_rep.append(rr_b)
                     cp_parts.append(cp_b + b_idx * T)
         mp = torch.cat(mp_parts)
         cp = torch.cat(cp_parts) if cp_parts else None
@@ -1620,6 +1662,8 @@ def main():
         if cp is not None:
             xm.view(-1)[cp] = _corrupt_replacements(
                 xb.reshape(-1)[cp], CORRUPT, ARGS.vocab, xb.device)
+            if rb_pos:
+                xm.view(-1)[torch.cat(rb_pos)] = torch.cat(rb_rep)
             sup = torch.cat([mp, cp])
         assert int(xm.max()) <= ARGS.vocab, f"masked input out of embedding range: max={int(xm.max())}"
         out = glob_model(xm)
