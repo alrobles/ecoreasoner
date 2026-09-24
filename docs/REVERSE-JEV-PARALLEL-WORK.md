@@ -1,6 +1,6 @@
 # Trabajo paralelo reutilizable: reverse-jev (open decision model)
 
-**Fecha**: 2026-09 · **Repo**: `github.com/alrobles/reverse-jev`
+**Fecha**: 2026-09 · **Repo**: `github.com/alrobles/sciev-devel`
 (local `~/GitHub/reverse-jev`, cluster `/beegfs/a474r867/reverse-jev`)
 
 Reporte de una línea de trabajo paralela a ecoreasoner que ya resolvió
