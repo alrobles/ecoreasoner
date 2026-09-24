@@ -233,8 +233,55 @@ is not context-bound.
 ### Arms status
 
 All three interventions remain statistically indistinguishable on every
-instrument (σ≈2-2.4pts at these n). Extensions to g193001 running
-(ctrl2 g178K+, qa g176K+, corr g173K+) — duration test still open.
+instrument (σ≈2-2.4pts at these n). Extensions to g193001: ctrl2 and corr
+COMPLETED (ckpts preserved under `runs/contrast/ckpts/`); qa timed out at
+g188501 and was relaunched.
+
+## 8c. CONTEXT-NECESSARY PAIRS (2026-09-24)
+
+Post-C4 instrument: `harness/build_pairs_ctxnec.py` — negatives use
+context-attested material so only binding decides truth:
+
+| strategy | n | mechanism |
+|---|---|---|
+| value_rebind | 608 | number → another number attested in ctx |
+| entity_rebind | 334 | entity → same-class entity attested in ctx |
+| role_swap | 211 | A<rel>B → B<rel>A, both attested in ctx |
+| direction_rebind | 47 | direction swap only if antonym in ctx |
+
+### Results (n=1200)
+
+| scorer | ctxnec | (orig inferable) |
+|---|---|---|
+| b2-ctrl2@g193001 | 0.710 | 0.652 |
+| b2-qa@g188001 | 0.705 | 0.657 |
+| b2-corr@g193001 | 0.700 | 0.652 |
+| LLaDA-8B | 0.513 ≈ chance | 0.507 |
+
+### C4 profile on ctxnec — the binding probe
+
+| arm | 0% | 10% | 25% | 50% | drop |
+|---|---|---|---|---|---|
+| ctrl2 | 0.710 | 0.696 | 0.689 | 0.618 | −9.2 |
+| qa | 0.705 | 0.691 | 0.673 | 0.621 | −8.4 |
+| corr | 0.700 | 0.692 | 0.676 | 0.614 | −8.6 |
+| (orig pairs) | ~0.66 | ~0.66 | ~0.65 | ~0.62 | −3.5 |
+
+**Reading**: ctxnec pairs degrade 2.5× more under context corruption than
+the original set — they DO engage context. But ~0.62 survives at 50%
+corruption: the honest decomposition of our model's "verification" is
+≈0.62 plausibility prior + ≈9pts context binding. The binding component is
+real but small; the plateau is mostly a plausibility ceiling.
+
+### Follow-up launched
+
+**b2-rbd** (job 30237078): `--rebind_p 0.7` added to the trainer — numeric
+corrupt positions take replacements from other numbers IN THE SAME
+SEQUENCE (ctxnec-as-objective). Init b2-corr@g193001, +5K steps on the
+identical base stream. Prediction to falsify: if the plateau is missing
+binding supervision, b2-rbd should lift ctxnec accuracy AND steepen the
+C4 profile beyond what ctrl2/corr show; a flat result falsifies the
+objective hypothesis at this dose.
 
 ---
 
