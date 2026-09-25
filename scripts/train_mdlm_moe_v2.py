@@ -1020,6 +1020,7 @@ def _rebind_replacements(x1, cp_local, tables, device):
     Devuelve (pos_local, rep_id) para las posiciones rebindeadas, o
     (None, None). rebind_p = fraccion de posiciones elegibles.
     """
+    x1 = x1.reshape(-1)
     orig = x1[cp_local]
     num_m = tables["is_num"][orig]
     if not bool(num_m.any()):
