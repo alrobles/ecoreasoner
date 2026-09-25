@@ -32,7 +32,7 @@ if [ -n "${HF_MODEL:-}" ]; then
     export PYTHONPATH=/beegfs/a474r867/pydeps_tf451${PYTHONPATH:+:$PYTHONPATH}
 else
     RUNDIR=${RUNDIR:-$BASE/runs/v5-1b}
-    CKPT_DIR=${CKPT_DIR:-$(ls -d "$RUNDIR"/checkpoint-g* | sort -V | tail -1)}
+    CKPT_DIR=${CKPT_DIR:-$(ls -d "$RUNDIR"/checkpoint-g* | grep -v incomplete | sort -V | tail -1)}
     if [ "$EMA" = "1" ] && [ -f "$CKPT_DIR/ema_model.pt" ]; then
         CKPT=$CKPT_DIR/ema_model.pt
     else

@@ -43,10 +43,10 @@ while :; do
       "cd $BASE && \
        sbatch --export=ALL,RUNDIR=$BASE/$OUT,OUTDIR=$BASE/$CURVE/g$latest/dense scripts/g_eval_holdout_v5.slurm && \
        sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
-         --export=ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$BASE/$OUT/checkpoint-g$latest,PAIRS=$BASE/runs/pairs_l3_inf,MODES=consistency,consistency_profile,OUTDIR=$BASE/$CURVE/g$latest/cons_inf \
+         '--export=ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_inf,MODES=consistency consistency_profile,OUTDIR='$BASE/$CURVE/g$latest'/cons_inf' \
          scripts/c_contrast.slurm && \
        sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
-         --export=ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$BASE/$OUT/checkpoint-g$latest,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency,consistency_profile,OUTDIR=$BASE/$CURVE/g$latest/cons_ctxnec \
+         '--export=ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency consistency_profile,OUTDIR='$BASE/$CURVE/g$latest'/cons_ctxnec' \
          scripts/c_contrast.slurm" \
       2>/dev/null | tail -3 | tee -a "$LOG"
   fi

@@ -647,7 +647,8 @@ def main():
         if not args.ckpt:
             ap.error("--ckpt requerido si no se usa --hf_model")
         model, dev = load_model(args, mcfg)
-    modes = [m.strip() for m in args.modes.split(",") if m.strip()]
+    # separador: coma o espacio (sbatch --export no admite comas en valores)
+    modes = [m for m in re.split(r"[,\s]+", args.modes) if m]
 
     need_tok = any(m in ("staged", "staged_rev", "staged_rand", "payload")
                    for m in modes)
