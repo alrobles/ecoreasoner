@@ -300,6 +300,58 @@ extension — found stopped 09-25: optimizer state_steps device-mismatch
 on cross-island resume killed wave 30252378; fix deployed, wave
 relaunched) > architecture (block diffusion) > objective dose.
 
+## 8d. EXPOSURE POINT g184K + INFERENCE-TIME ARMS (2026-09-25)
+
+Mainline v5-1b@g184001 (EMA, ~37.5K steps / ~290M tokens after the
+g146.5K baseline) on the corrected instruments:
+
+| instrument | g146501 | g184001 | Δ |
+|---|---|---|---|
+| consistency-inf (n=1628) | 0.652 | **0.658** | +0.6 (sub-σ) |
+| gen_exact_ok (inf) | 0.296 | **0.294** | −0.2 (flat) |
+| ctxnec pairwise (n=1200) | — | **0.688** | — |
+| ctxnec C4 drop | — | **−7.2** | in-family (−8.4..−9.2 arms) |
+| inf C4 drop | ~−3.5 (arms) | **−3.9** | flat |
+
+**Reading**: the 0.65 plateau is not moving with exposure at this window
+(+37K mainline, and ctrl2@g193K=0.652 closes the other side). Quokka
+caveat stands (~13% of one epoch is early), but the local slope is ~0 —
+exposure alone does not break the plateau within a 25K-step horizon, so
+non-exposure levers must carry the next gain.
+
+**EoS-latent padding (arXiv 2603.05197) — FALSIFIED for this skill.**
+ctxnec@g184001 with k EOS pads appended after the candidate:
+pad0/32/128 → pairwise 0.6875/0.6892/0.6883, gen_exact_ok
+0.2308/0.2333/0.2283 — all inside noise. Latent-compute slots do not
+help a model whose bottleneck is context binding, not compute depth.
+Cheap test, clean null.
+
+**Verifier decoding (E-obj2) — PARTIAL POSITIVE.** `remask` mode
+(steps=4, rounds=2, frac=0.25) on v5-1b@g185001:
+
+| set | gen_exact_ok 1-paso | gen_exact_ok remask | Δ | gen_exact_bad |
+|---|---|---|---|---|
+| ctxnec (n=1200) | 0.231 | **0.274** | **+4.3 ≈ +3.3σ** | 0.073→0.064 |
+| inf (n=1628) | 0.294 | 0.286 | −0.75 (null) | 0.081→0.033 |
+
+Iterative refinement helps exactly where the pair needs context binding
+(ctxnec) and is flat where plausibility suffices — the decode surface
+DOES hold extra binding capacity the 1-step argmax leaves on the table.
+`gen_exact_bad` nearly halves on inf (0.081→0.033): the loop rejects
+mutations rather than polishing them. Subtype lift (gen_exact_ok,
+1-paso→remask): entity_rebind 0.275→0.374 (+9.8), role_swap
+0.038→0.115 (3×, aun así el peor), direction_rebind 0.362→0.370 y
+value_rebind 0.263→0.266 (planos). Escalation: dose-response
+(steps=8/rounds=4/frac=0.3) on ctxnec running; if it keeps rising,
+remask decoding becomes the eval standard for capability claims and a
+candidate for inference-time verification.
+
+Ops fixes: trainer keeps ~2 ckpts → pinned evals raced to deletion;
+pinned evals now snapshot to `runs/contrast/ckpts/`, and the battery
+watcher (repaired evaled-parse bug) launches consistency+profile on
+inf+ctxnec at every curve point — the corrected-metric exposure curve
+is now automatic (next point ~g206K).
+
 ---
 
 ## 9. Literature synthesis (2025-2026, post-pivot)
@@ -364,5 +416,6 @@ date        model            consistency-inf   gen_exact
 09-17       retrain_v4s 676M     0.561            0.007
 09-22       v5-1b @g147K         0.652            0.296
 09-23       b2-ctrl2/qa/corr   0.652-0.657      0.284-0.303
+09-25       v5-1b @g184K         0.658            0.294   <- exposicion plana
             └── plateau ~0.65 under attack ──┘
 ```

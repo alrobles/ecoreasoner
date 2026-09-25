@@ -20,9 +20,9 @@ case "$GPU_NAME" in
   *"PRO 6000"*|*Blackwell*) OVL="--overlay $BASE/blackwell-torch.overlay:ro"; PY=$VENV/bin/python;;
   *) OVL=""; PY=python3;;
 esac
-EXTRA=""
+EXTRA="${EVAL_EXTRA:-}"
 if [ -n "${EOS_PAD:-0}" ] && [ "${EOS_PAD:-0}" != "0" ]; then
-    EXTRA="--eos_pad $EOS_PAD"
+    EXTRA="$EXTRA --eos_pad $EOS_PAD"
 fi
 if [ -n "${HF_MODEL:-}" ]; then
     CKPT=""
