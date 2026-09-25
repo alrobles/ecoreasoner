@@ -1326,6 +1326,30 @@ def _init_ema_state():
         log(f"  EMA inicializada desde modelo (dev={_ema_dev()})")
 
 
+def _fix_opt_devices():
+    """Post-load: mueve tensores del estado del optimizador al device de su
+    param. _cast() de torch deja 'step' en cpu cuando el ckpt viene de otra
+    config (migracion isla/EMA); fused AdamW exige state_steps en el device
+    del param -> RuntimeError 'cuda:N and cpu' en el primer step."""
+    base = getattr(glob_opt, "optim", glob_opt)   # ZeRO -> optim interno
+    if not hasattr(base, "state"):
+        return
+    fused = any(g.get("fused") or g.get("capturable") for g in base.param_groups)
+    for group in base.param_groups:
+        for p in group["params"]:
+            st = base.state.get(p)
+            if not st:
+                continue
+            for k, v in st.items():
+                if not isinstance(v, torch.Tensor) or v.device == p.device:
+                    continue
+                if k == "step":
+                    if fused:
+                        st[k] = v.to(dtype=torch.float32, device=p.device)
+                else:
+                    st[k] = v.to(p.device)
+
+
 def _try_load(ck, step):
     """Carga un checkpoint; devuelve True si OK. El checkpoint puede estar
     CORRUPTO (race SIGUSR1 de 2 ranks guardando al mismo dir, 2026-08-29):
@@ -1333,6 +1357,7 @@ def _try_load(ck, step):
     try:
         glob_model.load_state_dict(torch.load(ck/"model.pt", map_location="cpu")["model"])
         glob_opt.load_state_dict(torch.load(ck/"optimizer.pt", map_location="cpu")["optimizer"])
+        _fix_opt_devices()
         # EMA
         if (ck/"ema_model.pt").exists():
             glob_ema_sd[0] = {k: v.to(_ema_dev()) for k, v in

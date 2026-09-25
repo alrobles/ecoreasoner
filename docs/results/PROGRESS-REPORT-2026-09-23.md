@@ -255,6 +255,7 @@ context-attested material so only binding decides truth:
 |---|---|---|
 | b2-ctrl2@g193001 | 0.710 | 0.652 |
 | b2-qa@g188001 | 0.705 | 0.657 |
+| b2-rbd@g198001 | 0.705 | — |
 | b2-corr@g193001 | 0.700 | 0.652 |
 | LLaDA-8B | 0.513 ≈ chance | 0.507 |
 
@@ -264,6 +265,7 @@ context-attested material so only binding decides truth:
 |---|---|---|---|---|---|
 | ctrl2 | 0.710 | 0.696 | 0.689 | 0.618 | −9.2 |
 | qa | 0.705 | 0.691 | 0.673 | 0.621 | −8.4 |
+| rbd | 0.705 | 0.691 | 0.673 | 0.621 | −8.4 |
 | corr | 0.700 | 0.692 | 0.676 | 0.614 | −8.6 |
 | (orig pairs) | ~0.66 | ~0.66 | ~0.65 | ~0.62 | −3.5 |
 
@@ -282,6 +284,21 @@ identical base stream. Prediction to falsify: if the plateau is missing
 binding supervision, b2-rbd should lift ctxnec accuracy AND steepen the
 C4 profile beyond what ctrl2/corr show; a flat result falsifies the
 objective hypothesis at this dose.
+
+### b2-rbd result (2026-09-25) — objective hypothesis FALSIFIED at this dose
+
+b2-rbd@g198001 (EMA, +5K steps done): ctxnec **0.705**, C4 profile
+0.705/0.691/0.673/0.621 (drop **−8.4**). Flat vs every control arm —
+no accuracy lift over ctrl2/corr, no profile steepening (all drops
+inside −8.4..−9.2; σ≈1.3pts at n=1200). In-sequence rebind supervision
+during corrective corruption did not move the binding component.
+Reading: 5K steps of ctxnec-style objective at rebind_p=0.7 does not
+break the ~0.62 plausibility prior — either the dose is far too small
+or the binding gap lives in the eval/decoding surface, not the
+objective. Elimination ranking for the next lever: exposure (v5-1b
+extension — found stopped 09-25: optimizer state_steps device-mismatch
+on cross-island resume killed wave 30252378; fix deployed, wave
+relaunched) > architecture (block diffusion) > objective dose.
 
 ---
 
