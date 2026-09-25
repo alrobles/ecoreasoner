@@ -320,6 +320,53 @@ def score_consistency(model, ctx, cand, p, s, mask_id, corrupt_sel=None,
     return ce_sum, float(eq.float().mean().item()), float(eq.all().item())
 
 
+def decode_slot_iter(model, ctx, cand, p, s, mask_id, eos_pad=0, eos_id=0,
+                     n_steps=4, rounds=2, remask_frac=0.25):
+    """Decodifica el span divergente por desenmascarado iterativo (E-obj2).
+
+    Enmascara cand[p:len(cand)-s]; cada step predice argmax y REVELA las
+    posiciones mas confiadas (los tokens quedan son DECODIFICADOS, no los
+    verdaderos — generacion real). Tras revelar todo, `rounds` rondas de
+    refinado: remascara el remask_frac inferior por confianza y re-decodifica.
+
+    Devuelve (ids_finales_slot, conf_final_slot): tensores len(hi-lo).
+    """
+    dev = next(model.parameters()).device
+    seq = torch.tensor(list(ctx) + list(cand) + [eos_id] * eos_pad,
+                       dtype=torch.long, device=dev)
+    cs, n = len(ctx), len(cand)
+    lo, hi = p, n - s
+    if hi <= lo:
+        lo, hi = max(0, min(p, n - 1)), max(0, min(p, n - 1)) + 1
+    slot = torch.arange(cs + lo, cs + hi, device=dev)
+    xm = seq.clone(); xm[slot] = mask_id
+    for r in range(1 + max(0, rounds)):
+        masked = slot[xm[slot] == mask_id]
+        while masked.numel():
+            with torch.no_grad():
+                logits = model(xm.unsqueeze(0)).squeeze(0)
+            lp = F.log_softmax(logits[masked].float(), dim=-1)
+            conf, pred = lp.max(-1)
+            k = max(1, -(-int(masked.numel()) // max(1, n_steps)))
+            top = conf.topk(min(k, masked.numel())).indices
+            xm[masked[top]] = pred[top]
+            keep = torch.ones(masked.numel(), dtype=torch.bool, device=dev)
+            keep[top] = False
+            masked = masked[keep]
+        if r < rounds:      # no remascarar tras la ultima revelacion
+            with torch.no_grad():
+                lp = F.log_softmax(model(xm.unsqueeze(0)).squeeze(0)[slot]
+                                   .float(), dim=-1)
+            conf = lp.gather(-1, xm[slot].unsqueeze(-1)).squeeze(-1)
+            m = max(1, int(remask_frac * slot.numel()))
+            xm[slot[conf.topk(m, largest=False).indices]] = mask_id
+    with torch.no_grad():
+        lp = F.log_softmax(model(xm.unsqueeze(0)).squeeze(0)[slot]
+                           .float(), dim=-1)
+    conf = lp.gather(-1, xm[slot].unsqueeze(-1)).squeeze(-1)
+    return xm[slot], conf
+
+
 def _corrupt_sel(cs, p, s, frac, rng):
     """Selección compartida de posiciones no-slot a corromper (C4).
 
@@ -407,7 +454,8 @@ def score_candidate(model, mode, ctx, cand, mask_p, rng, mask_id,
 
 def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
               tok_strings=None, label_id_seqs=None, head=None,
-              role_cfg=None, eos_pad=0, eos_id=0):
+              role_cfg=None, eos_pad=0, eos_id=0,
+              remask_steps=4, remask_rounds=2, remask_frac=0.25):
     rng = random.Random(seed)
     torch.manual_seed(seed); np.random.seed(seed)
     t0 = time.time()
@@ -415,6 +463,7 @@ def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
     sub_wins, sub_n = {}, {}
     gen_acc_ok, gen_exact_ok, gen_acc_bad, gen_exact_bad = [], [], [], []
     sub_gen_ok, sub_gen_bad = {}, {}
+    confs = []
     profile_lvls = [0.0, 0.1, 0.25, 0.5]
     prof_wins = {x: 0 for x in profile_lvls}
     for item in pairs:
@@ -449,6 +498,36 @@ def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
             if subtype:
                 sub_gen_ok.setdefault(subtype, []).append(e_ok)
                 sub_gen_bad.setdefault(subtype, []).append(e_bad)
+        elif mode == "remask":
+            # E-obj2: decodificacion iterativa del slot (revelado por
+            # confianza + rondas de remask de los peores). El pairwise del
+            # par es por construccion gen_exact_ok (mismo ctx, unico slot
+            # verdadero); se reporta ademas el lado bad como diagnostico.
+            p, s = _common_affixes(ok, bad)
+            n_ok, n_bad = len(ok), len(bad)
+            t_ok = torch.tensor(ok[p:max(p, n_ok - s)], device=device)
+            t_bad = torch.tensor(bad[p:max(p, n_bad - s)], device=device)
+            if t_ok.numel() == 0 or t_bad.numel() == 0:
+                continue
+            pred_ok, conf_ok = decode_slot_iter(
+                model, ctx, ok, p, s, mask_id, eos_pad, eos_id,
+                n_steps=remask_steps, rounds=remask_rounds,
+                remask_frac=remask_frac)
+            pred_bad, _ = decode_slot_iter(
+                model, ctx, bad, p, s, mask_id, eos_pad, eos_id,
+                n_steps=remask_steps, rounds=remask_rounds,
+                remask_frac=remask_frac)
+            a_ok = float((pred_ok[:t_ok.numel()] == t_ok).float().mean())
+            e_ok = float((pred_ok[:t_ok.numel()] == t_ok).all())
+            a_bad = float((pred_bad[:t_bad.numel()] == t_bad).float().mean())
+            e_bad = float((pred_bad[:t_bad.numel()] == t_bad).all())
+            l_ok, l_bad = -e_ok, -e_bad   # pairwise = "genero el verdadero"
+            gen_acc_ok.append(a_ok); gen_exact_ok.append(e_ok)
+            gen_acc_bad.append(a_bad); gen_exact_bad.append(e_bad)
+            confs.append(float(conf_ok.mean()))
+            if subtype:
+                sub_gen_ok.setdefault(subtype, []).append(e_ok)
+                sub_gen_bad.setdefault(subtype, []).append(e_bad)
         else:
             with torch.no_grad():
                 l_ok = score_candidate(model, mode, ctx, ok, ecfg["mask_p"],
@@ -478,16 +557,20 @@ def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
         "mean_delta": round(float(np.mean(deltas)) if deltas else 0.0, 5),
         "elapsed_s": round(time.time() - t0, 1),
     }
-    if mode == "consistency":
+    if mode in ("consistency", "remask"):
         rep["gen_acc_ok"] = round(float(np.mean(gen_acc_ok)), 4)
         rep["gen_exact_ok"] = round(float(np.mean(gen_exact_ok)), 4)
         rep["gen_acc_bad"] = round(float(np.mean(gen_acc_bad)), 4)
         rep["gen_exact_bad"] = round(float(np.mean(gen_exact_bad)), 4)
+    if mode == "remask":
+        rep["mean_conf_ok"] = round(float(np.mean(confs)) if confs else 0., 4)
+        rep["remask"] = {"steps": remask_steps, "rounds": remask_rounds,
+                         "frac": remask_frac}
     if sub_n:
         rep["l3_subtype_acc"] = {
             s: {"acc": round(sub_wins[s] / sub_n[s], 4), "n": sub_n[s]}
             for s in sorted(sub_n)}
-        if mode == "consistency":
+        if mode in ("consistency", "remask"):
             for s in rep["l3_subtype_acc"]:
                 rep["l3_subtype_acc"][s]["gen_exact_ok"] = round(
                     float(np.mean(sub_gen_ok[s])), 4)
@@ -537,6 +620,12 @@ def main():
                          "consistency/consistency_profile)")
     ap.add_argument("--eos_id", type=int, default=0,
                     help="id del token EOS/pad (0 = pad del packing v5pdb)")
+    ap.add_argument("--remask_steps", type=int, default=4,
+                    help="modo remask: steps de revelado por confianza")
+    ap.add_argument("--remask_rounds", type=int, default=2,
+                    help="modo remask: rondas de refinado tras 1a decodificacion")
+    ap.add_argument("--remask_frac", type=float, default=0.25,
+                    help="modo remask: fraccion de slot remascarada por ronda")
     args = ap.parse_args()
 
     import yaml
@@ -606,7 +695,10 @@ def main():
                 continue
             rep = eval_mode(model, mode, pairs, ecfg, mask_id, seed, dev,
                             tok_strings, label_id_seqs, head, role_cfg,
-                            eos_pad=args.eos_pad, eos_id=args.eos_id)
+                            eos_pad=args.eos_pad, eos_id=args.eos_id,
+                            remask_steps=args.remask_steps,
+                            remask_rounds=args.remask_rounds,
+                            remask_frac=args.remask_frac)
             rep.update({"tag": f"{tag}_{mode}", "level": f"L{lvl}",
                         "mode": mode, "seed": seed})
             if args.eos_pad:
