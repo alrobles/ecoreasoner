@@ -281,7 +281,8 @@ def _common_affixes(a, b):
     return p, s
 
 
-def score_consistency(model, ctx, cand, p, s, mask_id, corrupt_sel=None):
+def score_consistency(model, ctx, cand, p, s, mask_id, corrupt_sel=None,
+                      eos_pad=0, eos_id=0):
     """CE + argmax sobre el span divergente del candidato (resto visible).
 
     cand[p:len(cand)-s] es la región mutada ok↔bad. El score devuelto es
@@ -291,11 +292,17 @@ def score_consistency(model, ctx, cand, p, s, mask_id, corrupt_sel=None):
     Además devuelve (acc_token, exact) del argmax en el slot.
 
     corrupt_sel: posiciones extra a enmascarar (perfil multi-timestep, C4).
-    Índices >=0 = absolutos; <0 = contados desde el final — permite aplicar
-    la MISMA corrupción en ok y bad aunque difieran en longitud del slot.
+    Índices >=0 = absolutos; <0 = contados desde el final DEL CANDIDATO —
+    permite aplicar la MISMA corrupción en ok y bad aunque difieran en
+    longitud del slot. Con eos_pad>0 los negativos se resuelven contra
+    cs+len(cand) (los pads nunca se corrompen).
+
+    eos_pad: k tokens eos_id apendados tras el candidato — slots de cómputo
+    latente estilo EoS-reasoning (arXiv 2603.05197); visibles, no enmascarados.
     """
     dev = next(model.parameters()).device
-    seq = torch.tensor(list(ctx) + list(cand), dtype=torch.long, device=dev)
+    seq = torch.tensor(list(ctx) + list(cand) + [eos_id] * eos_pad,
+                       dtype=torch.long, device=dev)
     cs, n = len(ctx), len(cand)
     lo, hi = p, n - s
     if hi <= lo:                       # borrado puro: medir el vecino
@@ -303,9 +310,9 @@ def score_consistency(model, ctx, cand, p, s, mask_id, corrupt_sel=None):
     pos = torch.arange(cs + lo, cs + hi, device=dev)
     xm = seq.clone(); xm[pos] = mask_id
     if corrupt_sel:
-        T = seq.shape[0]
+        base = cs + n
         for i in corrupt_sel:
-            xm[i if i >= 0 else T + i] = mask_id
+            xm[i if i >= 0 else base + i] = mask_id
     with torch.no_grad():
         logits = model(xm.unsqueeze(0)).squeeze(0)
     ce_sum = F.cross_entropy(logits[pos], seq[pos], reduction="sum").item()
@@ -400,7 +407,7 @@ def score_candidate(model, mode, ctx, cand, mask_p, rng, mask_id,
 
 def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
               tok_strings=None, label_id_seqs=None, head=None,
-              role_cfg=None):
+              role_cfg=None, eos_pad=0, eos_id=0):
     rng = random.Random(seed)
     torch.manual_seed(seed); np.random.seed(seed)
     t0 = time.time()
@@ -420,17 +427,23 @@ def eval_mode(model, mode, pairs, ecfg, mask_id, seed, device,
             for x in profile_lvls:
                 sel = _corrupt_sel(len(ctx), p, s, x, rng)
                 l_ok, _, _ = score_consistency(model, ctx, ok, p, s,
-                                               mask_id, corrupt_sel=sel)
+                                               mask_id, corrupt_sel=sel,
+                                               eos_pad=eos_pad,
+                                               eos_id=eos_id)
                 l_bad, _, _ = score_consistency(model, ctx, bad, p, s,
-                                                mask_id, corrupt_sel=sel)
+                                                mask_id, corrupt_sel=sel,
+                                                eos_pad=eos_pad,
+                                                eos_id=eos_id)
                 prof_wins[x] += int(l_ok < l_bad)
             continue
         if mode == "consistency":
             p, s = _common_affixes(ok, bad)
             l_ok, a_ok, e_ok = score_consistency(model, ctx, ok, p, s,
-                                                 mask_id)
+                                                 mask_id, eos_pad=eos_pad,
+                                                 eos_id=eos_id)
             l_bad, a_bad, e_bad = score_consistency(model, ctx, bad, p, s,
-                                                    mask_id)
+                                                    mask_id, eos_pad=eos_pad,
+                                                    eos_id=eos_id)
             gen_acc_ok.append(a_ok); gen_exact_ok.append(e_ok)
             gen_acc_bad.append(a_bad); gen_exact_bad.append(e_bad)
             if subtype:
@@ -518,6 +531,12 @@ def main():
                          "lugar del ckpt MdLMMoE; usa su propio mask_token_id")
     ap.add_argument("--limit", type=int, default=0,
                     help="limitar pares por nivel (debug)")
+    ap.add_argument("--eos_pad", type=int, default=0,
+                    help="k tokens EOS apendados tras el candidato "
+                         "(cómputo latente estilo EoS-reasoning; modos "
+                         "consistency/consistency_profile)")
+    ap.add_argument("--eos_id", type=int, default=0,
+                    help="id del token EOS/pad (0 = pad del packing v5pdb)")
     args = ap.parse_args()
 
     import yaml
@@ -586,9 +605,12 @@ def main():
             if not pairs:
                 continue
             rep = eval_mode(model, mode, pairs, ecfg, mask_id, seed, dev,
-                            tok_strings, label_id_seqs, head, role_cfg)
+                            tok_strings, label_id_seqs, head, role_cfg,
+                            eos_pad=args.eos_pad, eos_id=args.eos_id)
             rep.update({"tag": f"{tag}_{mode}", "level": f"L{lvl}",
                         "mode": mode, "seed": seed})
+            if args.eos_pad:
+                rep["eos_pad"] = args.eos_pad
             (mdir / f"battery_L{lvl}.json").write_text(
                 json.dumps({"discrimination": rep, "mode": mode}, indent=2))
             results[mode][lvl] = rep

@@ -21,9 +21,12 @@ case "$GPU_NAME" in
   *) OVL=""; PY=python3;;
 esac
 EXTRA=""
+if [ -n "${EOS_PAD:-0}" ] && [ "${EOS_PAD:-0}" != "0" ]; then
+    EXTRA="--eos_pad $EOS_PAD"
+fi
 if [ -n "${HF_MODEL:-}" ]; then
     CKPT=""
-    EXTRA="--hf_model $HF_MODEL"
+    EXTRA="$EXTRA --hf_model $HF_MODEL"
     TAG="hf-$(basename "$HF_MODEL" | cut -c1-12)"
     # transformers 4.x compatible con torch 2.4 del sif (la de ~/.local exige >=2.5)
     export PYTHONPATH=/beegfs/a474r867/pydeps_tf451${PYTHONPATH:+:$PYTHONPATH}
@@ -37,7 +40,8 @@ else
     fi
     TAG="$(basename "$RUNDIR")-$(basename "$CKPT_DIR")"
 fi
-OUTDIR=${OUTDIR:-$BASE/runs/contrast/$(basename "$PAIRS")_${TAG}}
+SUF=""; if [ -n "${EOS_PAD:-0}" ] && [ "${EOS_PAD:-0}" != "0" ]; then SUF="_eosp${EOS_PAD}"; fi
+OUTDIR=${OUTDIR:-$BASE/runs/contrast/$(basename "$PAIRS")_${TAG}${SUF}}
 echo "contrast eval tag=$TAG ckpt=${CKPT:-none} hf=${HF_MODEL:-none} gpu=$GPU_NAME pairs=$PAIRS modes=$MODES out=$OUTDIR"
 ARGS=(--config "$BASE/harness/configs/eval-moe-v5.yaml" --pairs-dir "$PAIRS"
       --out-dir "$OUTDIR" --device cuda --modes "$MODES")
