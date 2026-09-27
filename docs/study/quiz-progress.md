@@ -63,3 +63,9 @@ Formato: `✓` = lectura completada y comprensión evaluada.
   `+=`?) — sin responder; usuario salió del modo estudio.
 - Pendiente al reanudar: responder P3 → cerrar L1 → mini-quiz tensors.
 
+### 2026-09-25 — learn · tensors L1 (cont.)
+- Sesión reanudada; P3 re-planteada con snippet l.261-268 (k=2: expertos por
+  token, shape de `w`, `+=` vs `=`).
+- Sesión cerrada sin quiz (usuario cansado; retoma mañana). P3 sigue
+  pendiente de respuesta → al reanudar: P3 → cerrar L1 → mini-quiz tensors.
+

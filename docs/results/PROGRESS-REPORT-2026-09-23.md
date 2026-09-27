@@ -352,6 +352,46 @@ watcher (repaired evaled-parse bug) launches consistency+profile on
 inf+ctxnec at every curve point — the corrected-metric exposure curve
 is now automatic (next point ~g206K).
 
+## 8e. EXPOSURE CURVE g207K–g288K + remask dose-response (2026-09-27)
+
+The automatic battery now delivers corrected-instrument points every
+~25K steps of mainline training (EMA evals):
+
+| ckpt | dense L3 | cons_inf | gen_exact_ok inf | ctxnec | gen_exact_ok ctx | ctx C4 drop |
+|---|---|---|---|---|---|---|
+| g184001 | — | 0.658 | 0.294 | 0.688 | 0.231 | −7.2 |
+| g207501 | 0.546 | 0.657 | 0.307 | 0.690 | 0.240 | −6.7 |
+| g234001 | 0.533 | 0.657 | 0.302 | 0.701 | 0.244 | −7.8 |
+| g261001 | 0.539 | 0.652 | 0.305 | 0.702 | 0.248 | −7.0 |
+| g288001 | 0.527 | 0.654 | 0.320 | 0.712 | 0.255 | −8.4 |
+
+**Reading (104K-step window):** `cons_inf` is dead flat (0.652–0.658,
+inside σ≈1.1pt) — the plausibility ceiling does not move with exposure.
+The honest metric tells a different story: `gen_exact_ok` creeps up on
+both sets (+2.6pts inf, +2.4pts ctxnec over the window, ~2σ cumulative),
+and ctxnec pairwise gained +2.4pts. The model is slowly improving at
+*producing* forced content while its ranking stays saturated. Exposure
+is not a breakthrough lever but its slope is not zero either — the
+generative numbers are the only ones still moving.
+
+**Remask dose-response — saturates at first dose.** E-obj2 at doubled
+dose (steps=8/rounds=4/frac=0.3 vs 4/2/0.25) on ctxnec@g185001:
+gen_exact_ok 0.2738→0.2782 (+0.4pt, ≪σ), gen_exact_bad 0.0643 (same),
+subtype deltas all inside noise. The +4.5pt remask gain is a one-shot
+refinement — more iterations do not extract more binding. Decision:
+adopt `remask` (4/2/0.25) as the reporting standard for generative
+claims; no further dose escalation.
+
+Ops: the g313001 battery point failed at 20s — the watcher's `latest`
+and both slurms' `CKPT_DIR` picked the checkpoint *directory*, which
+exists ~2min before `model.pt` is renamed into it (observed save
+sequence model→opt→ema). Fix deployed 09-27: completeness filter
+(`checkpoint-g*/model.pt` glob) in watcher + both eval slurms, and
+`scripts/battery_point.sh` now hardlink-snapshots model.pt+ema_model.pt
+to `battery_curve/ckpts/g<N>/` and pins `CKPT_DIR` — the measured
+checkpoint exactly matches the curve label and survives trainer pruning
+(same inode, no extra space).
+
 ---
 
 ## 9. Literature synthesis (2025-2026, post-pivot)
@@ -417,5 +457,7 @@ date        model            consistency-inf   gen_exact
 09-22       v5-1b @g147K         0.652            0.296
 09-23       b2-ctrl2/qa/corr   0.652-0.657      0.284-0.303
 09-25       v5-1b @g184K         0.658            0.294   <- exposicion plana
-            └── plateau ~0.65 under attack ──┘
+09-26       v5-1b @g207-234K     0.657            0.302-0.307
+09-27       v5-1b @g261-288K     0.652-0.654      0.305-0.320
+            └── pairwise saturado; gen_exact es la unica pendiente != 0 ──┘
 ```
