@@ -32,7 +32,9 @@ if [ -n "${HF_MODEL:-}" ]; then
     export PYTHONPATH=/beegfs/a474r867/pydeps_tf451${PYTHONPATH:+:$PYTHONPATH}
 else
     RUNDIR=${RUNDIR:-$BASE/runs/v5-1b}
-    CKPT_DIR=${CKPT_DIR:-$(ls -d "$RUNDIR"/checkpoint-g* | grep -v incomplete | sort -V | tail -1)}
+    # ckpt completo = model.pt renombrado (el dir existe ~2min antes que el
+    # archivo; tomarlo a medio escribir da FileNotFoundError — carrera g313001)
+    CKPT_DIR=${CKPT_DIR:-$(ls -d "$RUNDIR"/checkpoint-g*/model.pt 2>/dev/null | grep -v incomplete | sort -V | tail -1 | xargs -r dirname)}
     if [ "$EMA" = "1" ] && [ -f "$CKPT_DIR/ema_model.pt" ]; then
         CKPT=$CKPT_DIR/ema_model.pt
     else

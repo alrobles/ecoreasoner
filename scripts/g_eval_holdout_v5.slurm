@@ -25,7 +25,9 @@ case "$GPU_NAME" in
   *"PRO 6000"*|*Blackwell*) OVL="--overlay $BASE/blackwell-torch.overlay:ro"; PY=$VENV/bin/python;;
   *) OVL=""; PY=python3;;
 esac
-CKPT_DIR=$(ls -d "$RUNDIR"/checkpoint-g* | grep -v incomplete | sort -V | tail -1)
+# CKPT_DIR pineable (battery_point.sh pasa un snapshot); si no, el mas alto
+# COMPLETO = con model.pt ya renombrado (el dir precede al archivo ~2min).
+CKPT_DIR=${CKPT_DIR:-$(ls -d "$RUNDIR"/checkpoint-g*/model.pt 2>/dev/null | grep -v incomplete | sort -V | tail -1 | xargs -r dirname)}
 if [ "$EMA" = "1" ] && [ -f "$CKPT_DIR/ema_model.pt" ]; then
     CKPT=$CKPT_DIR/ema_model.pt
 else

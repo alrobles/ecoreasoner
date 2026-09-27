@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # watch_v5_battery.sh — curva de discriminacion durante el pretrain de v5-1b.
-# Cada INTERVAL: si el ckpt mas alto supera al ultimo evaluado en >= STEP_GAP
-# y no hay eval en cola, lanza para checkpoint-g<N>:
+# Cada INTERVAL: si el ckpt mas alto COMPLETO (model.pt ya renombrado) supera
+# al ultimo evaluado en >= STEP_GAP y no hay eval en cola, lanza via
+# scripts/battery_point.sh (snapshot hardlink + 3 sbatch con CKPT_DIR pineado):
 #   (a) g_eval_holdout_v5.slurm  -> $CURVE/g<N>/dense          (L0-L3 dense)
 #   (b) c_contrast.slurm inf     -> $CURVE/g<N>/cons_inf       (consistency+profile)
 #   (c) c_contrast.slurm ctxnec  -> $CURVE/g<N>/cons_ctxnec    (binding probe)
@@ -26,7 +27,7 @@ log "watcher v5-battery start (gap=$STEP_GAP, metrics=dense+consistency+ctxnec)"
 while :; do
   st=$(ssh -o ConnectTimeout=15 -o BatchMode=yes "$REMOTE" \
     "cd $BASE && \
-     latest=\$(ls -d $OUT/checkpoint-g* 2>/dev/null | grep -v incomplete | sed 's/.*-g//' | sort -n | tail -1); \
+     latest=\$(ls -d $OUT/checkpoint-g*/model.pt 2>/dev/null | grep -v incomplete | sed 's|.*/checkpoint-g||; s|/model.pt||' | sort -n | tail -1); \
      evaled=\$(ls -d $CURVE/g* 2>/dev/null | sed 's|.*/g||; s/-.*//' | sort -n | tail -1); \
      btj=\$(squeue -u a474r867 -h -n holdout-v5,c-eval | wc -l); \
      echo \"latest=\${latest:-0} evaled=\${evaled:-0} btj=\$btj\"" \
@@ -40,15 +41,8 @@ while :; do
   if [ "$btj" = "0" ] && [ $((latest - evaled)) -ge "$STEP_GAP" ]; then
     log "lanzando battery en checkpoint-g$latest"
     ssh -o ConnectTimeout=15 -o BatchMode=yes "$REMOTE" \
-      "cd $BASE && \
-       sbatch --export=ALL,RUNDIR=$BASE/$OUT,OUTDIR=$BASE/$CURVE/g$latest/dense scripts/g_eval_holdout_v5.slurm && \
-       sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
-         '--export=ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_inf,MODES=consistency consistency_profile,OUTDIR='$BASE/$CURVE/g$latest'/cons_inf' \
-         scripts/c_contrast.slurm && \
-       sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
-         '--export=ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency consistency_profile,OUTDIR='$BASE/$CURVE/g$latest'/cons_ctxnec' \
-         scripts/c_contrast.slurm" \
-      2>/dev/null | tail -3 | tee -a "$LOG"
+      "cd $BASE && bash scripts/battery_point.sh $latest" \
+      2>/dev/null | tail -4 | tee -a "$LOG"
   fi
   sleep "$INTERVAL"
 done
