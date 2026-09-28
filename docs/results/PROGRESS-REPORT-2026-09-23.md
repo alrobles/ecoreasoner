@@ -392,6 +392,42 @@ to `battery_curve/ckpts/g<N>/` and pins `CKPT_DIR` — the measured
 checkpoint exactly matches the curve label and survives trainer pruning
 (same inode, no extra space).
 
+## 8f. ARM LAUNCHED: v5-1b-moefine — DeepSeekMoE (2026-09-27)
+
+The architecture lever is now active (roadmap A2): **fine-grained MoE +
+shared expert** as the controlled comparison against the v5-1b mainline.
+
+- **Config**: 32 routed experts @ff/2, top-2 + 1 shared expert @ff/4
+  always-on (vs 16@ff top-1). Routed FLOPs/token identical
+  (2×ff/2 = ff); total params 1144.1M vs 1129M (+1.3%); active
+  293.9M vs ~279.5M (+5%, the shared expert's cost).
+- **Warm start**: `--init_from` partial load from the pinned EMA
+  g316001 — copies key+shape-matching tensors (emb/pos/attn/ln/head =
+  294/1698 tensors, 223M params); gate/experts/shared reinit. Same
+  recipe, same data stream → directly comparable at equal added dose.
+- **Why this arm**: pairwise consistency is flat under exposure; the
+  capacity-specialization hypothesis is the cheapest structural probe
+  (finer experts = less redundancy, shared = common knowledge path).
+  Falsification budget: 30K steps (~276M tokens, dose comparable to
+  the b2 arms).
+- **Launch**: job 30587597, 3×L40, bs4 → ~9.2K tok/s, auto-resubmit
+  waves to g30000. Step-0 loss 4.54 (vs ~11.7 random-init → warm
+  start real; experts relearning).
+- **Eval hooks**: `EVAL_CFG=eval-moe-v5-moefine.yaml` +
+  `RUN_OUT=runs/v5-1b-moefine` on the same battery
+  (`battery_point.sh`, `c_contrast.slurm`, `g_eval_holdout_v5.slurm`)
+  → identical instruments (dense/cons_inf/cons_ctxnec) on pinned
+  snapshots under `runs/v5-1b-moefine/battery_curve/`.
+- Files: `scripts/v5_1b_moefine.slurm`, `scripts/smoke_moefine.slurm`,
+  `harness/configs/eval-moe-v5-moefine.yaml`, MoEMLP/Block/MdLMMoE +
+  `--n_shared/--fine_ff_div/--shared_ff_div/--init_from` in
+  `scripts/train_mdlm_moe_v2.py`.
+
+Decision rule: if moefine lifts `gen_exact_ok`/`cons_ctxnec` above the
+mainline's matched-dose trajectory → adopt as the new trunk; if flat,
+the capacity-MoE route is falsified and block diffusion (§9) becomes
+the structural candidate.
+
 ---
 
 ## 9. Literature synthesis (2025-2026, post-pivot)
