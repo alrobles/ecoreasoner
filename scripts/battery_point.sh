@@ -10,8 +10,8 @@
 # Outdirs: $CURVE/g<G>/{dense,cons_inf,cons_ctxnec}; ckpt: $CURVE/ckpts/g<G>/.
 set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
-OUT=${RUN_OUT:-runs/v5-1b}                # moefine: RUN_OUT=runs/v5-1b-moefine
-EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}    # moefine: EVAL_CFG=eval-moe-v5-moefine.yaml
+OUT=${RUN_OUT:-runs/v5-1b}                # fgmode: RUN_OUT=runs/v5-1b-fgmode
+EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}    # fgmode: EVAL_CFG=eval-moe-v5-fgmode.yaml
 CURVE=$OUT/battery_curve
 G=${1:?uso: battery_point.sh <gstep>}
 SRC=$BASE/$OUT/checkpoint-g$G

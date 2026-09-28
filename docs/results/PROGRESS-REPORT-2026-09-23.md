@@ -392,10 +392,10 @@ to `battery_curve/ckpts/g<N>/` and pins `CKPT_DIR` — the measured
 checkpoint exactly matches the curve label and survives trainer pruning
 (same inode, no extra space).
 
-## 8f. ARM LAUNCHED: v5-1b-moefine — DeepSeekMoE (2026-09-27)
+## 8f. ARM LAUNCHED: v5-1b-fgmode — fine-grained MoE (2026-09-27)
 
 The architecture lever is now active (roadmap A2): **fine-grained MoE +
-shared expert** as the controlled comparison against the v5-1b mainline.
+shared expert** (arm name `fgmode`; renamed 09-27 — design unchanged) as the controlled comparison against the v5-1b mainline.
 
 - **Config**: 32 routed experts @ff/2, top-2 + 1 shared expert @ff/4
   always-on (vs 16@ff top-1). Routed FLOPs/token identical
@@ -413,17 +413,17 @@ shared expert** as the controlled comparison against the v5-1b mainline.
 - **Launch**: job 30587597, 3×L40, bs4 → ~9.2K tok/s, auto-resubmit
   waves to g30000. Step-0 loss 4.54 (vs ~11.7 random-init → warm
   start real; experts relearning).
-- **Eval hooks**: `EVAL_CFG=eval-moe-v5-moefine.yaml` +
-  `RUN_OUT=runs/v5-1b-moefine` on the same battery
+- **Eval hooks**: `EVAL_CFG=eval-moe-v5-fgmode.yaml` +
+  `RUN_OUT=runs/v5-1b-fgmode` on the same battery
   (`battery_point.sh`, `c_contrast.slurm`, `g_eval_holdout_v5.slurm`)
   → identical instruments (dense/cons_inf/cons_ctxnec) on pinned
-  snapshots under `runs/v5-1b-moefine/battery_curve/`.
-- Files: `scripts/v5_1b_moefine.slurm`, `scripts/smoke_moefine.slurm`,
-  `harness/configs/eval-moe-v5-moefine.yaml`, MoEMLP/Block/MdLMMoE +
+  snapshots under `runs/v5-1b-fgmode/battery_curve/`.
+- Files: `scripts/v5_1b_fgmode.slurm`, `scripts/smoke_fgmode.slurm`,
+  `harness/configs/eval-moe-v5-fgmode.yaml`, MoEMLP/Block/MdLMMoE +
   `--n_shared/--fine_ff_div/--shared_ff_div/--init_from` in
   `scripts/train_mdlm_moe_v2.py`.
 
-Decision rule: if moefine lifts `gen_exact_ok`/`cons_ctxnec` above the
+Decision rule: if fgmode lifts `gen_exact_ok`/`cons_ctxnec` above the
 mainline's matched-dose trajectory → adopt as the new trunk; if flat,
 the capacity-MoE route is falsified and block diffusion (§9) becomes
 the structural candidate.

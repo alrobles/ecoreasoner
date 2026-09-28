@@ -1,10 +1,10 @@
-# eval-moe-v5-moefine.yaml — config de EVAL para el brazo DeepSeekMoE
-# (runs/v5-1b-moefine): 32 expertos finos @ff/2 top-2 + 1 shared @ff/4,
+# eval-moe-v5-fgmode.yaml — config de EVAL para el brazo fine-grained MoE (fgmode)
+# (runs/v5-1b-fgmode): 32 expertos finos @ff/2 top-2 + 1 shared @ff/4,
 # ~mismo FLOPs ruteado y params totales que v5-1b (ver ROADMAP §A2).
 # Mismo bloque eval/train que eval-moe-v5 -> comparable directo.
 
 job:
-  name: eval-moe-v5-moefine
+  name: eval-moe-v5-fgmode
   partition: sixhour
   gres: gpu:1
   cpus: 8
@@ -50,6 +50,6 @@ eval:
 
 out:
   dir: /beegfs/a474r867/ecoreasoner/runs
-  tag: eval-moe-v5-moefine
+  tag: eval-moe-v5-fgmode
 
 seed: 7331

@@ -66,10 +66,10 @@ def parse():
     p.add_argument("--expert_k", type=int, default=1)
     p.add_argument("--ff_mult", type=int, default=4)
     p.add_argument("--n_shared", type=int, default=0,
-                   help="expertos shared siempre-activos (DeepSeekMoE); 0=off")
+                   help="expertos shared siempre-activos; 0=off")
     p.add_argument("--fine_ff_div", type=int, default=1,
                    help="divisor del ancho de expertos ruteados "
-                        "(DeepSeekMoE: 32 finos@ff/2 en vez de 16@ff)")
+                        "(32 finos@ff/2 en vez de 16@ff)")
     p.add_argument("--shared_ff_div", type=int, default=4,
                    help="divisor del ancho de expertos shared (default ff/4)")
     p.add_argument("--init_from", default=None,
@@ -244,7 +244,7 @@ def _default_init(m):
 class MoEMLP(nn.Module):
     """Sparse MLP FFN with top-k router over n_experts (+ shared siempre-activos).
 
-    DeepSeekMoE (brazo moefine): fine_ff < ff produce expertos finos
+    fine-grained MoE (brazo fgmode): fine_ff < ff produce expertos finos
     (mas expertos mas especializados al mismo FLOPs ruteado), y n_shared
     expertos que se aplican a TODOS los tokens sin gate — capturan el
     conocimiento comun y dejan a los ruteados especializarse."""
@@ -1405,7 +1405,7 @@ def _try_load(ck, step):
         return False
 
 def init_from():
-    """Warm-start PARCIAL desde ckpt de otra arquitectura (brazo moefine):
+    """Warm-start PARCIAL desde ckpt de otra arquitectura (brazo fgmode):
     copia tensores cuya llave Y shape coinciden (emb/attn/ln/head); expertos,
     gate y shared quedan en init default. Sin optimizer/EMA/steps.
     Solo en la 1a ola: si el run ya tiene state.json, resume() manda."""

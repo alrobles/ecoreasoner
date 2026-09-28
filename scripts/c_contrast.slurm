@@ -45,7 +45,7 @@ fi
 SUF=""; if [ -n "${EOS_PAD:-0}" ] && [ "${EOS_PAD:-0}" != "0" ]; then SUF="_eosp${EOS_PAD}"; fi
 OUTDIR=${OUTDIR:-$BASE/runs/contrast/$(basename "$PAIRS")_${TAG}${SUF}}
 echo "contrast eval tag=$TAG ckpt=${CKPT:-none} hf=${HF_MODEL:-none} gpu=$GPU_NAME pairs=$PAIRS modes=$MODES out=$OUTDIR"
-EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}   # moefine: EVAL_CFG=eval-moe-v5-moefine.yaml
+EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}   # fgmode: EVAL_CFG=eval-moe-v5-fgmode.yaml
 ARGS=(--config "$BASE/harness/configs/$EVAL_CFG" --pairs-dir "$PAIRS"
       --out-dir "$OUTDIR" --device cuda --modes "$MODES")
 [ -n "$CKPT" ] && ARGS+=(--ckpt "$CKPT")

@@ -34,7 +34,7 @@ else
     CKPT=$CKPT_DIR/model.pt
 fi
 OUTDIR=${OUTDIR:-$RUNDIR/battery_logicdiff_v4holdout}
-EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}   # moefine: EVAL_CFG=eval-moe-v5-moefine.yaml
+EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}   # fgmode: EVAL_CFG=eval-moe-v5-fgmode.yaml
 echo "holdout eval $RUNDIR ckpt=$CKPT gpu=$GPU_NAME pairs=$PAIRS out=$OUTDIR cfg=$EVAL_CFG"
 # shellcheck disable=SC2086
 apptainer exec --nv $OVL "$SIF" "$PY" \

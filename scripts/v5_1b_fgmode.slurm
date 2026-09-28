@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=v5-1bmf
+#SBATCH --job-name=v5-1bfg
 #SBATCH --partition=sixhour
 #SBATCH --time=05:50:00
 #SBATCH --nodes=1
@@ -11,9 +11,9 @@
 #SBATCH --prefer="l40|a40|q8000|pro6000|a100"
 #SBATCH --mem=170G
 #SBATCH --signal=B:USR1@300
-#SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/v5_1bmf_%j.out
-#SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/v5_1bmf_%j.err
-# V5-1B-MOEFINE: brazo DeepSeekMoE del mainline v5-1b — 32 expertos FINOS
+#SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/v5_1bfg_%j.out
+#SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/v5_1bfg_%j.err
+# V5-1B-FGMODE: brazo fine-grained MoE del mainline v5-1b — 32 expertos FINOS
 # @ff/2 top-2 + 1 shared @ff/4 (en vez de 16 top-1). ~mismo FLOPs ruteado
 # (2*ff/2=ff), +25% por el shared; params totales ~iguales (roadmap §A2).
 # Warm-start parcial --init_from desde el EMA g316001 de v5-1b (snapshot
@@ -34,14 +34,14 @@ BASE=/beegfs/a474r867/ecoreasoner
 SIF=$BASE/pytorch-cuda.sif
 SCRIPTS=$BASE/scripts
 DATA_CACHE=${DATA_CACHE:-$BASE/data/train_ids_v5pdb.npz}
-OUT=${WAVE_OUT:-$BASE/runs/v5-1b-moefine}
-WAVE_ID=${WAVE_ID:-v5-1b-moefine}
+OUT=${WAVE_OUT:-$BASE/runs/v5-1b-fgmode}
+WAVE_ID=${WAVE_ID:-v5-1b-fgmode}
 FLAG=$OUT/training_complete.flag
 TARGET_STEPS=${TARGET_STEPS:-30000}   # dosis 1: ~20K a la par de los brazos b2
 AUTO_RESUBMIT=${AUTO_RESUBMIT:-1}
 INIT_FROM=${INIT_FROM:-$BASE/runs/v5-1b/battery_curve/ckpts/g316001/ema_model.pt}
-# DeepSeekMoE: no va en EXTRA_ARGS (un override externo no puede perderlos)
-MOEFINE_ARGS=${MOEFINE_ARGS:---expert_k 2 --fine_ff_div 2 --n_shared 1 --shared_ff_div 4}
+# fgmoe arch flags: no va en EXTRA_ARGS (un override externo no puede perderlos)
+FGMODE_ARGS=${FGMODE_ARGS:---expert_k 2 --fine_ff_div 2 --n_shared 1 --shared_ff_div 4}
 EXTRA_ARGS=${EXTRA_ARGS:-}
 N_EXPERTS=${N_EXPERTS:-32}
 NTASKS=${SLURM_NTASKS:-3}
@@ -83,8 +83,8 @@ finalize() {
         fi
         echo "relanzando ola $WAVE_ID (ntasks=$sn gres=$sg)..."
         sbatch --ntasks="$sn" --ntasks-per-node="$sn" --gres="$sg" \
-            --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS,SHAPE_N=$sn,SHAPE_G=$sg,MOEFINE_ARGS=$MOEFINE_ARGS,INIT_FROM=$INIT_FROM,EXTRA_ARGS=$EXTRA_ARGS" \
-            "$SCRIPTS/v5_1b_moefine.slurm" 2>/dev/null || true
+            --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS,SHAPE_N=$sn,SHAPE_G=$sg,FGMODE_ARGS=$FGMODE_ARGS,INIT_FROM=$INIT_FROM,EXTRA_ARGS=$EXTRA_ARGS" \
+            "$SCRIPTS/v5_1b_fgmode.slurm" 2>/dev/null || true
     fi
 }
 handle_signal() {
@@ -135,7 +135,7 @@ probe_startable() {
     out=$(sbatch --test-only --nodes=1 --ntasks=$nt --ntasks-per-node=$nt \
         --cpus-per-task=4 --gres=gpu:$nt --mem=170G --time=05:50:00 \
         --partition=sixhour --constraint="$FAST_GRES_RE" \
-        --prefer="l40|a40|q8000|pro6000|a100" "$SCRIPTS/v5_1b_moefine.slurm" 2>&1)
+        --prefer="l40|a40|q8000|pro6000|a100" "$SCRIPTS/v5_1b_fgmode.slurm" 2>&1)
     tstart=$(echo "$out" | grep -oE "to start at [0-9T:-]+" | grep -oE "[0-9T:-]+" | tail -1)
     if [ -z "$tstart" ]; then echo "watchdog probe(nt=$nt): $out" >> "$WATCHDOG_LOG"; return 1; fi
     now=$(date +%s); gap=$(( $(date -d "$tstart" +%s 2>/dev/null || echo 9999999999) - now ))
@@ -198,7 +198,7 @@ srun --export=ALL -n "$NTASKS" /usr/bin/apptainer exec --nv \
         --mask_schedule_args '{"b_l":0.30,"b_h":0.99}' \
         --curriculum --candidate_focus 1.0 \
         --ema_decay 0.999 --ckpt_every 500 \
-        $CKPT_FLAG $ZERO_FLAG $EMA_ARGS $MOEFINE_ARGS \
+        $CKPT_FLAG $ZERO_FLAG $EMA_ARGS $FGMODE_ARGS \
         --init_from "$INIT_FROM" $EXTRA_ARGS \
         --max_steps "$TARGET_STEPS" &
 SRUN_PID=$!
