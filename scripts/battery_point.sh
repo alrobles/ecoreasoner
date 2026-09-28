@@ -10,7 +10,8 @@
 # Outdirs: $CURVE/g<G>/{dense,cons_inf,cons_ctxnec}; ckpt: $CURVE/ckpts/g<G>/.
 set -euo pipefail
 BASE=/beegfs/a474r867/ecoreasoner
-OUT=runs/v5-1b
+OUT=${RUN_OUT:-runs/v5-1b}                # moefine: RUN_OUT=runs/v5-1b-moefine
+EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}    # moefine: EVAL_CFG=eval-moe-v5-moefine.yaml
 CURVE=$OUT/battery_curve
 G=${1:?uso: battery_point.sh <gstep>}
 SRC=$BASE/$OUT/checkpoint-g$G
@@ -28,11 +29,11 @@ done
 echo "snap g$G -> $SNAP ($(ls "$SNAP" | tr '\n' ' '))"
 
 cd "$BASE"
-sbatch --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,OUTDIR=$BASE/$CURVE/g$G/dense" \
+sbatch --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,OUTDIR=$BASE/$CURVE/g$G/dense" \
     scripts/g_eval_holdout_v5.slurm
 sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
-    --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,PAIRS=$BASE/runs/pairs_l3_inf,MODES=consistency consistency_profile,OUTDIR=$BASE/$CURVE/g$G/cons_inf" \
+    --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,PAIRS=$BASE/runs/pairs_l3_inf,MODES=consistency consistency_profile,OUTDIR=$BASE/$CURVE/g$G/cons_inf" \
     scripts/c_contrast.slurm
 sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
-    --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency consistency_profile,OUTDIR=$BASE/$CURVE/g$G/cons_ctxnec" \
+    --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency consistency_profile,OUTDIR=$BASE/$CURVE/g$G/cons_ctxnec" \
     scripts/c_contrast.slurm

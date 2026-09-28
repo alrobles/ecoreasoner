@@ -65,6 +65,18 @@ def parse():
     p.add_argument("--n_experts", type=int, default=8)
     p.add_argument("--expert_k", type=int, default=1)
     p.add_argument("--ff_mult", type=int, default=4)
+    p.add_argument("--n_shared", type=int, default=0,
+                   help="expertos shared siempre-activos (DeepSeekMoE); 0=off")
+    p.add_argument("--fine_ff_div", type=int, default=1,
+                   help="divisor del ancho de expertos ruteados "
+                        "(DeepSeekMoE: 32 finos@ff/2 en vez de 16@ff)")
+    p.add_argument("--shared_ff_div", type=int, default=4,
+                   help="divisor del ancho de expertos shared (default ff/4)")
+    p.add_argument("--init_from", default=None,
+                   help="ckpt de otra arquitectura para warm-start PARCIAL: "
+                        "copia los tensores cuya llave Y shape coinciden "
+                        "(emb/attn/ln/head) y deja el resto en init default. "
+                        "Solo si no hay ckpt propio que resumir (1a ola).")
     p.add_argument("--seq_len", type=int, default=768)
     p.add_argument("--grad_accum", type=int, default=1)
     p.add_argument("--lr", type=float, default=2e-4)
@@ -230,14 +242,23 @@ def _default_init(m):
         nn.init.ones_(m.weight); nn.init.zeros_(m.bias)
 
 class MoEMLP(nn.Module):
-    """Sparse MLP FFN with top-k router over n_experts."""
-    def __init__(self, dim, ff, n_experts, k):
+    """Sparse MLP FFN with top-k router over n_experts (+ shared siempre-activos).
+
+    DeepSeekMoE (brazo moefine): fine_ff < ff produce expertos finos
+    (mas expertos mas especializados al mismo FLOPs ruteado), y n_shared
+    expertos que se aplican a TODOS los tokens sin gate — capturan el
+    conocimiento comun y dejan a los ruteados especializarse."""
+    def __init__(self, dim, ff, n_experts, k, n_shared=0, shared_ff=0, fine_ff=0):
         super().__init__()
         self.n, self.k = n_experts, k
         self.gate = nn.Linear(dim, n_experts, bias=False)
+        ff_r = fine_ff or ff
         self.experts = nn.ModuleList([
-            nn.Sequential(nn.Linear(dim, ff), nn.GELU(), nn.Linear(ff, dim))
+            nn.Sequential(nn.Linear(dim, ff_r), nn.GELU(), nn.Linear(ff_r, dim))
             for _ in range(n_experts)])
+        self.shared = nn.ModuleList([
+            nn.Sequential(nn.Linear(dim, shared_ff), nn.GELU(), nn.Linear(shared_ff, dim))
+            for _ in range(n_shared)])
         self.register_buffer("_fcount", torch.zeros(n_experts), persistent=False)
         self._gate_probs = None
         self._probe_x = None
@@ -265,6 +286,8 @@ class MoEMLP(nn.Module):
                 sel = (ids == e)
                 if sel.any():
                     out[sel] += w[sel, None] * self.experts[e](flat[sel])
+        for s in self.shared:
+            out += s(flat)
         return out.reshape(B, T, D)
     def balance_loss(self, alpha=0.01, probe_alpha=0.01):
         """Aux cargada en grad REAL a TODO el bloque MoE, cada iteración:
@@ -328,13 +351,15 @@ class RoPEMultiheadAttention(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim, ff, heads, n_experts, k, use_rope=False):
+    def __init__(self, dim, ff, heads, n_experts, k, use_rope=False,
+                 n_shared=0, shared_ff=0, fine_ff=0):
         super().__init__()
         self.ln1 = nn.LayerNorm(dim)
         self.attn = (RoPEMultiheadAttention(dim, heads) if use_rope
                      else nn.MultiheadAttention(dim, heads, batch_first=True))
         self.ln2 = nn.LayerNorm(dim)
-        self.mlp = MoEMLP(dim, ff, n_experts, k)
+        self.mlp = MoEMLP(dim, ff, n_experts, k, n_shared=n_shared,
+                          shared_ff=shared_ff, fine_ff=fine_ff)
         self._use_rope = use_rope
     def forward(self, x):
         h = self.ln1(x)
@@ -358,14 +383,19 @@ class TiedHead(nn.Module):
 
 class MdLMMoE(nn.Module):
     def __init__(self, vocab, hidden, layers, heads, ff_mult, seq_len, n_experts, k,
-                 use_rope=False, weight_tying=False):
+                 use_rope=False, weight_tying=False, n_shared=0, shared_ff_div=4,
+                 fine_ff_div=1):
         super().__init__()
         self.vocab = vocab
         self.use_rope = use_rope
         self.tok_emb = nn.Embedding(vocab + 1, hidden)   # +1 for MASK token
         self.pos = None if use_rope else nn.Embedding(seq_len, hidden)
+        ff = hidden * ff_mult
+        fine_ff = ff // fine_ff_div
+        shared_ff = ff // shared_ff_div if n_shared else 0
         self.blocks = nn.ModuleList([
-            Block(hidden, hidden*ff_mult, heads, n_experts, k, use_rope=use_rope)
+            Block(hidden, ff, heads, n_experts, k, use_rope=use_rope,
+                  n_shared=n_shared, shared_ff=shared_ff, fine_ff=fine_ff)
             for _ in range(layers)])
         self.ln_f = nn.LayerNorm(hidden)
         self.head = (TiedHead(self.tok_emb, vocab) if weight_tying
@@ -391,7 +421,9 @@ class MdLMMoE(nn.Module):
 def build_model():
     return MdLMMoE(ARGS.vocab, ARGS.hidden, ARGS.layers, ARGS.heads,
                    ARGS.ff_mult, ARGS.seq_len, ARGS.n_experts, ARGS.expert_k,
-                   use_rope=ARGS.use_rope, weight_tying=ARGS.weight_tying)
+                   use_rope=ARGS.use_rope, weight_tying=ARGS.weight_tying,
+                   n_shared=ARGS.n_shared, shared_ff_div=ARGS.shared_ff_div,
+                   fine_ff_div=ARGS.fine_ff_div)
 
 # ---------------- data ----------------
 def load_corpus(paths):
@@ -1372,6 +1404,30 @@ def _try_load(ck, step):
         log(f"  checkpoint {ck.name} corrupto/incompleto ({type(e).__name__}) -> intentar previo")
         return False
 
+def init_from():
+    """Warm-start PARCIAL desde ckpt de otra arquitectura (brazo moefine):
+    copia tensores cuya llave Y shape coinciden (emb/attn/ln/head); expertos,
+    gate y shared quedan en init default. Sin optimizer/EMA/steps.
+    Solo en la 1a ola: si el run ya tiene state.json, resume() manda."""
+    if not ARGS.init_from:
+        return
+    if (OUT/"state.json").exists() or list(OUT.glob("checkpoint-g*/model.pt")):
+        log(f"init_from: run ya tiene ckpts propios -> resume() manda, se omite")
+        return
+    pth = ARGS.init_from
+    try:
+        ck = torch.load(pth, map_location="cpu")
+        sd = ck.get("model", ck.get("ema_model", ck)) if isinstance(ck, dict) else ck
+    except Exception as e:
+        log(f"init_from {pth}: no se pudo leer ({e}) -> desde cero")
+        return
+    tgt = glob_model.state_dict()
+    copied = {k: v for k, v in sd.items() if k in tgt and tgt[k].shape == v.shape}
+    glob_model.load_state_dict(copied, strict=False)
+    log(f"init_from {pth}: {len(copied)}/{len(tgt)} tensores "
+        f"({sum(v.numel() for v in copied.values())/1e6:.0f}M params copiados; "
+        f"{len(tgt)-len(copied)} reinit)")
+
 def resume():
     """Prueba candidatos de MAS NUEVO a MAS ANTIGUO: primero el de state.json,
     luego el resto de checkpoint-g* por step desc. Salta los corruptos."""
@@ -1517,9 +1573,11 @@ def main():
             sum(sum(p.numel() for p in b.mlp.experts[e].parameters())
                 for e in range(ARGS.n_experts))
             for b in glob_model.blocks)
-        all_dense = nparam - all_exp
+        all_dense = nparam - all_exp   # incluye shared: siempre activas
         active_n = all_dense + all_exp * (ARGS.expert_k / ARGS.n_experts)
-        log(f"model: total={nparam/1e6:.1f}M, MoE {ARGS.n_experts} top-{ARGS.expert_k}")
+        fine_tag = (f" finos@ff/{ARGS.fine_ff_div}+{ARGS.n_shared}shared@ff/{ARGS.shared_ff_div}"
+                    if ARGS.fine_ff_div > 1 or ARGS.n_shared else "")
+        log(f"model: total={nparam/1e6:.1f}M, MoE {ARGS.n_experts} top-{ARGS.expert_k}{fine_tag}")
         log(f"model: active params ~ {active_n/1e6:.1f}M ({active_n/nparam:.0%} of total) "
             f"[dense {all_dense/1e6:.0f}M + active experts {all_exp*(ARGS.expert_k/ARGS.n_experts)/1e6:.0f}M]")
     else:
@@ -1589,6 +1647,7 @@ def main():
         log(f"optimizer v2: AdamW lr={ARGS.lr} warmup={ARGS.warmup} " + json.dumps(cfg))
 
     _log_config()
+    init_from()
     resume()
     _init_ema()
     if ddp:

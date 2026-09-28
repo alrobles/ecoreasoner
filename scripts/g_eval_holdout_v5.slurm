@@ -34,11 +34,12 @@ else
     CKPT=$CKPT_DIR/model.pt
 fi
 OUTDIR=${OUTDIR:-$RUNDIR/battery_logicdiff_v4holdout}
-echo "holdout eval $RUNDIR ckpt=$CKPT gpu=$GPU_NAME pairs=$PAIRS out=$OUTDIR"
+EVAL_CFG=${EVAL_CFG:-eval-moe-v5.yaml}   # moefine: EVAL_CFG=eval-moe-v5-moefine.yaml
+echo "holdout eval $RUNDIR ckpt=$CKPT gpu=$GPU_NAME pairs=$PAIRS out=$OUTDIR cfg=$EVAL_CFG"
 # shellcheck disable=SC2086
 apptainer exec --nv $OVL "$SIF" "$PY" \
     "$BASE/harness/suite_smoke_logicdiff.py" \
-    --ckpt "$CKPT" --config "$BASE/harness/configs/eval-moe-v5.yaml" \
+    --ckpt "$CKPT" --config "$BASE/harness/configs/$EVAL_CFG" \
     --pairs-dir "$PAIRS" \
     --out-dir "$OUTDIR" \
     --device cuda --modes dense
