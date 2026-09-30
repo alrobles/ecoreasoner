@@ -916,6 +916,17 @@ a batch gigante).. **Ganador: span-esqueleto.**
    L0 0.693 / L1 0.688 / L2 0.574 / L3 0.492 — superficial el mas
    alto medido (vs v4s 0.612/0.566) pero L3 en azar. Piso honesto
    del "modelo que habla" v1: formato+tema OK, sustancia no.
+   **sft-v2 LISTO-PARA-LANZAR (30-09)**: pipeline re-verificado sobre
+   backbone maduro — smoke job 30738663 (init EMA g495501) prueba
+   cadena completa: arch 16E auto-inferida del ckpt, train corre
+   (~1.3 it/s bs8 RTX8000), ckpts resumibles (model+ema+optimizer).
+   Assets: `sft_mdlm_v5.slurm` (INIT obligatorio, OUT=runs/sft-v2) +
+   `watch_sft_v2.sh` (olas + al target: eval_qa_sft 3000q + regresion
+   ctxnec consistency/remask via c_contrast — instrumentos corregidos,
+   no dense). Dataset: reusa `sft_ids_v1.npz` (143,647 pares auditados:
+   qa-pdb 106.6K + smoltalk 25K + sciq 11.7K + devin-elite ~339;
+   samples limpios, sin degenerado). Lanzamiento: `SFT_INIT=<ckpt EMA>
+   nohup bash scripts/watch_sft_v2.sh &` cuando ckpt >=g700K.
    **Curva L0-L3 en pretrain (instrumento p/ataque razonamiento)**:
    `watch_v5_battery.sh` local — battery holdout_clean cada ~25K
    steps del ckpt mas alto → `runs/v5-1b/battery_curve/g<N>` (EMA).
