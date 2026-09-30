@@ -35,5 +35,5 @@ sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
     --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,PAIRS=$BASE/runs/pairs_l3_inf,MODES=consistency consistency_profile,OUTDIR=$BASE/$CURVE/g$G/cons_inf" \
     scripts/c_contrast.slurm
 sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
-    --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency consistency_profile,OUTDIR=$BASE/$CURVE/g$G/cons_ctxnec" \
+    --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency consistency_profile remask,OUTDIR=$BASE/$CURVE/g$G/cons_ctxnec" \
     scripts/c_contrast.slurm

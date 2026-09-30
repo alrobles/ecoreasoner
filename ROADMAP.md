@@ -707,8 +707,25 @@ a batch gigante).. **Ganador: span-esqueleto.**
 
 ##5. PARA RETOMAR RÁPIDO(checklist)
 
-**Línea viva = prototipo v4s (MoE + receta hinrcf10) — PORT VERIFICADO.
-Estado al 18-09 ~10:00 UTC:**
+**Línea viva = pretrain v5-1b (1.13B/285M-act MoE, corpus v5pdb 12B tok)
++ instrumentos corregidos. Estado al 30-09 ~13:40 UTC:**
+- v5-1b en **g501K/1.3M** (~38.5%; ~70-95K steps/día reciente en isla
+  4×A40). Curva automática cada ~25K steps con métricas corregidas
+  (`runs/v5-1b/battery_curve/`): cons_inf plano ~0.652-0.671, ctxnec
+  pairwise 0.690→0.732 con pendiente, gen_exact ctxnec 0.24→0.285.
+  Detalle completo: `docs/results/PROGRESS-REPORT-2026-09-30.md`.
+- **fgmode (fine-grained MoE, warm-start g316K)**: completado a g30000;
+  eval de decisión (dense+cons_inf+cons_ctxnec+remask) lanzada
+  30-09 (jobs 30705860-864). Decide adopción o falsación del eje
+  arquitectura-MoE; si plano → block-diffusion es el candidato
+  estructural (P7 del reporte).
+- **sciev c_***: punto g316K hecho (choice 0.473 vs techo LLaDA 0.87);
+  re-eval en g495K lanzada (30705884, TAG=ev5g495k).
+- `battery_point.sh` ahora incluye modo `remask` (4/2/0.25) en ctxnec —
+  estándar generativo adoptado cableado a la curva automática.
+- Watcher local vivo: `scripts/watch_v5_battery.sh` (PID activo).
+
+*(histórico 18-09:) línea v4s + GA cerrado:*
 
 1. **V4S COMPLETO (checkpoint-g17000)**: holdout_clean dense L0 0.612 /
    L1 0.566 / L2 0.694*** / **L3 0.600***; dev v3_eval **L3 0.627** =
