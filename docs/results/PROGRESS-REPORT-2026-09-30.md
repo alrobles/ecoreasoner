@@ -4,9 +4,8 @@ Estado: **activo**. Pretrain `v5-1b` en **g501K/1.3M** (~38.5%), ritmo
 reciente ~70-95K steps/día (isla 4×A40 actual; histórico ~46K/día) → ETA
 ~8-17 días al target. Curva automática de instrumentos corregidos cada
 ~25K steps (`battery_curve/`). Brazo `v5-1b-fgmode` (DeepSeekMoE)
-completado a g30000 — **eval de decisión en cola hoy** (jobs
-30705860-862 + remask 30705864). Continuación del
-PROGRESS-REPORT-2026-09-23.
+completado a g30000 — **eval de decisión corrida hoy: FLAT**
+(ver §2.3). Continuación del PROGRESS-REPORT-2026-09-23.
 
 ---
 
@@ -91,16 +90,47 @@ enmascarado) es el estándar desde entonces.
 - **Remask (E-obj2)**: parcial positivo — +4.3pt gen_exact ctxnec,
   satura a la 1ª dosis → adoptado como estándar de reporte generativo.
 - **v5-1b-fgmode** (32 finos@ff/2 top-2 + shared@ff/4, warm-start
-  g316K): entrenamiento COMPLETO a g30000. Punto temprano g7001:
-  cons_inf 0.635 / ctxnec 0.668 (vs mainline a dosis igualada
-  ~g316-323K: 0.657/0.71) — arranque esperable tras reinit de expertos.
-  **Eval del punto final g30000 lanzada hoy (30705860-862 + remask
-  30705864)**: decide si fine-grained MoE se adopta como tronco o se
-  falsifica como palanca (regla §8f del reporte anterior).
-- **sciev (backbone→decisión)**: primer punto hecho en g316K —
-  choice 0.473 (piso 0.28, techo LLaDA 0.87); noul saturado por prior;
-  score/GPQA/SciFact ~piso. **Re-eval en g495K lanzada hoy
-  (job 30705884, TAG=ev5g495k)** — curva decisión-vs-exposición.
+  g316K): entrenamiento COMPLETO a g30000, **eval de decisión corrida
+  hoy** (jobs 30705860-864; dense re-lanzado 30706429 tras TIMEOUT
+  50min en Q6000 — el slurm tiene `--time=00:50:00` y la isla lenta no
+  cabe; fix pendiente). Comparación a dosis igualada
+  (mainline ≈g341-368K = init g316K + 30K):
+
+  | métrica | mainline a dosis ≈igual | fgmode@g30000 | Δ |
+  |---|---:|---:|---:|
+  | cons_inf pairwise | 0.652-0.657 | 0.656 | ≈0 (flat) |
+  | cons_inf gen_exact_ok | 0.303-0.319 | 0.296 | ≈0 |
+  | ctxnec pairwise | 0.711-0.718 | 0.699 | −1.3pt (~1σ) |
+  | ctxnec gen_exact_ok | 0.243-0.250 | 0.254 | ≈0 |
+  | ctxnec C4 drop | −8.8/−9.5 | −7.2 | menos profundo |
+  | dense L0/L1/L2/L3 | 0.770/0.762/0.539/0.523 | 0.762/0.761/0.543/0.527 | ≈0 |
+  | remask gen_exact ctxnec | (control g341K en cola, job 30717045) | 0.311 | ? |
+
+  **Veredicto preliminar: FLAT** — fine-grained MoE no levanta la
+  frontera a dosis igualada (cons_ctxnec incluso 1σ abajo). Falta solo
+  el control remask a dosis igualada para cerrar; incluso si remask
+  muestra +2-3pt, la regla de decisión (levantar gen_exact_ok/cons_ctxnec
+  sobre la trayectoria) no se cumple por el lado pairwise → la palanca
+  "más especialización MoE" se falsifica a esta escala y el candidato
+  estructural pasa a **block-diffusion** (P7).
+- **sciev (backbone→decisión)**: trayectoria con 2 puntos (EMA,
+  systemone-v2, canonical):
+
+  | eval | g316K | g495K | Δ | techo LLaDA-8B |
+  |---|---:|---:|---:|---:|
+  | choice elite (n=448) | 0.473 | **0.520** | **+4.7** | 0.870 |
+  | noul elite (n=1200) | 0.667 | 0.667 | 0 | 0.783 |
+  | score elite (n=1218) | 0.329 | 0.334 | +0.5 | 0.608 |
+  | GPQA main (n=441) | 0.256 | 0.247 | −0.9 | ~0.315 |
+  | GPQA diamond (n=193) | 0.275 | 0.269 | −0.6 | ~0.33 |
+  | SciFact noul (n=332) | 0.593 | 0.596 | +0.3 | 0.853 |
+  | SciFact score (n=304) | 0.286 | **0.398** | **+11.2** | 0.624 |
+
+  La decisión tipada **sí crece con exposición** (choice +4.7pt,
+  SciFact-score +11.2pt) — consistente con la curva interna (ctxnec
+  pairwise y gen_exact subiendo lento). GPQA plano = conocimiento
+  paramétrico aún ausente a ~4B tokens vistos. Job: 30705884
+  (`TAG=ev5g495k`, wrapper `ema_as_model.pt` en el snapshot pineado).
 
 ## 3. Qué queda del plan (puntos a seguir, priorizados)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=holdout-v5
 #SBATCH --partition=sixhour
-#SBATCH --time=00:50:00
+#SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
