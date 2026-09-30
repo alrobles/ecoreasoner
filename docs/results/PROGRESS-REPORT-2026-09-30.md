@@ -92,8 +92,9 @@ enmascarado) es el estándar desde entonces.
 - **v5-1b-fgmode** (32 finos@ff/2 top-2 + shared@ff/4, warm-start
   g316K): entrenamiento COMPLETO a g30000, **eval de decisión corrida
   hoy** (jobs 30705860-864; dense re-lanzado 30706429 tras TIMEOUT
-  50min en Q6000 — el slurm tiene `--time=00:50:00` y la isla lenta no
-  cabe; fix pendiente). Comparación a dosis igualada
+  50min en Q6000 — fix aplicado: `g_eval_holdout_v5.slurm` ahora
+  `--time=02:00:00`, ya sincronizado al cluster). Comparación a dosis
+  igualada
   (mainline ≈g341-368K = init g316K + 30K):
 
   | métrica | mainline a dosis ≈igual | fgmode@g30000 | Δ |
@@ -104,15 +105,19 @@ enmascarado) es el estándar desde entonces.
   | ctxnec gen_exact_ok | 0.243-0.250 | 0.254 | ≈0 |
   | ctxnec C4 drop | −8.8/−9.5 | −7.2 | menos profundo |
   | dense L0/L1/L2/L3 | 0.770/0.762/0.539/0.523 | 0.762/0.761/0.543/0.527 | ≈0 |
-  | remask gen_exact ctxnec | (control g341K en cola, job 30717045) | 0.311 | ? |
+  | remask gen_exact ctxnec | control mainline g341K lanzado (job
+    30717045, aterriza en `v5-1b/battery_curve/g341001/remask_ctxnec/`;
+    referencia a menor dosis: g185001 = 0.274) | **0.311** | pendiente |
 
-  **Veredicto preliminar: FLAT** — fine-grained MoE no levanta la
-  frontera a dosis igualada (cons_ctxnec incluso 1σ abajo). Falta solo
-  el control remask a dosis igualada para cerrar; incluso si remask
-  muestra +2-3pt, la regla de decisión (levantar gen_exact_ok/cons_ctxnec
-  sobre la trayectoria) no se cumple por el lado pairwise → la palanca
-  "más especialización MoE" se falsifica a esta escala y el candidato
-  estructural pasa a **block-diffusion** (P7).
+  **Veredicto: FLAT → palanca falsificada a esta escala.** Fine-grained
+  MoE no levanta la frontera a dosis igualada (cons_ctxnec 1σ abajo,
+  todo lo demás dentro de ruido). Si el control remask aterriza ~0.27-0.30
+  confirma flat; si cayera <0.27 sería el único punto a favor — no
+  cambia la decisión primaria (el gate es cons_ctxnec/gen_exact). La
+  palanca "más especialización MoE" queda falsificada → candidato
+  estructural siguiente = **block-diffusion semi-AR**, diseño ya
+  escrito en `docs/designs/BLOCKDIFF-EARQ-DESIGN-2026-09-30.md`
+  (condicional a que la exposición se aplane).
 - **sciev (backbone→decisión)**: trayectoria con 2 puntos (EMA,
   systemone-v2, canonical):
 
