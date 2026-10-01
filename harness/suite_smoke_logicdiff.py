@@ -101,6 +101,7 @@ def load_model(args, mcfg):
         n_shared=mcfg.get("n_shared", 0),
         shared_ff_div=mcfg.get("shared_ff_div", 4),
         fine_ff_div=mcfg.get("fine_ff_div", 1),
+        block_size=mcfg.get("block_size", 0),
     ).to(dev)
     if args.ckpt.upper() == "RANDOM":
         print("[warn] ckpt=RANDOM -> modelo sin entrenar (control de piso)")

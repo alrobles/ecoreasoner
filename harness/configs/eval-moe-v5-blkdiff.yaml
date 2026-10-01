@@ -1,0 +1,53 @@
+# eval-moe-v5-blkdiff.yaml — EVAL para el brazo block-diffusion (BD3-LM).
+# Igual que eval-moe-v5 pero con block_size:32 — el modelo atiende
+# block-causal en eval, consistente con su entrenamiento semi-AR.
+# Uso: EVAL_CFG=eval-moe-v5-blkdiff.yaml en battery_point.sh / c_contrast.slurm.
+
+job:
+  name: eval-moe-v5-blkdiff
+  partition: sixhour
+  gres: gpu:1
+  cpus: 8
+  mem: 40G
+  time: "00:50:00"
+
+model:
+  vocab: 126080
+  hidden: 768
+  layers: 12
+  heads: 12
+  ff_mult: 4
+  seq_len: 768
+  n_experts: 16
+  k: 1
+  use_rope: false
+  weight_tying: false
+  block_size: 32
+
+train:
+  mask_type: span
+  mask_p: 0.15
+  mask_schedule: uniform
+  span_len: 64
+  curriculum: 0
+  whole_stage: true
+  lr: 2.0e-4
+  lr_decay: cosine
+  lr_min_ratio: 0.1
+  warmup: 200
+  grad_clip: 1.0
+  ema_decay: 0.0
+
+eval:
+  mask_p: 0.15
+  n_pairs: 256
+  temp: 1.0
+  steps: 8
+  max_new: 128
+  batch: 8
+
+out:
+  dir: /beegfs/a474r867/ecoreasoner/runs
+  tag: eval-moe-v5-blkdiff
+
+seed: 7331

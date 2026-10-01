@@ -109,6 +109,10 @@ def parse():
                         "local; spans fuerzan coherencia estructural).")
     p.add_argument("--span_len", type=int, default=64,
                    help="longitud (tokens) de cada span contiguo con --mask_type=span")
+    p.add_argument("--block_size", type=int, default=0,
+                   help="BD3-LM semi-AR: tamano de bloque. 0=off (default, "
+                        "full-bidir). >0: atencion block-causal (bloques <=b "
+                        "limpios, >b no visibles) + denoise de un bloque ~U")
     p.add_argument("--mask_schedule", default="fixed",
                    choices=["fixed", "uniform", "cosine"],
                    help="schedule de corrupcion: fixed (legacy mask_p), "
@@ -337,13 +341,15 @@ class RoPEMultiheadAttention(nn.Module):
         x1, x2 = x[..., :d//2], x[..., d//2:]
         rot = torch.cat([-x2, x1], dim=-1)
         return x * self.cos[:, :, :x.size(2), :d] + rot * self.sin[:, :, :x.size(2), :d]
-    def forward(self, x):
+    def forward(self, x, attn_mask=None):
         B, T, D = x.shape
         qkv = self.qkv(x).reshape(B, T, 3, self.n_heads, self.d_head).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
         q = self._apply_rotary(q)
         k = self._apply_rotary(k)
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_head)
+        if attn_mask is not None:
+            scores = scores + attn_mask[None, None]
         attn = torch.softmax(scores, dim=-1)
         out = torch.matmul(attn, v)
         out = out.transpose(1, 2).reshape(B, T, D)
@@ -361,12 +367,12 @@ class Block(nn.Module):
         self.mlp = MoEMLP(dim, ff, n_experts, k, n_shared=n_shared,
                           shared_ff=shared_ff, fine_ff=fine_ff)
         self._use_rope = use_rope
-    def forward(self, x):
+    def forward(self, x, attn_mask=None):
         h = self.ln1(x)
         if self._use_rope:
-            a = self.attn(h)
+            a = self.attn(h, attn_mask=attn_mask)
         else:
-            a, _ = self.attn(h, h, h, need_weights=False)
+            a, _ = self.attn(h, h, h, need_weights=False, attn_mask=attn_mask)
         x = x + a
         return x + self.mlp(self.ln2(x))
 
@@ -384,10 +390,12 @@ class TiedHead(nn.Module):
 class MdLMMoE(nn.Module):
     def __init__(self, vocab, hidden, layers, heads, ff_mult, seq_len, n_experts, k,
                  use_rope=False, weight_tying=False, n_shared=0, shared_ff_div=4,
-                 fine_ff_div=1):
+                 fine_ff_div=1, block_size=0):
         super().__init__()
         self.vocab = vocab
         self.use_rope = use_rope
+        self.block_size = block_size
+        self._blk_cache = {}
         self.tok_emb = nn.Embedding(vocab + 1, hidden)   # +1 for MASK token
         self.pos = None if use_rope else nn.Embedding(seq_len, hidden)
         ff = hidden * ff_mult
@@ -401,15 +409,28 @@ class MdLMMoE(nn.Module):
         self.head = (TiedHead(self.tok_emb, vocab) if weight_tying
                      else nn.Linear(hidden, vocab))
         self.apply(_default_init)
+    def _block_mask(self, T, device):
+        """Mascara aditiva block-causal [T,T]: query en bloque bi atiende
+        keys de bloques <= bi (bidir intra-bloque, causal entre bloques)."""
+        m = self._blk_cache.get(T)
+        if m is None or m.device != device:
+            bidx = torch.arange(T, device=device) // self.block_size
+            m = torch.zeros(T, T, device=device)
+            m.masked_fill_(bidx[None, :] > bidx[:, None], float("-inf"))
+            self._blk_cache[T] = m
+        return m
+
     def forward(self, ids, output_hidden_states=False):
         B, T = ids.shape
         h = self.tok_emb(ids)
         if not self.use_rope:
             h = h + self.pos(torch.arange(T, device=ids.device))
         ckpt = getattr(self, "_grad_ckpt", False) and self.training
+        am = self._block_mask(T, ids.device) if self.block_size else None
         for b in self.blocks:
-            h = (torch.utils.checkpoint.checkpoint(b, h, use_reentrant=False)
-                 if ckpt else b(h))
+            h = (torch.utils.checkpoint.checkpoint(
+                     b, h, am, use_reentrant=False)
+                 if ckpt else b(h, am))
         hidden = self.ln_f(h)
         logits = self.head(hidden)
         if output_hidden_states:
@@ -423,7 +444,7 @@ def build_model():
                    ARGS.ff_mult, ARGS.seq_len, ARGS.n_experts, ARGS.expert_k,
                    use_rope=ARGS.use_rope, weight_tying=ARGS.weight_tying,
                    n_shared=ARGS.n_shared, shared_ff_div=ARGS.shared_ff_div,
-                   fine_ff_div=ARGS.fine_ff_div)
+                   fine_ff_div=ARGS.fine_ff_div, block_size=ARGS.block_size)
 
 # ---------------- data ----------------
 def load_corpus(paths):
@@ -1699,13 +1720,19 @@ def main():
             eff_span_len, cur_b_h = curriculum_state(step, ARGS.cur_stages)
             ARGS.mask_schedule_args["b_h"] = float(cur_b_h)
         # v2: samplear fraccion de corrupcion POR EJEMPLO (t ~ U(0,1))
+        # BD3-LM (block_size>0): el objetivo es UN bloque ~U por ejemplo —
+        # el enmascarado y la CE viven solo en ese span; la mascara de
+        # atencion block-causal (MdLMMoE._block_mask) da el prefijo limpio.
+        blk_nb = T // ARGS.block_size if ARGS.block_size else 0
+        blk_idx = (torch.randint(0, blk_nb, (B,)) if blk_nb else None)
         n_masked_per_ex = []
-        for _ in range(B):
+        for b_idx in range(B):
             frac = sample_mask_fraction(ARGS.mask_schedule, step, device=xb.device)
+            span = ARGS.block_size if blk_nb else T
             if ARGS.mask_schedule == "fixed":
-                n = max(1, int((T // 2) * ARGS.mask_p))
+                n = max(1, int((span // 2) * ARGS.mask_p))
             else:
-                n = max(1, int(T * frac))
+                n = max(1, int(span * frac))
             n_masked_per_ex.append(n)
         mp_parts = []
         cp_parts = []
@@ -1713,7 +1740,11 @@ def main():
         for b_idx in range(B):
             xb_b = xb[b_idx:b_idx+1]
             mp_b = None
-            if (ARGS.candidate_focus > 0 and STAGE_LABEL_IDS
+            if blk_nb:
+                s0 = int(blk_idx[b_idx]) * ARGS.block_size
+                perm = torch.randperm(ARGS.block_size, device=xb.device)
+                mp_b = perm[:n_masked_per_ex[b_idx]] + s0
+            elif (ARGS.candidate_focus > 0 and STAGE_LABEL_IDS
                     and float(torch.rand((), device=xb.device)) < ARGS.candidate_focus):
                 mp_b = build_candidate_mask(
                     xb_b, STAGE_LABEL_IDS, device=xb.device,
