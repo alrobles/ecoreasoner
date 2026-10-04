@@ -1,8 +1,10 @@
 # E-arq — Block-diffusion semi-AR (BD3-LM-style) para el dLLM desde cero
 
-Fecha: 2026-09-30 · Estado: **LANZADO 2026-10-03** (job 30882855,
-warm-start EMA g683001 — la condición se cumplió: fgmode falsado y
-3 puntos ctxnec consecutivos sin máximo nuevo, g630K/g656K/g683K).
+Fecha: 2026-09-30 · Estado: **FALSADO 2026-10-04** (ver
+PROGRESS-REPORT-2026-10-04 §2: todas las métricas primarias
+retrocedieron vs mainline a dosis igualada y vs su propio init; el
+único positivo literal fue C4 −10.1pt, leído como fragilidad, no
+binding). Lanzado 10-03 job 30882855, warm-start EMA g683001.
 Condición de activación (de PROGRESS-REPORT-2026-09-30 §3-P7):
 fgmode falsificado (hecho: FLAT a dosis igualada) **Y** exposición
 aplanada en métricas corregidas (ctxnec pairwise + gen_exact — aún con
