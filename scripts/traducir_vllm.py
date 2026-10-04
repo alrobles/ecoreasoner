@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# DEPRECATED 2026-09-20: dependia de un modelo de origen chino vetado
-# (Qwen / Tencent HY-MT / LLaDA weights / DeepSeek). Los pesos fueron
-# eliminados del cluster; este script ya no corre. El tokenizer LLaDA
-# (vocab 126080) sigue vivo SOLO como tokenizer de nuestro modelo.
-"""Traducción ES->EN por vLLM (HY-MT1.5) — batching continuo en GPU de cluster.
+# NOTA 2026-10-04: el modelo original (tencent/HY-MT1.5-7B) quedo vetado y
+# purgado del cluster; el SCRIPT es modelo-agnostico (--model) y corre con
+# teachers compliant — en uso actual con allenai/OLMo-2-1124-13B-Instruct
+# via mt_olmo.slurm. El tokenizer LLaDA (vocab 126080) sigue vivo SOLO como
+# tokenizer de nuestro modelo.
+"""Traducción ES->EN por vLLM — batching continuo en GPU de cluster.
 
 Misma lógica de corpus que traducir_batch.py (para_chunks + lang_of + clean +
 resume por .en.md) pero usando vllm.LLM offline: todos los chunks ES de todos
@@ -78,7 +79,9 @@ def main():
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--shard", type=int, required=True)
     ap.add_argument("--nshards", type=int, required=True)
-    ap.add_argument("--model", default="tencent/HY-MT1.5-7B")
+    ap.add_argument("--model", default="allenai/OLMo-2-1124-13B-Instruct")
+    ap.add_argument("--dtype", default="bfloat16",
+                    help="bfloat16 normal; float16 en Turing (q6000/q8000)")
     ap.add_argument("--chunk", type=int, default=8000)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--maxlen", type=int, default=8192)
@@ -105,7 +108,7 @@ def main():
     if not todo:
         return
 
-    llm = LLM(model=a.model, dtype="bfloat16", max_model_len=a.maxlen,
+    llm = LLM(model=a.model, dtype=a.dtype, max_model_len=a.maxlen,
               gpu_memory_utilization=a.gmu, enforce_eager=False)
     tok = llm.get_tokenizer()
 

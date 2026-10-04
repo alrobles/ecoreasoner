@@ -106,12 +106,32 @@ instrumentos corregidos + falsación pre-registrada.
 |---|---|---|---|
 | P1 | Decisión fgmode | CERRADO: falsado | — |
 | P2 | Exposición | en curso, ~58% | la curva sigue; ctxnec en meseta, gx la única pendiente viva |
-| P3 | sciev backbone→decisión | en ventana | re-eval sobre ckpt reciente (~g740-780K) para 3er punto de trayectoria |
-| P5 | Chat-SFT v2 | listo, no lanzado | decisión pendiente con Angel — backbone ya maduro, el plan decía ≥g700K (ya superado) |
-| P6 | Corpus UNAM-EN | parcial | decisión de datos pendiente |
+| P3 | sciev backbone→decisión | **3er punto hecho (g738K)** | próximo: ckpt terminal 1.3M |
+| P5 | Chat-SFT v2 | **LANZADO 10-04** | watcher encadena olas hasta g35500 (2 épocas); evals automáticas al final (eval_devin_hard + regresión ctxnec) |
+| P6 | Corpus UNAM-EN | **EN CURSO 10-04** | flota traduciendo (array 30996717); al terminar: merge a `unam_en.jsonl` → decisión de integración (dosis post-1.3M o QA→SFT) |
 | P7 | block-diffusion | **CERRADO: falsado** | eje arquitectura terminado (ambos brazos negativos) |
 | P8 | Paper 1 (systems+harness) | backlog | material listo: crisis de instrumento + 2 falsaciones pre-registradas |
 | P9 | Paper 2 (tesis) | backlog | depende del desenlace exposición→1.3M |
+
+## 4b. Lanzamientos 10-04
+
+**Chat-SFT v2** (`sft-v2`, job 30996592, watcher `watch_sft_v2.sh` vivo):
+- init = EMA g738065 (snap pineado); datos `sft_ids_v1.npz` (36,677 pares
+  sciq+smoltalk); 2 épocas ≈ g35500. Loss ~4-5 nominal. Al completar,
+  el watcher dispara eval generativa (eval_devin_hard, 3000 held-out) +
+  regresión ctxnec (consistency+remask) contra la curva del init.
+
+**UNAM-EN — pipeline reactivado (variante compliant)**:
+- Flota beta(w0-2)+gamma(w3-5) rsync → `tesis_unam/fleet_md/`:
+  **5,131 tesis nuevas** (slices 0-5, scrape completo).
+- Curado (`curate_tesis_unam.py`) → `curada_v3/`: **4,873 science**
+  (258 dropped short; 0 latex — las slices ya venían filtradas).
+  **Cero traslape** con los 2,031 docs ya traducidos.
+- HY-MT purgado (veto 09-20) → traductor nuevo: **OLMo-2-1124-13B-
+  Instruct** (compliant) vía `mt_olmo.slurm` + `traducir_vllm.py`
+  (--dtype añadido; stack pylibs_vllm + VLLM_USE_V1=0, igual que
+  qa_gen). Smoke 3 docs OK; flota array **30996717_[0-15]** corriendo,
+  resume por `.en.md` → se relanza el array tras cada ventana sixhour.
 
 ## 5. Plan de aterrizaje (v5-1b → 1.3M)
 
