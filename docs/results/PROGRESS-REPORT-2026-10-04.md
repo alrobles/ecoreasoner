@@ -73,6 +73,33 @@ Negativos controlados de ambos brazos = material directo para el
 paper 1 (P8): protocolo de comparación a dosis igualada + batería de
 instrumentos corregidos + falsación pre-registrada.
 
+## 3b. sciev backbone→decisión — 3er punto (g738K EMA, job 30929279)
+
+| eval | g316K | g495K | g738K | Δ último | techo LLaDA-8B |
+|---|---:|---:|---:|---:|---:|
+| choice elite (n=448) | 0.473 | 0.520 | **0.540** | +2.0 | 0.870 |
+| noul elite (n=1200) | 0.667 | 0.667 | 0.667 | 0 | 0.783 |
+| score elite (n=1218) | 0.329 | 0.334 | 0.336 | +0.2 | 0.608 |
+| GPQA main (n=441) | 0.256 | 0.247 | **0.293** | **+4.6** | ~0.315 |
+| GPQA diamond (n=193) | 0.275 | 0.269 | **0.326** | **+5.7** | ~0.33 |
+| SciFact noul (n=332) | 0.593 | 0.596 | 0.569 | −2.7 | 0.853 |
+| SciFact score (n=304) | 0.286 | 0.398 | 0.368 | −3.0 | 0.624 |
+
+**Lecturas:**
+
+1. **`choice` sigue creciendo**: 0.473→0.520→0.540 — desacelerando
+   pero sin meseta; ~57% del headroom hacia LLaDA-8B extraído.
+2. **GPQA se movió por primera vez**: main +4.6, diamond +5.7 — el
+   backbone **empata prácticamente a LLaDA-8B** en GPQA (0.293/0.326
+   vs ~0.315/0.33). Primera señal de conocimiento paramétrico
+   emergiendo a ~5.6B tokens (caveat: GPQA está cerca del piso para
+   todos a esta escala).
+3. **SciFact retrocedió** (−2.7/−3.0 tras el salto +11.2) — un punto;
+   ruido o regresión leve, el siguiente punto lo decide.
+4. Net: la eval externa sigue convirtiendo exposición en capacidad
+   decisoria **aunque la métrica interna pairwise ya está en meseta**
+   — la trayectoria backbone→decisión no ha cerrado.
+
 ## 4. Qué queda del plan
 
 | # | Punto | Estado | Próxima acción |
@@ -86,7 +113,25 @@ instrumentos corregidos + falsación pre-registrada.
 | P8 | Paper 1 (systems+harness) | backlog | material listo: crisis de instrumento + 2 falsaciones pre-registradas |
 | P9 | Paper 2 (tesis) | backlog | depende del desenlace exposición→1.3M |
 
-## 5. Riesgos / vigilancia
+## 5. Plan de aterrizaje (v5-1b → 1.3M)
+
+Queda ~42% de corrida (~550K steps, ~5-6 días al ritmo actual). Para
+cerrar la fase con el material consolidado:
+
+- [ ] **Dejar correr** — watcher + AUTO_RESUBMIT cubren la curva solos
+  hasta el final; baterías automáticas cada ~25K hasta g1.3M.
+- [ ] **Batería final en ckpt terminal** (g1.3M, EMA + raw) — cierra la
+  curva de exposición.
+- [ ] **sciev final** sobre el ckpt terminal — 4º y último punto de la
+  trayectoria backbone→decisión.
+- [ ] **Decisión Chat-SFT v2** — el plan decía backbone ≥g700K (ya
+  superado); lanzar cuando Angel confirme.
+- [ ] **Consolidar**: curva completa g207K→g1.3M + las dos falsaciones
+  pre-registradas (fgmode, blkdiff) + trayectoria sciev = insumo de
+  papers P8/P9.
+- [ ] Auditoría pendiente barata: `entity` n=1 en subtipos.
+
+## 5b. Riesgos / vigilancia
 
 - **Sixhour churn**: sano; mainline job 30928463 en r32r25n01, ETA al
   target ~5-6 días al ritmo actual (~70-90K/día).
