@@ -13,7 +13,8 @@
 # Traduccion ES->EN de tesis UNAM con teacher COMPLIANT:
 # OLMo-2-1124-13B-Instruct (Ai2, Apache 2.0) via traducir_vllm.py.
 # Sucede a mt_vllm.slurm (HY-MT purgado 09-20). Stack = el de qa_gen
-# (pylibs_vllm + VLLM_USE_V1=0 + HF offline). Constraint >=40GB bf16
+# (pylibs_vllm2 + VLLM_USE_V1=0 + HF offline). Constraint >=40GB bf16
+# OLMo-2 max_position_embeddings=4096 -> CHUNK/MAXLEN ajustados a 4000/4096.
 # (13B bf16 ~26GB; q6000/q8000 excluidas: Turing sin bf16).
 # Resume por .en.md -> seguro re-lanzar el array tras cada ventana.
 # Uso:  sbatch --array=0-7 mt_olmo.slurm        (NSHARDS default 8)
@@ -24,15 +25,15 @@ SIF=$BASE/ecoreasoner/pytorch-cuda.sif
 MODEL=${MODEL:-allenai/OLMo-2-1124-13B-Instruct}
 NSHARDS=${NSHARDS:-8}
 LIMIT=${LIMIT:-0}
-CHUNK=${CHUNK:-8000}
+CHUNK=${CHUNK:-4000}
 MAXDOCS=${MAXDOCS:-64}
-MAXLEN=${MAXLEN:-8192}
+MAXLEN=${MAXLEN:-4096}
 GMU=${GMU:-0.92}
 INDIR=${INDIR:-$BASE/unam_mt_in2}
 OUTDIR=${OUTDIR:-$BASE/unam_md_en}
 REPORT=${REPORT:-$OUTDIR/mt_olmo_report.jsonl}
 
-export PYTHONPATH=$BASE/${PYLIBS:-pylibs_vllm}
+export PYTHONPATH=$BASE/${PYLIBS:-pylibs_vllm2}
 export HF_HOME=$BASE/hf_cache
 export HF_HUB_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
