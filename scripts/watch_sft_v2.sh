@@ -87,7 +87,7 @@ while :; do
     if [ "$BATT_SENT" = "0" ] && [ "$btj" = "0" ] && [ "$batt" = "0" ]; then
       log "lanzando regresion ctxnec (consistency+remask) sobre checkpoint-g$latest"
       ssh -o ConnectTimeout=15 -o BatchMode=yes "$REMOTE" \
-        "cd $BASE && sbatch --export=\"ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency remask,OUTDIR=$REG_DIR\" scripts/c_contrast.slurm" \
+        "cd $BASE && sbatch --partition=sixhour --export=\"ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency remask,OUTDIR=$REG_DIR\" scripts/c_contrast.slurm" \
         2>/dev/null | tail -1 | tee -a "$LOG"
       BATT_SENT=1
     fi
