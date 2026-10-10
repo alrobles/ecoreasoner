@@ -1,14 +1,14 @@
 # DRAFT — Paper 1 (systems)
 
-**Title:** Training Small Diffusion Language Models on a Heterogeneous Shared HPC GPU Pool: Exact Per-Token Gradient Weighting, VRAM-Autosized Micro-Batches, and a Falsification-Oriented Evaluation Harness
+**Title:** Training Diffusion Language Models on a Heterogeneous Shared HPC GPU Pool: Exact Per-Token Gradient Weighting, Scavenged-Pool Continuous Pretraining, and a Falsification-Oriented Evaluation Harness
 
-**Status:** working draft, 2026-09-08; results arc updated 2026-09-17. All numbers verified against `docs/results/`, `docs/designs/`, `ROADMAP.md`, `scripts/`, and `harness/`.
+**Status:** working draft, 2026-09-08; results arc updated 2026-09-17; v5-1b phase added 2026-10-09. All numbers verified against `docs/results/`, `docs/designs/`, `ROADMAP.md`, `scripts/`, `harness/`, and live cluster state.
 
 ---
 
 ## Abstract
 
-Small diffusion language models (dLLMs) are an attractive substrate for studying scientific-reasoning capabilities from scratch, but academic groups rarely control a homogeneous accelerator allocation: they inherit whatever a shared HPC cluster happens to have free, across GPU families with different VRAM, throughput, interconnect, and even CUDA stacks. We describe a system for training a 154.8M-parameter masked-diffusion LM on such a heterogeneous NVIDIA pool (A100, RTX PRO 6000 Blackwell, L40, Q6000) under Slurm. The trainer assigns each rank a micro-batch sized by *measured* forward+backward VRAM consumption, and applies a per-rank gradient scaling `SCALE_I = world·micro_i/Σmicro` so that the optimizer step is the **exact** per-token average over the global batch — identical to a homogeneous run — while a *global* gradient-accumulation counter keeps DDP all-reduce lock-step across heterogeneous ranks. A multi-family launcher (one Slurm job per GPU family, TCP rendezvous via torchrun, forced Ethernet NCCL to survive an IB/no-IB fabric mix) and a wave-based checkpoint/resubmit pattern keep runs alive inside short queue windows. We pair this with a declarative evaluation harness (pairwise inferential discrimination, generative completion, curve tracking, automated verdicts). The flagship heterogeneous run (F1) scored at chance — a NO-GO against the pre-registered ≥0.55 criterion — but the micro-vs-F1 contrast isolated the cause: optimization shape, not scale. Following exactly that prescription (many small updates on a single GPU), a nine-generation evolutionary search over masking recipes converged on a configuration (`hinrcf10`) that scores **0.632 pairwise accuracy on the inferential level of a leak-cleaned holdout** — above the falsification floor — with a verified corpus ablation (raw Spanish text degrades discrimination by ~5σ; English-only translation recovers it) and a recipe port to a 676M-parameter MoE that recovers inferential discrimination (L3 0.600 clean holdout) while retaining the best surface scores — showing the structured objective, not scale or corpus volume, is what carries inference. The systems contribution made the negative measurable; the harness made the pivot a decision rather than a guess.
+Small diffusion language models (dLLMs) are an attractive substrate for studying scientific-reasoning capabilities from scratch, but academic groups rarely control a homogeneous accelerator allocation: they inherit whatever a shared HPC cluster happens to have free, across GPU families with different VRAM, throughput, interconnect, and even CUDA stacks. We describe a system for training a 154.8M-parameter masked-diffusion LM on such a heterogeneous NVIDIA pool (A100, RTX PRO 6000 Blackwell, L40, Q6000) under Slurm. The trainer assigns each rank a micro-batch sized by *measured* forward+backward VRAM consumption, and applies a per-rank gradient scaling `SCALE_I = world·micro_i/Σmicro` so that the optimizer step is the **exact** per-token average over the global batch — identical to a homogeneous run — while a *global* gradient-accumulation counter keeps DDP all-reduce lock-step across heterogeneous ranks. A multi-family launcher (one Slurm job per GPU family, TCP rendezvous via torchrun, forced Ethernet NCCL to survive an IB/no-IB fabric mix) and a wave-based checkpoint/resubmit pattern keep runs alive inside short queue windows. We pair this with a declarative evaluation harness (pairwise inferential discrimination, generative completion, curve tracking, automated verdicts). The flagship heterogeneous run (F1) scored at chance — a NO-GO against the pre-registered ≥0.55 criterion — but the micro-vs-F1 contrast isolated the cause: optimization shape, not scale. Following exactly that prescription (many small updates on a single GPU), a nine-generation evolutionary search over masking recipes converged on a configuration (`hinrcf10`) that scores **0.632 pairwise accuracy on the inferential level of a leak-cleaned holdout** — above the falsification floor — with a verified corpus ablation (raw Spanish text degrades discrimination by ~5σ; English-only translation recovers it) and a recipe port to a 676M-parameter MoE that recovers inferential discrimination (L3 0.600 clean holdout) while retaining the best surface scores — showing the structured objective, not scale or corpus volume, is what carries inference — and, at flagship scale, a 1.13B-parameter (285M-active) 16-expert masked-diffusion MoE pretrained ~1M optimizer steps (~12B tokens) entirely on scavenged six-hour queue windows via a self-resubmitting wave chain whose checkpoints resume across world sizes and GPU families, surviving weeks of preemption and a full-day storage outage. On top of that run we report the instrument layer that makes its decisions auditable: a corrected binding battery (context-necessity corruption profiles, iterative remask decoding) hardened through a documented instrument crisis, and two **pre-registered, equal-dose structural falsifications** — a fine-grained-MoE arm and a block-diffusion semi-AR arm — both negative against the same init, step budget, and battery, localizing the model's binding bottleneck to capacity/data rather than attention structure. An external scientific-decision trajectory (sciev) keeps converting exposure into capability after the internal pairwise metric plateaus at ~0.744, while a controlled SFT probe shows chat remains degenerate at this scale — SFT serves as a measurement instrument, not a product path. The systems contribution made the negative measurable; the harness made the pivot a decision rather than a guess.
 
 ---
 
@@ -24,12 +24,14 @@ This paper describes the systems we built to make the pool usable anyway, and th
 2. **A multi-family Slurm launcher** (`f1_hetero.slurm`): one job per GPU family, torchrun TCP rendezvous across jobs, NCCL transport fixes for mixed IB/no-IB fabrics, and a SIGUSR1 wave pattern for checkpoint + auto-resubmit under short partition limits.
 3. **A falsification-oriented eval harness** (`harness/` + `eval_curve.py` + `verdict_f2.py`): reproducible pairwise discrimination on 256 real pairs drawn from the training corpus, per-checkpoint curves, and a pre-registered GO/NO-GO verdict.
 4. **Measured, honest pool characterization**: per-family tok/s for the actual model (not projections from FLOPs), and a documented measurement pitfall that initially underestimated some families by 2–5×.
+5. **Scavenged-pool continuous pretraining** (v5 phase): an elastic single-island DDP recipe — family-agnostic placement, VRAM-adaptive micro-batching, ZeRO-1 cross-world checkpoint resume, and a self-resubmitting wave chain — that carried a 1.13B MoE through ~1M steps on queue fragments, plus the local watcher/watchdog layer that turns checkpoints into a self-driving eval curve.
+6. **An equal-dose falsification protocol** with two executed arms (fine-grained MoE, block-diffusion): pre-registered gates, shared init, identical budget and battery — a template for turning architecture questions into closed decisions at laboratory scale.
 
 We report results as they are: the flagship heterogeneous run (F1, 17 ranks, L40+Q6000, 1000 steps) produced chance-level discrimination — a NO-GO against the pre-registered ≥0.55 criterion — and the contrast against a single-GPU micro-run isolates the cause as optimization configuration rather than scale.
 
 ## 2. Related Work
 
-**Diffusion LMs.** Discrete diffusion for text was established by D3PM (Austin et al., 2021), with continuous-embedding variants such as Diffusion-LM (Li et al., 2022). Masked/absorbing-state formulations were simplified and scaled by SEDD (Lou et al., 2024) and MDLM (Sahoo et al., 2024); LLaDA (Nie et al., 2025) demonstrated masked diffusion competitive with AR LMs at 8B scale. Our model is a small (154.8M) MDLM-style masked-diffusion LM.
+**Diffusion LMs.** Discrete diffusion for text was established by D3PM (Austin et al., 2021), with continuous-embedding variants such as Diffusion-LM (Li et al., 2022). Masked/absorbing-state formulations were simplified and scaled by SEDD (Lou et al., 2024) and MDLM (Sahoo et al., 2024); LLaDA (Nie et al., 2025) demonstrated masked diffusion competitive with AR LMs at 8B scale. Our models are MDLM-style masked-diffusion LMs spanning 154.8M dense to a 1.13B-parameter (285M-active) 16-expert MoE.
 
 **Distributed training.** PyTorch DDP (Li et al., 2020) averages per-rank gradients over world size — correct only when ranks carry equal token counts. ZeRO/DeepSpeed (Rajbhandari et al., 2020) shards optimizer state but still assumes homogeneous data-parallel ranks. Elastic and volunteer-compute training (e.g., SWARM parallelism, Ryabinin et al., 2023; DiLoCo, Douillard et al., 2023) addresses unreliable or heterogeneous nodes via pipeline reshuffling or infrequent outer synchronization; our setting instead needs *exact* dense-synchronous semantics on a small model where communication is cheap relative to correctness. We are not aware of prior work deriving the exact per-token weighting correction for heterogeneous micro-batches under standard DDP all-reduce.
 
@@ -151,24 +153,103 @@ The search converged on `hinrcf10`: *random* token masking drawn from U(0.30, b_
 
 **The MoE inversion (v4), resolved by the recipe port (v4s).** Scaling to a 676M-param MoE (hidden 768, 12 layers, 8 experts top-1, ~279M active) continued-trained on the EN-augmented corpus (v4en, 118.5M tok) with the *flat* masking recipe inverted the profile: L0 0.696 / L1 0.634 (best surface discrimination to date) but L2 0.503 / **L3 0.496 — chance**. Porting the full `hinrcf10` recipe onto that same checkpoint (+6K steps; candidate-stage masking on skeleton docs, dense random masking on prose) **recovered the inferential levels while retaining the surface advantage**: L0 0.612 / L1 0.566 / L2 0.694 / **L3 0.600** on the clean holdout — and L3 0.627 on the dev set, tying the dense champion (0.626) with uniformly better surface discrimination and a much better denoising pseudo-PPL (926 vs ~2988). Negation jumped 0.290 → 0.574; `number` (~0.38) remains the hard floor across every configuration. The flat arm had *fallen* to chance over the same extra-step budget, so the delta is the objective, not the steps: the structured recipe transplants to a larger architecture and corpus, and the two regimes do not fundamentally compete — a single model can carry both surface fluency and inferential discrimination.
 
+### 4.6 v5-1b: the flagship run on the scavenged pool (added 2026-10-09)
+
+The v4s endpoint motivated the flagship question directly: if the recipe carries inference, what does it do at ~1B scale over a full corpus pass? `v5-1b` is a 16-expert top-1 masked-diffusion MoE — hidden 768, 12 layers, 1.13B total / 285M active parameters (the same per-token compute as the 676M dense design; top-1 routing buys capacity for free) — trained from scratch on `train_ids_v5pdb.npz`: 11.96B tokens / 17.38M documents (papers_db EN: 285K fulltext + 2.79M abstracts + 40.7K synthetic + 2K translated UNAM, plus 327K v4hneg skeletons, split-long into 768-token windows), target 1.3M optimizer steps at a constant 9,216 tokens/step.
+
+The run's systems problem is not the model but the substrate: there is no allocation — only whatever `sixhour` islands happen to be free. Three mechanisms make continuous pretraining possible anyway:
+
+**Elastic single-island DDP.** The launcher requests `gres=gpu:3` with an NVIDIA-family constraint and lands on *any* free island (Q6000, A100, L40, A40, Q8000, PRO6000). The trainer auto-adapts to what it finds: ≥40 GB VRAM → micro-batch 4, flat; <40 GB → micro-batch 1, grad-accum 4, gradient checkpointing, and **ZeRO-1 optimizer sharding** (the 1.13B fp32 model + AdamW needs ~18 GB fixed — it does not fit a 24 GB card unsharded; ZeRO-1 brings fixed state to ~12.4 GB/rank). Effective batch is held constant at 9,216 tok/step across every island shape, so the recipe is invariant to where the wave lands.
+
+**Cross-config checkpoint resume.** Optimizer state is stored in standard ZeRO-1 format (consolidated on rank 0 after `zero_grad`); a wave that dies on 4 ranks resumes on 3 — verified in production. Combined with EMA (decay 0.999) saved alongside raw weights, every checkpoint is simultaneously a resume point and an eval point.
+
+**The AUTO_RESUBMIT wave chain.** Each wave runs inside a six-hour window, checkpoints atomically on SIGUSR1, and resubmits itself; an early race (SIGTERM path exited without resubmit) was found and fixed by routing `finalize` through the TERM trap. The chain then ran for weeks unattended — including through a ~24 h cluster storage outage (10-07→10-08) that cost one day of compute and was absorbed without data loss.
+
+Local **watcher daemons** close the loop: ssh-polling scripts (now supervised by a cron watchdog after a post-outage silent death) relaunch dead fleets and trigger downstream eval — the eval curve is produced *by the infrastructure*, not by an operator remembering to launch it. Throughput: ~47–90 K steps/day depending on which island the chain currently occupies (large NVIDIA islands are contended; a ~81-GPU AMD MI210 pool — 2.5× all fast NVIDIA combined — remains untouched pending a ROCm spike; measured inter-node bandwidth ~200 MB/s rules out naive multi-node DDP at this batch size: 4.5 GB of fp32 gradients per sync would cost ~22 s against ~1 s of compute).
+
+### 4.7 The instrument crisis and the corrected battery (added 2026-10-09)
+
+The v5 phase's most consequential engineering was not training — it was discovering that early instruments *lied*, and rebuilding them. The sequence is a case study in why eval infrastructure deserves first-class status:
+
+1. **Leakage audit.** Embedding-based dedup plus source-document separation showed the original holdout ~97% clean — but only after auditing; the cleaned 7,509-item holdout is what all current numbers report.
+2. **Dense scoring.** The original 15%-mask scorer diluted the inferential signal ~6×; masking 100% of the candidate stage (dense mode) is what exposed the frontier in §4.5.
+3. **Context-necessity (ctxnec) battery.** Pairwise discrimination alone cannot distinguish *using* context from ignoring it. The corrected suite corrupts the context (entity/value/role/direction rebinds) and measures whether predictions track the corruption — plus a **corruption profile** (corrupt_0 → corrupt_0.5) whose endpoint delta is the "C4 drop", a fragility measure that later proved decisive for the §4.8 verdicts.
+4. **Remask decoding.** An iterative decode (4 steps × 2 rounds × frac 0.25, confidence-ordered) provides a generative binding measure (`remask gx`) that pure pairwise scoring misses.
+5. **Live-checkpoint race fix.** Batteries launched against *live* checkpoints raced the trainer's writes; the fix snapshots each checkpoint (hardlink) into a pinned dir before submitting eval jobs, plus a completeness filter on partially-written states.
+6. **Known residual caveat.** One subtype (`entity`) currently audits at n=1 — a documented limitation, not a hidden one.
+
+### 4.8 Equal-dose falsification protocol: two structural arms (added 2026-10-09)
+
+With a trustworthy battery in place, the program could ask the structural question cleanly: *is the residual binding gap an architecture problem?* The protocol is deliberately rigid: warm-start each arm from the **same EMA checkpoint**, train the **same step budget** (30K), and evaluate on the **same battery** against the mainline point at equal total exposure — gates pre-registered before launch.
+
+**Arm fgmode (fine-grained MoE).** 32 fine experts at ff/2 with top-2 routing + 1 shared expert at ff/4 — DeepSeekMoE-style specialization at equal FLOPs/token. Warm-start g316K + 30K steps. **Verdict: FLAT** — no primary metric moved beyond noise.
+
+**Arm blkdiff (block-diffusion, BD3-LM-style semi-AR).** Context→target asymmetry wired into the attention mask, warm-start g683K + 30K. **Verdict: FALSIFIED with regression** — ctxnec pairwise 0.737→0.696 (−4.7pt, ~3.5σ), cons_inf 0.659→0.643, remask gx 0.328→0.270, gen_exact 0.277→0.242. The arm's one "improvement" — a record C4 drop of −10.1 — is on inspection *fragility*, not binding: the model became more dependent on clean context and worse at using it, so corruption cuts deeper into a degraded baseline. Every ctxnec subtype fell below mainline (role_swap 0.839 vs 0.89, entity_rebind 0.772 vs 0.82, value_rebind 0.618 vs 0.66).
+
+The paired negatives close the architecture axis at this scale and dose: neither attention structure nor expert specialization is the binding bottleneck — consistent with the capacity/data reading that the exposure curve (§4.9) tests directly.
+
+### 4.9 Exposure plateau and the external trajectory (added 2026-10-09)
+
+The mainline's corrected curve runs from g207K and is still extending; the recent stretch defines the plateau:
+
+| ckpt | denseL3 | cons_inf | ctxnec pw | gen_exact ctx | remask gx |
+|---|---:|---:|---:|---:|---:|
+| g710001 | 0.517 | 0.668 | 0.743 | 0.290 | 0.335 |
+| g738065 | 0.517 | 0.665 | 0.738 | 0.293 | 0.335 |
+| g763501 | 0.516 | 0.669 | 0.742 | 0.286 | 0.333 |
+| g791001 | 0.506 | 0.652 | 0.743 | 0.279 | 0.333 |
+| g816501 | 0.523 | 0.662 | 0.744 | 0.287 | 0.339 |
+
+`ctxnec` pairwise has held a 0.728–0.744 band for ~250K steps; `cons_inf` ~0.66; `gen_exact` — the last live slope — flattened (three consecutive points below the 0.293 peak). Internal metrics say exposure stopped buying binding.
+
+The external trajectory disagrees — usefully. On sciev (scientific-decision evals vs a LLaDA-8B-Instruct ceiling):
+
+| eval | g316K | g495K | g738K | LLaDA-8B |
+|---|---:|---:|---:|---:|
+| choice elite (n=448) | 0.473 | 0.520 | **0.540** | 0.870 |
+| GPQA main (n=441) | 0.256 | 0.247 | **0.293** | ~0.315 |
+| GPQA diamond (n=193) | 0.275 | 0.269 | **0.326** | ~0.33 |
+| SciFact score (n=304) | 0.286 | 0.398 | 0.368 | 0.624 |
+
+`choice` keeps climbing (57% of the headroom to LLaDA-8B extracted); GPQA moved for the first time at g738K — the backbone essentially **tied LLaDA-8B** there (0.293/0.326 vs ~0.315/0.33). The honest reading: parametric knowledge continues accumulating even where the binding instruments plateau — the two measure different things, and the paper reports both rather than choosing one.
+
+### 4.10 SFT as a measurement instrument (added 2026-10-09)
+
+Two controlled SFT runs (same 36,677-pair sciq+smoltalk dataset, 2 epochs, LLaDA-recipe masked-response objective) bracket the backbone's maturation. On the held-out generative eval (eval_devin_hard, 3,000 items, gold_recall):
+
+| tipo | sft-v1 (init g94K) | sft-v2 (init g738K EMA) |
+|---|---:|---:|
+| multihop (n=800) | 0.031 | 0.084 |
+| numerical (n=1055) | 0.052 | 0.153 |
+| negation (n=324) | 0.036 | 0.125 |
+| causal (n=820) | 0.032 | 0.086 |
+
+Parametric recall roughly tripled with backbone maturity — but a direct chat probe on the sft-v2 checkpoint produced degenerate looping output on all prompts (the chat template is respected; the content is not usable), and the binding battery shows a small real tax vs its init (ctxnec 0.738→0.733; gen_exact 0.293→0.263; remask 0.335→0.297). Verdict: **chat=no at 1.13B/this exposure** — SFT's value here is as a calibrated probe of what the backbone stored, and the sft-v1→v2 delta is the cleanest available curve of knowledge-vs-exposure on this model.
+
 ## 5. Discussion
 
 [FIG: autosize + SCALE_I diagram — per-rank VRAM probe → micro_i → SCALE_I weighting → single synchronous all-reduce → one optimizer step equal to the global per-token average.]
+
+[FIG: v5-1b systems stack — sixhour wave chain (AUTO_RESUBMIT + atomic ckpt + ZeRO-1 cross-world resume) → pinned snapshot → 3-job battery (dense / cons_inf / ctxnec+remask) → watcher daemons → cron watchdog; side lane: UNAM-EN fleet (scrape → curate → OLMo-13B vLLM translate → QA-gen → SFT-v3).]
 
 **What the systems side enables.** The pipeline converts an idle, fragmented, heterogeneous slice of a shared cluster into a single exact-semantics data-parallel run in minutes, with measured (not projected) capacity, and survives queue preemption via the wave pattern. The SCALE_I derivation is a general recipe: it applies to any DDP workload where ranks must carry unequal micro-batches, requires no custom collectives, and preserves the exact optimizer semantics of a homogeneous run. The measurement pitfall (§4.1) is worth stating in print: small-model throughput on contended clusters is routinely mismeasured by job walltime, and the error is large (2–5×) and directionally misleading — it inverts the apparent ranking of hardware generations.
 
 **The honest negative, and what it bought.** The flagship run falsified *this configuration*, not the thesis: discrimination stayed at chance, and the verdict tooling recorded a clean NO-GO against a pre-registered criterion. This is the designed behavior of a falsification-oriented harness — the experiment produced a decision with cheap evidence, and the micro-vs-F1 contrast localized the failure to optimization shape rather than to hardware, data, or masking objective. The payoff is documented in §4.5: the corrective the contrast prescribed (many small updates) is exactly what the subsequent single-GPU recipe search executed, and it converged on a verified inferential frontier. The negative was load-bearing twice — once as a verdict, once as a diagnosis.
 
-**Limitations.** cu121/cu128 families still cannot share a process group, so Blackwell capacity is unreachable in mixed runs; per-rank data shards are static slices rather than a sampler; and SCALE_I equalizes token weight but not step latency — the slowest rank still gates each synchronous step.
+**Negatives compound (v5 addendum).** The equal-dose protocol produced a second, matched pair of clean negatives (§4.8): with the instrument trusted, each arm cost 30K steps and returned a decision instead of an ambiguity. The deeper methodological claim of this paper is therefore not "our trainer works" but that *a small lab can run a falsification-grade research program on scavenged capacity* — provided the instrument layer is treated as load-bearing: every near-miss in this project that later resolved (the diluted scorer, the raced checkpoints, the leaky holdout, the fragility-vs-binding confound) was an instrument bug or instrument upgrade, not a model change.
 
-## 6. Future Work (updated 2026-09-17)
+**Operations as a contribution.** The wave chain + watcher + watchdog stack is unglamorous but is what converted ~40 GPU-days of fragmented sixhour windows into a single uninterrupted 1.3M-step run; its failure modes (the SIGTERM resubmit race, the silent watcher death, the storage outage) are documented because they are the actual cost model of this class of infrastructure.
+
+**Limitations.** cu121/cu128 families still cannot share a process group, so Blackwell capacity is unreachable in mixed runs; per-rank data shards are static slices rather than a sampler; SCALE_I equalizes token weight but not step latency — the slowest rank still gates each synchronous step; measured inter-node bandwidth (~200 MB/s) confines v5-1b to single islands — multi-node only pays at ~×30 larger effective batch, which is a different recipe, not a free scale-up; the battery-curve gap g841K–g975K is permanent (rolling checkpoint retention); and the `entity` subtype audit remains at n=1.
+
+## 6. Future Work (updated 2026-10-09)
 
 The two items listed here in the 09-08 draft are resolved: the f2-spanes bridge run completed (0.5273, FALSIFY — archived), and the controller/verificator fallback was validated independently (98.2–98.6% arg-match on 500 real tool-calls). Current work:
 
-1. **Frontier push on `number`:** every configuration plateaus the fine-logic subtype near 0.38–0.42; candidate axes are fine-dosed corrective corruption (p≈0.02–0.05 — the p=0.10 dose showed adversarial gradients), hard-negative mining from the precomputed 16-NN edges, and objective-level changes rather than recipe tweaks.
-2. **Layered post-training on the frontier checkpoint:** chat-SFT (LLaDA-8B-Instruct as in-cluster teacher, the dLLM filtering its own generations), reasoning-trace SFT (premise→step→conclusion, reusing the synthetic generators), and tool-call SFT with an external execution scaffold (the validated controller/verificator path).
-3. **Scale-out (grant-dependent):** a ~1.5B-active / ~4B-total MoE at seq 1024 requires sustained A100/pro6000-class capacity beyond the scavenged pool; our cost model puts a 10B-token run at ~170 A100-hours (~$250–500 spot), sized for controlled ablations rather than one hero run.
-4. **Systems extensions:** cross-stack training (per-family homogeneous subgroups + activation-level parallelism or a unified cu128 build), throughput-aware micro-batch sizing (autotune by measured tok/s, not only VRAM, since the model is compute-bound), and elastic membership to absorb mid-run pool fluctuation.
+1. **Close the v5-1b arc:** terminal battery and the 4th sciev point on the g1.3M checkpoint (expected ~10-13); then the UNAM-EN lane completes end-to-end — 4,873 curated theses → OLMo-2-13B vLLM translation (~89% done) → automated QA generation → SFT-v3 on the terminal checkpoint, giving the third point of the SFT-as-probe curve.
+2. **Frontier push on `number`:** every configuration plateaus the fine-logic subtype near 0.38–0.42; candidate axes are fine-dosed corrective corruption (p≈0.02–0.05 — the p=0.10 dose showed adversarial gradients), hard-negative mining from the precomputed 16-NN edges, and objective-level changes rather than recipe tweaks.
+3. **Capacity axis after the plateau:** with both structural arms falsified and internal metrics flat, the open levers are corpus (translation-first UNAM-EN integration; reasoning traces) and scale — the MI210/ROCm pool (~81 GPUs) is the untapped capacity, blocked only by an unverified software stack.
+4. **Systems extensions:** cross-stack training (per-family homogeneous subgroups + activation-level parallelism or a unified cu128 build), throughput-aware micro-batch sizing (autotune by measured tok/s, not only VRAM, since the model is compute-bound), localSGD-style infrequent sync (`sync_every`) for batch-×30 runs that make multi-node pay on a ~200 MB/s fabric, and elastic membership to absorb mid-run pool fluctuation.
 
 ---
 
@@ -188,3 +269,8 @@ The two items listed here in the 09-08 draft are resolved: the f2-spanes bridge 
 12. A. B. Yoo, M. A. Jette, M. Grondona. "SLURM: Simple Linux Utility for Resource Management." *JSSPP 2003*.
 13. G. M. Kurtzer, V. Sochat, M. W. Bauer. "Singularity: Scientific Containers for Mobility of Compute." *PLoS ONE 12(5)*, 2017.
 14. NVIDIA. "NVIDIA Collective Communications Library (NCCL)." Software documentation, docs.nvidia.com.
+15. M. Arriola, S. Gokhale, A. K. Sagar, A. Tong, Z. Yang, J. M. Hernandez-Lobato. "Block Diffusion: Interpolating Between Autoregressive and Diffusion Language Models." *ICLR 2025*.
+16. D. Dai et al. "DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models." *ACL 2024*.
+17. T. OLMo et al. "2 OLMo 2 Furious." *arXiv:2501.00656*, AI2, 2025.
+18. D. Rein et al. "GPQA: A Graduate-Level Google-Proof Q&A Benchmark." *arXiv:2311.12022*, 2023.
+19. D. Wadden et al. "Fact or Fiction: Verifying Scientific Claims (SciFact)." *EMNLP 2020*.
