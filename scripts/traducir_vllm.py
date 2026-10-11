@@ -88,6 +88,10 @@ def main():
     ap.add_argument("--gmu", type=float, default=0.92)
     ap.add_argument("--maxdocs", type=int, default=64,
                     help="docs por oleada de generate() (controla RAM/host)")
+    ap.add_argument("--wavebytes", type=int, default=1500000,
+                    help="tope de bytes de entrada por oleada: los .en.md "
+                         "solo se escriben al cerrar la ola — una ola que "
+                         "excede el wall-time del job pierde todo su trabajo")
     ap.add_argument("--report", default=None)
     a = ap.parse_args()
 
@@ -134,8 +138,20 @@ def main():
     out_toks = 0
     ndone = nfail = 0
 
-    for w0 in range(0, len(todo), a.maxdocs):
-        wave = todo[w0: w0 + a.maxdocs]
+    w0 = 0
+    while w0 < len(todo):
+        # ola acotada por n_docs Y por bytes de entrada: en la cola quedan
+        # los docs grandes (~100 chunks/doc), una ola de 64 jamas cabe en
+        # el wall-time -> writes per-ola => stall permanente
+        wave, wave_bytes = [], 0
+        for p, out in todo[w0:]:
+            sz = os.path.getsize(p)
+            if wave and (len(wave) >= a.maxdocs
+                         or wave_bytes + sz > a.wavebytes):
+                break
+            wave.append((p, out))
+            wave_bytes += sz
+        w0 += len(wave)
         # construir prompts de todos los chunks ES de la ola
         jobs = []  # (doc_i, chunk_i, n_prompt_tokens, max_new)
         texts = {}  # doc_i -> chunks
