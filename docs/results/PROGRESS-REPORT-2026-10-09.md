@@ -113,10 +113,16 @@ SFT-v3 (UNAM-QA) dará el punto de comparación sobre el ckpt terminal.
      presupuesto pensado → sub-generación latente).
   3. `llm.chat` en try/except: una ola fallida cuenta `nfail` y sigue,
      no mata el task.
-- El task vivo con código viejo (31447540_0) morirá en su ballena; el
-  watcher relanzará el array 0-15 con el fix → las ballenas se traducen
-  por fin. Pendiente confirmar descenso del conteo en el próximo ciclo.
-- Ritmo ~100-150 docs/día → **ETA ~3-5 días**.
+- **Segundo stall encontrado al verificar el fix (01:50)**: los 515
+  pendientes son los docs mayores (~100 chunks/doc) → una ola de
+  maxdocs=64 sumaba 5,122 chunks ≈ 15h de generación > límite 5:50h →
+  kill por wall-time antes del write per-ola → stall estructural aun
+  sin el bug de prompt. Añadido `--wavebytes 1.5MB` (ola ~1h, writes
+  durables).
+- **Verificado en vivo (array 31448801)**: tasks escriben `[ok]` desde
+  el minuto ~10; pendientes **515 → 497** en ~25 min. Stall roto.
+- ETA ahora del orden de **horas, no días** (olas de ~1h × ~10 shards
+  activos).
 - `watch_unam_qa.sh` armado: al caer el flag MT dispara QA→SFT-v3
   automático sobre el ckpt terminal.
 
