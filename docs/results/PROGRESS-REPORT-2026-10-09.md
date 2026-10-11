@@ -137,11 +137,62 @@ SFT-v3 (UNAM-QA) dará el punto de comparación sobre el ckpt terminal.
 - [ ] UNAM-EN: MT termina ~3-5 días → cadena QA→SFT-v3 sola.
 - [ ] Consolidar curva g207K→g1.3M + 2 falsaciones + trayectoria sciev
   + veredicto SFT → insumos P8/P9.
-- [ ] Auditoría pendiente barata: `entity` n=1 en subtipos.
+- [x] Auditoría `definitional` n=1 — **CERRADA** (§9: sesgo de split,
+  integridad OK, fix propuesto para SFT-v3).
 - [ ] Considerar: pausar competencia sixhour o aceptar ETA ~10-13/14
   (la flota v6_* xsdm está comiendo islas).
 
-## 9. Fuente de datos
+## 9. Auditoría `definitional` n=1 — CERRADA (causa raíz encontrada)
+
+El eval `eval_devin_hard` (3,000 items) tiene solo **1 `definitional`**.
+Causa: el split `qa_devin_elite` (3,339) → {supp 339, eval 3,000} envió
+**129/130 definitional al supp de train** (verificado por match de
+preguntas: 129 en supp, 1 en eval, 0 huérfanos). No es azar (esperanza
+~13): el supp se seleccionó con sesgo hacia items chat-style.
+
+- **Integridad OK**: los sets son disjuntos — no hay fuga train→eval;
+  las métricas reportadas no están contaminadas.
+- **Efecto**: eval_devin_hard es ciego a QA definicional (masa ~4%);
+  el agregado es válido, la cobertura por tipo es asimétrica.
+- **Fix recomendado (SFT-v3)**: construir una tajada eval de
+  definitional con items UNAM-QA nuevos (nunca en train) — barato y
+  sin contaminar la comparación sft-v1/v2 (los 129 ya están en
+  sft_ids_v1; moverlos ahora sí crearía fuga).
+
+## 10. Spike MI210/ROCm — VALIDADO (gate superado ~12×)
+
+Medido hoy en r06r18n01 (`venv_rocm` torch 2.5.1+rocm6.2, sin apptainer):
+
+| config | tok/s | peak mem | nota |
+|---|---:|---:|---|
+| 1×MI210 bs4 | **13,838** | 16.4 GiB | single-GPU, DDP-free |
+| 1×MI210 bs12 | **24,065** | 24.4 GiB | ~64GB deja bs≥12 |
+| 3×MI210 DDP bs4/rank | **13,761 agg** | 26.0 GiB | = receta viva (9,216 tok/step) |
+| 3×MI210 DDP bs12/rank | **30,921 agg** | 32.7 GiB | batch ×3 = receta distinta |
+
+Hallazgos del spike:
+1. **RCCL requiere `NCCL_P2P_DISABLE=1` + `NCCL_IB_DISABLE=1`** — sin
+   ellos init_process_group falla ("invalid argument"); con ellos el
+   transporte cae a SHM y conecta (jobs 31442554/61/81).
+2. **DDP + MoE top-1 exige `balance_loss` en la loss** — el trainer ya
+   la lleva (por eso `find_unused_parameters=False` funciona en
+   producción); el smoke la replica.
+3. **Una isla 3×MI210 a la receta viva (bs4/rank = 9,216 tok/step) da
+   13.8K tok/s agg ≈ 1.5-2.5× una isla NVIDIA actual**; a bs12/rank
+   (batch efectivo ×3, cambio de receta) 30.9K tok/s ≈ 3-6×.
+4. `v5_1b_mi210.slurm` **validado en producción** (job 31442672, acotado
+   a 50 steps, OUT de test): pipeline completo real — corpus 11.96B tok
+   memmap, modelo 1.13B, receta idéntica, `checkpoint-g50` +
+   `training_complete.flag` escritos, exit 0 limpio. Mismo formato de
+   ckpt que las olas NVIDIA → resume cross-stack sin conversión.
+   Dependencias resueltas: `pydeps_tf451` en PYTHONPATH (transformers
+   sin torch, no sombrea ROCm).
+   Pendiente solo la decisión: ¿integrar MI210 a la flota del mainline
+   o reservarlo para un segundo backbone?
+
+**Mainline: g1,053,501/1.3M (81%)** al cierre del spike (22:13).
+
+## 11. Fuente de datos
 
 - Cluster (verificado directo hoy ~23:00): `runs/v5-1b/state.json`
   (g991001@23:04), `battery_curve/g{763501,791001,816501}/
