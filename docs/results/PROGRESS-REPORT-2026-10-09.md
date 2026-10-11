@@ -22,17 +22,19 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g992501 | — | 0.665 | 0.331 | **0.748** | 0.282 | −8.5 | 0.322 |
 | g1017501 | — | 0.660 | 0.332 | 0.748 | 0.292 | −8.3 | 0.329 |
 | g1043501 | — | 0.676 | 0.338 | 0.743 | **0.293** | −8.0 | 0.339 |
-| g1070501 | — | 0.667 | 0.333 | **0.749** | 0.290 | **−7.9** | 0.335 |
+| g1070501 | — | 0.667 | 0.333 | **0.749** | 0.290 | −7.9 | 0.335 |
+| g1096501 | — | 0.669 | **0.340** | 0.746 | **0.293** | **−6.5** | **0.344** |
 
 (g992501+ evaluados por el watcher revivido — la automatización
-post-apagón funciona: 4 puntos de curva producidos sin intervención.)
+post-apagón funciona: 5 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
 1. **Meseta con deriva lenta al alza**: `ctxnec` pairwise en banda
-   0.743-0.749 (~360K steps) — g1070501 marca el **máximo de la serie
-   (0.7492)**; +0.6pt sobre ~360K steps: techo no roto pero con
-   pendiente leve positiva; `cons_inf` ~0.66-0.68; C4 drop ~−8±1pt.
+   0.743-0.749 (~390K steps) — máximo de serie **0.7492** (g1070K);
+   `cons_inf` ~0.66-0.68. g1096501 añade evidencia de mejora suave al
+   final de la curva: **remask gx 0.344 (máximo de serie)**, C4 drop
+   **−6.5 (el más suave — menos frágil)**, gx ctx 0.293 (empata pico).
 2. **`gen_exact` ctxnec también se aplanó** — la única pendiente viva
    del reporte 10-04 oscila 0.279-0.293 alrededor del pico 0.293 de
    g738K. Ni discriminación ni generación exacta mejoran ya con
