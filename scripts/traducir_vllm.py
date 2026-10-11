@@ -112,6 +112,23 @@ def main():
               gpu_memory_utilization=a.gmu, enforce_eager=False)
     tok = llm.get_tokenizer()
 
+    # Un prompt ES debe dejar sitio a la salida EN (~1.15x n_tokens):
+    #   n + n*1.15 + 128 <= maxlen  ->  n <= (maxlen-160)/2.2
+    # para_chunks corta por CARACTERES; contenido denso en tokens
+    # (tablas, secuencias, formulas) excede el limite igualmente.
+    pt_budget = max(256, int((a.maxlen - 160) / 2.2))
+
+    def fit_tok(c):
+        """Subdivide c hasta que PROMPT.format(c) quepa en pt_budget."""
+        if len(tok.encode(PROMPT.format(c))) <= pt_budget:
+            return [c]
+        cut = c.rfind("\n", len(c) // 4, 3 * len(c) // 4)
+        if cut <= 0:
+            cut = c.rfind(" ", len(c) // 4, 3 * len(c) // 4)
+        if cut <= 0:
+            cut = len(c) // 2
+        return fit_tok(c[:cut]) + fit_tok(c[cut:])
+
     rep = open(a.report, "a", encoding="utf-8") if a.report else None
     t_start = time.time()
     out_toks = 0
@@ -128,7 +145,7 @@ def main():
             except Exception as e:
                 print(f"[fail-read] {os.path.basename(p)}: {e}", flush=True)
                 continue
-            cs = para_chunks(texto, a.chunk)
+            cs = [f for c in para_chunks(texto, a.chunk) for f in fit_tok(c)]
             texts[di] = cs
             for ci, c in enumerate(cs):
                 if lang_of(c) == "es":
@@ -139,11 +156,24 @@ def main():
             lens = [len(tok.encode(PROMPT.format(c))) for _, _, c in jobs]
             sp = [SamplingParams(temperature=0.7, top_k=20, top_p=0.6,
                                  repetition_penalty=1.05,
-                                 max_tokens=min(int(n * 1.7 / 3.5) + 128, 6000))
+                                 max_tokens=max(64, min(int(n * 1.15) + 128,
+                                                        a.maxlen - n - 48,
+                                                        6000)))
                   for n in lens]
             t0 = time.time()
-            outs = llm.chat(prompts, sp)
+            try:
+                outs = llm.chat(prompts, sp)
+            except Exception as e:
+                # una ola que falla no mata el task: sus docs quedan
+                # pendientes (texts vaciado -> no se escriben) y se
+                # reintentan en el proximo relanzamiento del array
+                print(f"[wave-fail] {len(jobs)} chunks: {e}", flush=True)
+                for di, _, _ in jobs:
+                    texts.pop(di, None)
+                outs = None
             el = time.time() - t0
+            if outs is None:
+                continue
             for (di, ci, _), o in zip(jobs, outs):
                 n = len(o.outputs[0].token_ids)
                 out_toks += n

@@ -10,7 +10,7 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 
 ---
 
-## 1. Curva mainline — tres puntos nuevos (EMA, consolidados)
+## 1. Curva mainline — seis puntos nuevos (EMA, consolidados)
 
 | ckpt | denseL3 | cons_inf | gx_ok inf | ctxnec | gx_ok ctx | C4 drop ctx | remask gx ctx |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -18,21 +18,30 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g738065 | 0.517 | 0.665 | 0.334 | 0.738 | **0.293** | −8.7 | 0.335 |
 | g763501 | 0.516 | 0.669 | 0.332 | 0.742 | 0.286 | −9.0 | 0.333 |
 | g791001 | 0.506 | 0.652 | 0.326 | 0.743 | 0.279 | −9.6 | 0.333 |
-| g816501 | 0.523 | 0.662 | 0.323 | **0.744** | 0.287 | −8.3 | **0.339** |
+| g816501 | 0.523 | 0.662 | 0.323 | 0.744 | 0.287 | −8.3 | 0.339 |
+| g992501 | — | 0.665 | 0.331 | **0.748** | 0.282 | −8.5 | 0.322 |
+| g1017501 | — | 0.660 | 0.332 | 0.748 | 0.292 | −8.3 | 0.329 |
+| g1043501 | — | **0.676** | **0.338** | 0.743 | **0.293** | **−8.0** | **0.339** |
+
+(g992501+ evaluados por el watcher revivido — la automatización
+post-apagón funciona: 3 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
-1. **Meseta total**: `ctxnec` pairwise plano en ~0.743-0.744 (8 puntos
-   en banda 0.728-0.744, ~250K steps); `cons_inf` ~0.66; C4 drop
-   ~−8.5±1pt.
+1. **Meseta total**: `ctxnec` pairwise en banda 0.743-0.748 (~330K
+   steps); `cons_inf` ~0.66-0.68; C4 drop ~−8.5±1pt.
 2. **`gen_exact` ctxnec también se aplanó** — la única pendiente viva
-   del reporte 10-04 marcó 0.286/0.279/0.287, por debajo del pico 0.293
-   de g738K. Ni discriminación ni generación exacta mejoran ya con
+   del reporte 10-04 oscila 0.279-0.293 alrededor del pico 0.293 de
+   g738K. Ni discriminación ni generación exacta mejoran ya con
    exposición dentro de esta receta.
-3. Subtipos estables: role_swap ~0.90 (máximo estructural), entity_rebind
+3. g1043501 marca el punto más fuerte del tramo (cons_inf y gx ctx en
+   máximo de serie, C4 mínimo) — desviación dentro de la banda, no
+   ruptura de meseta.
+4. Subtipos estables: role_swap ~0.90 (máximo estructural), entity_rebind
    ~0.81-0.83, value_rebind ~0.66, direction ~0.55-0.60 (cola débil
    persistente).
-4. `denseL3` ruidoso 0.506-0.523 — sin tendencia.
+5. `denseL2`/`denseL3` no consolidados aún en los puntos nuevos (batería
+   en vuelo al cierre).
 
 ## 2. Ops: apagón beegfs 10-07→10-08 (ya resuelto)
 
@@ -86,10 +95,27 @@ SFT queda como herramienta de sonda (QA→SFT para leer contenido
 paramétrico), no como vía de producto. Reintentar post-1.3M con
 SFT-v3 (UNAM-QA) dará el punto de comparación sobre el ckpt terminal.
 
-## 4. UNAM-EN — traducción ~89% (verificado en cluster)
+## 4. UNAM-EN — traducción ~89% + fix de stall (10-11 01:30)
 
-- **515 pendientes de 4,873** (conteo directo en beegfs hoy).
-- Watcher mtolmo vivo (relanzó array 31253305 a las 19:22; 1 task viva).
+- **515 pendientes de 4,873** — pero el conteo estaba **congelado**:
+  las tasks morían en `llm.chat` con `ValueError: prompt 7198 tok >
+  max_model_len 4096`. `para_chunks` corta por **caracteres** (4000);
+  contenido denso en tokens (tablas/secuencias/fórmulas) supera 4096
+  igualmente. Un solo chunk-ballena en la ola de 64 docs mata toda la
+  ola → crash-loop: los ~32 pendientes por shard caben en una ola con
+  al menos una ballena → progreso cero.
+- **Fix desplegado en `traducir_vllm.py`** (repo + beegfs, md5 igual):
+  1. `fit_tok()` — sub-división recursiva hasta que el prompt quepa en
+     presupuesto de tokens `(maxlen−160)/2.2` (~1789 tok a maxlen 4096).
+  2. `max_tokens` clamp: `min(n*1.15+128, maxlen−n−48, 6000)` — prompt+
+     salida nunca exceden la ventana (además corrige la fórmula previa
+     `n*1.7/3.5`, que sobre tokens —no chars— daba ~la mitad del
+     presupuesto pensado → sub-generación latente).
+  3. `llm.chat` en try/except: una ola fallida cuenta `nfail` y sigue,
+     no mata el task.
+- El task vivo con código viejo (31447540_0) morirá en su ballena; el
+  watcher relanzará el array 0-15 con el fix → las ballenas se traducen
+  por fin. Pendiente confirmar descenso del conteo en el próximo ciclo.
 - Ritmo ~100-150 docs/día → **ETA ~3-5 días**.
 - `watch_unam_qa.sh` armado: al caer el flag MT dispara QA→SFT-v3
   automático sobre el ckpt terminal.
@@ -190,7 +216,8 @@ Hallazgos del spike:
    Pendiente solo la decisión: ¿integrar MI210 a la flota del mainline
    o reservarlo para un segundo backbone?
 
-**Mainline: g1,053,501/1.3M (81%)** al cierre del spike (22:13).
+**Mainline: g1,061,501/1.3M (81.7%)** a 10-11 01:14 — ritmo ~64K/día,
+ETA ~10-14. Job 31446847 vivo; watcher battery produciendo puntos.
 
 ## 11. Fuente de datos
 
