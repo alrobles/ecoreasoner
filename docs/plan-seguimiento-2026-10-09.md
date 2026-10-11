@@ -88,3 +88,34 @@ relanzar ola con `sbatch scripts/v5_1b_ddp.slurm` (INIT=último ckpt).
 - [ ] Veredicto final tesis: exposición → meseta documentada
   (binding ~0.744, generación ~0.29, chat=no, 2 falsaciones
   estructurales + SFT como sonda)
+
+## 6. Coordinación sciev (sesiones Devin paralelas — añadido 10-11)
+
+sciev se desarrolla en paralelo desde **otra máquina** (home
+`alrobles`, sesiones `zenith-century`, `pear-abrosaurus`, `childlike-toaster`, …).
+Canónico confirmado en `/beegfs/a474r867/sciev-code/AGENTS.md`:
+
+- **Raíz de datos/runs**: `$RJ=/beegfs/a474r867/sciev`
+  (`runs/sci/`, `heads/`, `data/`, `evals/`, `serve/`, `logs/`).
+- **Checkout de código**: `/beegfs/a474r867/sciev-code` — clone de
+  sciev-devel, rama `alignment/scientific-pipeline`; `$RJ/sciev` es
+  copia rsync, re-sync tras cada bump. Migración a scratch REVERTIDA
+  — beegfs es canónico (incidente 10-08 cerrado).
+- **Desarrollo activo hoy**: `gpqa_retrieved` (brazo de retrieval
+  real para GPQA grounded, fase B3 — commits/jobs en curso) y
+  `antileak_frac` (rebalanceo de control — `sciev_antileak_alp*_b`
+  COMPLETED 10-11 01:26).
+- **Servicio**: `sciev.ecoseek.org` = Cloudflare → sciev-gate
+  (reumanlab:8682) → uvicorn en q6000; watchdog de túnel en ESTA
+  máquina (`~/bin/sciev-tunnel-watchdog.sh`, cron */5). Serve job =
+  `sbatch ~/sciev_submit/sciev_serve.slurm` — suyo, no tocar.
+
+**Regla anti-colisión para esta sesión**: NO lanzar jobs `sciev_*`
+ni escribir bajo `/beegfs/a474r867/sciev*` mientras el harness esté
+en desarrollo activo — el 4º punto sciev (sobre el ckpt terminal)
+se coordina con la otra sesión o se lanza solo tras confirmar que
+`sciev-code` está estable (HEAD quieto, sin jobs `sciev_*` en cola,
+y la versión del eval comparable a la de los 3 puntos anteriores).
+El resto del pipeline ecoreasoner (mainline, baterías, UNAM→QA)
+vive íntegramente bajo `/beegfs/a474r867/ecoreasoner` + watchers
+locales — sin solape con sciev.
