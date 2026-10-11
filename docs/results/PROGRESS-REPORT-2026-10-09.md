@@ -21,15 +21,18 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g816501 | 0.523 | 0.662 | 0.323 | 0.744 | 0.287 | −8.3 | 0.339 |
 | g992501 | — | 0.665 | 0.331 | **0.748** | 0.282 | −8.5 | 0.322 |
 | g1017501 | — | 0.660 | 0.332 | 0.748 | 0.292 | −8.3 | 0.329 |
-| g1043501 | — | **0.676** | **0.338** | 0.743 | **0.293** | **−8.0** | **0.339** |
+| g1043501 | — | 0.676 | 0.338 | 0.743 | **0.293** | −8.0 | 0.339 |
+| g1070501 | — | 0.667 | 0.333 | **0.749** | 0.290 | **−7.9** | 0.335 |
 
 (g992501+ evaluados por el watcher revivido — la automatización
-post-apagón funciona: 3 puntos de curva producidos sin intervención.)
+post-apagón funciona: 4 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
-1. **Meseta total**: `ctxnec` pairwise en banda 0.743-0.748 (~330K
-   steps); `cons_inf` ~0.66-0.68; C4 drop ~−8.5±1pt.
+1. **Meseta con deriva lenta al alza**: `ctxnec` pairwise en banda
+   0.743-0.749 (~360K steps) — g1070501 marca el **máximo de la serie
+   (0.7492)**; +0.6pt sobre ~360K steps: techo no roto pero con
+   pendiente leve positiva; `cons_inf` ~0.66-0.68; C4 drop ~−8±1pt.
 2. **`gen_exact` ctxnec también se aplanó** — la única pendiente viva
    del reporte 10-04 oscila 0.279-0.293 alrededor del pico 0.293 de
    g738K. Ni discriminación ni generación exacta mejoran ya con
@@ -119,12 +122,14 @@ SFT-v3 (UNAM-QA) dará el punto de comparación sobre el ckpt terminal.
   kill por wall-time antes del write per-ola → stall estructural aun
   sin el bug de prompt. Añadido `--wavebytes 1.5MB` (ola ~1h, writes
   durables).
-- **Verificado en vivo (array 31448801)**: tasks escriben `[ok]` desde
-  el minuto ~10; pendientes **515 → 497** en ~25 min. Stall roto.
-- ETA ahora del orden de **horas, no días** (olas de ~1h × ~10 shards
-  activos).
-- `watch_unam_qa.sh` armado: al caer el flag MT dispara QA→SFT-v3
-  automático sobre el ckpt terminal.
+- **Verificado en vivo (array 31448801)**: pendientes **515 → 15** en
+  ~7h (515→497 en los primeros 25 min). La cadena watcher+relaunch
+  (array 31453051) sigue moliendo la cola; flag `UNAM_EN_MT_DONE`
+  inminente → `watch_unam_qa` dispara QA→SFT-v3 automático.
+- `watch_unam_qa.sh` armado: al caer el flag MT dispara merge →
+  `qagen_mt` → finalize → `sft_ids_v3_unam.npz` + `UNAM_QA_SFT_READY`.
+  El lanzamiento de SFT-v3 sobre el ckpt terminal sigue siendo decisión
+  pendiente (plan §4), no automática.
 
 ## 5. sciev — harness dev activo, 4º punto pendiente
 
