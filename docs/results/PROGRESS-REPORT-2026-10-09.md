@@ -124,14 +124,22 @@ SFT-v3 (UNAM-QA) dará el punto de comparación sobre el ckpt terminal.
   kill por wall-time antes del write per-ola → stall estructural aun
   sin el bug de prompt. Añadido `--wavebytes 1.5MB` (ola ~1h, writes
   durables).
-- **Verificado en vivo (array 31448801)**: pendientes **515 → 15** en
-  ~7h (515→497 en los primeros 25 min). La cadena watcher+relaunch
-  (array 31453051) sigue moliendo la cola; flag `UNAM_EN_MT_DONE`
-  inminente → `watch_unam_qa` dispara QA→SFT-v3 automático.
-- `watch_unam_qa.sh` armado: al caer el flag MT dispara merge →
-  `qagen_mt` → finalize → `sft_ids_v3_unam.npz` + `UNAM_QA_SFT_READY`.
-  El lanzamiento de SFT-v3 sobre el ckpt terminal sigue siendo decisión
-  pendiente (plan §4), no automática.
+- **Traducción COMPLETA 10-11 11:37** (`UNAM_EN_MT_DONE`) → cadena
+  automática corrió: merge → `unam_en.jsonl` (6,900 pasajes) →
+  `qagen_mt` shards → **stall #3 encontrado y roto (10-12 ~00:20)**:
+  los 190 pendientes residuales eran TODOS del shard 3, cuya task moría
+  en `prompt 4193 tok > 4096` (misma clase de bug: truncado por chars
+  en texto denso) + los fallos de parseo no registraban el pid →
+  pendiente eterno. Fix `qa_gen_mt.py`: truncado por tokens
+  (`maxlen−max_new−64`), tombstones `fail=parse|gen_exc` con
+  `raw_head` auditable, ola aislada en try/except.
+- **QA cerrado 10-12 00:24**: 24,017 pares QA de 6,710 pasajes +
+  22 tombstones → `unam_qa_finalize` (job 31479095) →
+  **`sft_ids_v3_unam.npz`: 148,838 pares / 14.43M tokens** (UNAM QA +
+  corpus SFT-v1 concatenado). `UNAM_QA_SFT_READY` cae al próximo ciclo
+  del watcher.
+- SFT-v3 queda listo para lanzar: npz + script existentes; pendiente
+  solo la decisión (init = ckpt terminal g1.3M).
 
 ## 5. sciev — harness dev activo, 4º punto pendiente
 

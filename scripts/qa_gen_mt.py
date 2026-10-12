@@ -129,22 +129,44 @@ def main():
     fout = open(out_path, "a", encoding="utf-8")
     t0 = time.time()
     ndone = nqa = 0
+    pt_budget = a.maxlen - a.max_new - 64
+
     for w0 in range(0, len(todo), a.maxdocs):
         wave = todo[w0: w0 + a.maxdocs]
         prompts = []
         for r in wave:
-            msgs = [{"role": "user", "content":
-                     PROMPT_TMPL.format(k=a.k, passage=r["text"][:6000])}]
-            prompts.append(tok.apply_chat_template(
-                msgs, tokenize=False, add_generation_prompt=True))
-        outs = llm.generate(prompts, sp)
+            # truncar por TOKENS: 6000 chars densos (tablas/datos) exceden
+            # maxlen -> vllm lanza y mata la ola entera (stall shard-3)
+            txt = r["text"][:6000]
+            p = tok.apply_chat_template(
+                [{"role": "user", "content":
+                  PROMPT_TMPL.format(k=a.k, passage=txt)}],
+                tokenize=False, add_generation_prompt=True)
+            while len(tok.encode(p)) > pt_budget and len(txt) > 500:
+                txt = txt[: int(len(txt) * 0.85)]
+                p = tok.apply_chat_template(
+                    [{"role": "user", "content":
+                      PROMPT_TMPL.format(k=a.k, passage=txt)}],
+                    tokenize=False, add_generation_prompt=True)
+            prompts.append(p)
+        try:
+            outs = llm.generate(prompts, sp)
+        except Exception as e:
+            # una ola que lanza no mata el task: tombstones y seguir
+            print(f"[gen-fail] {len(wave)} pasajes: {e}", flush=True)
+            outs = [None] * len(wave)
         for r, o in zip(wave, outs):
-            qa = parse_qa(o.outputs[0].text)
-            if qa:
-                fout.write(json.dumps(
-                    {"pid": r["pid"], "passage": r["text"], "turns": qa},
-                    ensure_ascii=False) + "\n")
-                nqa += len(qa)
+            qa = parse_qa(o.outputs[0].text) if o is not None else None
+            # tombstone en fallo: sin registro el pid queda "pendiente"
+            # para siempre -> el watcher relanza en loop. turns=[] no
+            # produce pares en qa_filter; fail+raw_head dejan pista.
+            rec = {"pid": r["pid"], "passage": r["text"], "turns": qa or []}
+            if not qa:
+                rec["fail"] = "gen_exc" if o is None else "parse"
+                if o is not None:
+                    rec["raw_head"] = o.outputs[0].text[:200]
+            fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            nqa += len(qa or [])
             ndone += 1
         fout.flush()
         dt = time.time() - t0
