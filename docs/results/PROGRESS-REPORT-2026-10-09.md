@@ -25,9 +25,10 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g1070501 | — | 0.667 | 0.333 | **0.749** | 0.290 | −7.9 | 0.335 |
 | g1096501 | — | 0.669 | **0.340** | 0.746 | **0.293** | **−6.5** | **0.344** |
 | g1123501 | — | 0.665 | 0.315 | 0.740 | 0.282 | −8.0 | 0.328 |
+| g1150001 | — | 0.662 | 0.325 | 0.745 | 0.284 | −7.8 | 0.329 |
 
 (g992501+ evaluados por el watcher revivido — la automatización
-post-apagón funciona: 6 puntos de curva producidos sin intervención.)
+post-apagón funciona: 7 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
