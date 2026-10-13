@@ -26,22 +26,23 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g1096501 | — | 0.669 | **0.340** | 0.746 | **0.293** | **−6.5** | **0.344** |
 | g1123501 | — | 0.665 | 0.315 | 0.740 | 0.282 | −8.0 | 0.328 |
 | g1150001 | — | 0.662 | 0.325 | 0.745 | 0.284 | −7.8 | 0.329 |
-| g1175501 | — | 0.669 | 0.331 | 0.748 | **0.297** | −8.7 | 0.337 |
+| g1175501 | — | 0.669 | 0.331 | 0.748 | 0.297 | −8.7 | 0.337 |
+| g1201501 | — | 0.666 | **0.334** | 0.748 | **0.314** | −8.8 | **0.353** |
 
 (g992501+ evaluados por el watcher revivido — la automatización
-post-apagón funciona: 8 puntos de curva producidos sin intervención.)
+post-apagón funciona: 9 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
 1. **Meseta con deriva lenta al alza**: `ctxnec` pairwise en banda
    0.740-0.749 (~475K steps) — máximo de serie **0.7492** (g1070K);
    `cons_inf` ~0.66-0.68.
-2. **`gen_exact` ctxnec ROMPIÓ su techo** en g1175501: **0.2967** vs
-   máximo previo 0.2933 (g738K, ~437K steps atrás). La "meseta" ya no
-   es plana en ningún frente: últimos puntos concentran los máximos de
-   serie (ctxnec pw 0.749 g1070K, remask 0.344 g1096K, gx ctx 0.297
-   g1175K). Deriva lenta pero real — el ckpt terminal puede dar el
-   mejor punto de la curva.
+2. **`gen_exact` ctxnec ROMPIÓ su techo DOS VECES seguidas**:
+   g1175K → 0.2967, g1201K → **0.3142** (+2pt en 26K steps). Y
+   **remask también**: 0.353 en g1201K vs máximo previo 0.344. La
+   deriva del tramo g1.0M+ se está acelerando en las métricas
+   generativas — el ckpt terminal tiene pinta de cerrar en el punto
+   más alto de la curva.
 3. El tramo g1.0M+ concentra los puntos más fuertes de la curva —
    g1043K (cons_inf máx 0.676), g1096K (remask máx, C4 mínimo), g1175K
    (gx ctx máx) — consistente con deriva, no con meseta dura.
