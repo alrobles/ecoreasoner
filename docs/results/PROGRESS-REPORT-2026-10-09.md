@@ -42,9 +42,9 @@ post-apagón funciona: 8 puntos de curva producidos sin intervención.)
    serie (ctxnec pw 0.749 g1070K, remask 0.344 g1096K, gx ctx 0.297
    g1175K). Deriva lenta pero real — el ckpt terminal puede dar el
    mejor punto de la curva.
-3. g1043501 marca el punto más fuerte del tramo (cons_inf y gx ctx en
-   máximo de serie, C4 mínimo) — desviación dentro de la banda, no
-   ruptura de meseta.
+3. El tramo g1.0M+ concentra los puntos más fuertes de la curva —
+   g1043K (cons_inf máx 0.676), g1096K (remask máx, C4 mínimo), g1175K
+   (gx ctx máx) — consistente con deriva, no con meseta dura.
 4. Subtipos estables: role_swap ~0.90 (máximo estructural), entity_rebind
    ~0.81-0.83, value_rebind ~0.66, direction ~0.55-0.60 (cola débil
    persistente).
