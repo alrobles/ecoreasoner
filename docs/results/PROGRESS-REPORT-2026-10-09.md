@@ -26,21 +26,22 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g1096501 | — | 0.669 | **0.340** | 0.746 | **0.293** | **−6.5** | **0.344** |
 | g1123501 | — | 0.665 | 0.315 | 0.740 | 0.282 | −8.0 | 0.328 |
 | g1150001 | — | 0.662 | 0.325 | 0.745 | 0.284 | −7.8 | 0.329 |
+| g1175501 | — | 0.669 | 0.331 | 0.748 | **0.297** | −8.7 | 0.337 |
 
 (g992501+ evaluados por el watcher revivido — la automatización
-post-apagón funciona: 7 puntos de curva producidos sin intervención.)
+post-apagón funciona: 8 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
 1. **Meseta con deriva lenta al alza**: `ctxnec` pairwise en banda
-   0.740-0.749 (~420K steps) — máximo de serie **0.7492** (g1070K);
-   `cons_inf` ~0.66-0.68. El mejor punto del tramo es g1096K (remask
-   0.344 máximo, C4 −6.5 menos frágil); g1123K vuelve a mitad de banda
-   (0.740) — oscilación con pendiente suave, no ruptura.
-2. **`gen_exact` ctxnec también se aplanó** — la única pendiente viva
-   del reporte 10-04 oscila 0.279-0.293 alrededor del pico 0.293 de
-   g738K. Ni discriminación ni generación exacta mejoran ya con
-   exposición dentro de esta receta.
+   0.740-0.749 (~475K steps) — máximo de serie **0.7492** (g1070K);
+   `cons_inf` ~0.66-0.68.
+2. **`gen_exact` ctxnec ROMPIÓ su techo** en g1175501: **0.2967** vs
+   máximo previo 0.2933 (g738K, ~437K steps atrás). La "meseta" ya no
+   es plana en ningún frente: últimos puntos concentran los máximos de
+   serie (ctxnec pw 0.749 g1070K, remask 0.344 g1096K, gx ctx 0.297
+   g1175K). Deriva lenta pero real — el ckpt terminal puede dar el
+   mejor punto de la curva.
 3. g1043501 marca el punto más fuerte del tramo (cons_inf y gx ctx en
    máximo de serie, C4 mínimo) — desviación dentro de la banda, no
    ruptura de meseta.
