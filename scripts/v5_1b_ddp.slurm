@@ -78,9 +78,13 @@ finalize() {
             sg="gpu:$sn"; echo "watchdog pidio cambio de forma -> ntasks=$sn"
         fi
         echo "relanzando ola $WAVE_ID (ntasks=$sn gres=$sg)..."
-        sbatch --ntasks="$sn" --ntasks-per-node="$sn" --gres="$sg" \
-            --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS,SHAPE_N=$sn,SHAPE_G=$sg,EXTRA_ARGS=$EXTRA_ARGS" \
-            "$SCRIPTS/v5_1b_ddp.slurm" 2>/dev/null || true
+        for _try in 1 2 3; do
+            sout=$(sbatch --ntasks="$sn" --ntasks-per-node="$sn" --gres="$sg" \
+                --export="AUTO_RESUBMIT=1,WAVE_ID=$WAVE_ID,WAVE_OUT=$OUT,TARGET_STEPS=$TARGET_STEPS,DATA_CACHE=$DATA_CACHE,N_EXPERTS=$N_EXPERTS,SHAPE_N=$sn,SHAPE_G=$sg,EXTRA_ARGS=$EXTRA_ARGS" \
+                "$SCRIPTS/v5_1b_ddp.slurm" 2>&1) && { echo "$sout"; break; }
+            echo "SBATCH intento $_try FALLO: $sout"
+            sleep 15
+        done
     fi
 }
 handle_signal() {

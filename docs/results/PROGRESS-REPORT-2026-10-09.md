@@ -1,12 +1,16 @@
 # EcoReasoner — Reporte de avance dLLM (2026-10-09)
 
-Estado: **activo**. Mainline `v5-1b` en **g992.5K/1.3M (~76.3%)**,
-cadena AUTO_RESUBMIT sana (job 31252735 corriendo; `state.json` fresco
-23:04). Hubo un **apagón de beegfs ~10-07→10-08 (~24h de cómputo
-perdido)** ya resuelto. Tres puntos nuevos de curva consolidados
-(meseta total). **Chat-SFT v2 COMPLETADO y evaluado: chat=no
-(veredicto §3)**. UNAM-EN al **~89%**. Watcher de baterías revivido
-hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
+Estado: **activo — último tramo**. Mainline `v5-1b` en **g1.2915M/1.3M
+(99.3%)** — el terminal cae en la próxima ola (job 31680271 corriendo).
+Hubo un **apagón de beegfs ~10-07→10-08 (~24h de cómputo perdido)** ya
+resuelto, y hoy 10-14 una **muerte silenciosa de la cadena
+AUTO_RESUBMIT** (~2h perdidas, causa: sbatch del `finalize()` bajo
+`2>/dev/null || true` falló sin registrar) — reparada con relanzamiento
+manual + guard de mainline en el watchdog (§6). Doce puntos de curva
+post-revival consolidados. **Chat-SFT v2: chat=no (veredicto §3)**.
+**UNAM-EN→QA→npz COMPLETO: `sft_ids_v3_unam.npz` 148,838 pares /
+14.43M tok, `UNAM_QA_SFT_READY` escrito** (10-12 00:34). Continuación
+del PROGRESS-REPORT-2026-10-04.
 
 ---
 
@@ -30,9 +34,10 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g1201501 | — | 0.666 | **0.334** | 0.748 | **0.314** | −8.8 | 0.353 |
 | g1228501 | — | 0.668 | 0.330 | **0.761** | 0.311 | −8.7 | 0.349 |
 | g1255001 | — | 0.667 | 0.335 | 0.739 | 0.289 | −7.1 | 0.336 |
+| g1284501 | — | 0.670 | **0.337** | 0.743 | 0.302 | −6.9 | 0.342 |
 
 (g992501+ evaluados por el watcher revivido — la automatización
-post-apagón funciona: 11 puntos de curva producidos sin intervención.)
+post-apagón funciona: 12 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
@@ -167,21 +172,28 @@ SFT-v3 (UNAM-QA) dará el punto de comparación sobre el ckpt terminal.
 - **Relanzado 10-09 23:41** (`watch_v5_battery.sh`): detectó gap
   816501→992501 y disparó batería en **g992501** al instante
   (jobs 31286081-83).
-- Mitigación pendiente sin cambios: watchdog/cron para que no vuelva a
-  morir 3 días sin notarse.
+- Mitigación implementada: `watchdog_ecoreasoner.sh` en cron (`*/15`
+  y `@reboot`) relanza watchers muertos. **Extendido 10-14**: añade
+  guard de mainline — si no hay job `v5-1b` en cola/activo, no hay
+  `training_complete.flag` y `state.json` lleva >40min stale, hace el
+  sbatch él mismo (vía ssh). Causa raíz cubierta además en el slurm:
+  `finalize()` ahora captura y loguea el error de sbatch y reintenta
+  ×3, en vez de `2>/dev/null || true` (la muerte silenciosa del
+  10-14 15:37 — ola TIMEOUT a g1,291,501, ~2h sin job — fue ese
+  sbatch tragado). Relanzamiento manual: job 31680271.
 
 ## 7. Estado del programa
 
 | # | Punto | Estado | Próxima acción |
 |---|---|---|---|
 | P1 | Decisión fgmode | CERRADO: falsado (FLAT) | — |
-| P2 | Exposición | **76.3%** (g992.5K/1.3M), meseta total | ETA ~10-13/14; curva automática restaurada |
-| P3 | sciev backbone→decisión | 3 puntos; harness dev activo | 4º punto sobre ckpt terminal |
-| P5 | Chat-SFT v2 | **CERRADO: chat=no** (evals + probe, §3) | SFT-v3 (UNAM-QA) repetirá la sonda sobre ckpt terminal |
-| P6 | Corpus UNAM-EN | **~89% traducido** | MT ~3-5 días → QA→SFT-v3 automático |
+| P2 | Exposición | **99.3%** (g1,291,501/1.3M) | terminal en la ola en curso → batería terminal automática |
+| P3 | sciev backbone→decisión | 3 puntos; harness dev activo | 4º punto sobre ckpt terminal — coordinado vía nota en sciev-code |
+| P5 | Chat-SFT v2 | **CERRADO: chat=no** (evals + probe, §3) | SFT-v3 (UNAM-QA) repetirá la sonda sobre ckpt terminal — decisión del usuario |
+| P6 | Corpus UNAM-EN | **COMPLETO**: 4,873 docs → QA 24,017 pares → npz 148,838/14.43M tok | `sft_ids_v3_unam.npz` listo |
 | P7 | block-diffusion | CERRADO: falsado | eje arquitectura terminado |
-| P8 | Paper 1 (systems+harness) | backlog | + material: apagón/ops + meseta total documentada |
-| P9 | Paper 2 (tesis) | backlog | desenlace exposición→1.3M inminente (~4-5 días) |
+| P8 | Paper 1 (systems+harness) | draft P8 escrito (§4.6-4.10) | + material: apagón/ops + deriva tardía documentada |
+| P9 | Paper 2 (tesis) | backlog | desenlace exposición→1.3M: esta semana |
 
 ## 8. Plan de aterrizaje (v5-1b → 1.3M)
 
