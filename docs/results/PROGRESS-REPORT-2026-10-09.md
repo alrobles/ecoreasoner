@@ -29,21 +29,24 @@ hoy (§6). Continuación del PROGRESS-REPORT-2026-10-04.
 | g1175501 | — | 0.669 | 0.331 | 0.748 | 0.297 | −8.7 | 0.337 |
 | g1201501 | — | 0.666 | **0.334** | 0.748 | **0.314** | −8.8 | 0.353 |
 | g1228501 | — | 0.668 | 0.330 | **0.761** | 0.311 | −8.7 | 0.349 |
+| g1255001 | — | 0.667 | 0.335 | 0.739 | 0.289 | −7.1 | 0.336 |
 
 (g992501+ evaluados por el watcher revivido — la automatización
-post-apagón funciona: 10 puntos de curva producidos sin intervención.)
+post-apagón funciona: 11 puntos de curva producidos sin intervención.)
 
 **Lecturas:**
 
-1. **`ctxnec` pairwise ROMPIÓ la meseta**: g1228501 marca **0.7608**
-   — nuevo máximo absoluto, +1.2pt sobre el techo 0.7492 que aguantó
-   ~475K steps (g710K→g1201K). `cons_inf` ~0.66-0.68. La "meseta" fue
-   una desaceleración, no una saturación — el tramo final está subiendo.
-2. **`gen_exact` ctxnec rompió techo dos veces seguidas** (g1175K
-   0.297 → g1201K 0.314; g1228K mantiene 0.311) y **remask** subió a
-   0.353/0.349. La curva entera está en su tramo más fuerte justo
-   antes del terminal — g1.3M tiene pinta de cerrar en el punto más
-   alto de la serie en varias métricas a la vez.
+1. **`ctxnec` pairwise: banda 0.739-0.761 con ruido de eval ~±1.5pt** —
+   g1228K marcó 0.761 (máximo absoluto) pero g1255K volvió a 0.739:
+   la ruptura NO sostuvo → el pico fue probablemente draw favorable,
+   no ruptura sostenida. Lectura honesta: tendencia ~0.743→0.75 con
+   oscilación ±1.5pt entre puntos; `cons_inf` estable ~0.66-0.67.
+2. **`gen_exact` ctxnec rompió techo dos veces** (g1175K 0.297 →
+   g1201K 0.314) pero **g1255K retrocedió a 0.289** — las métricas
+   generativas oscilan más que la pairwise. Remask sigue alto
+   (0.336-0.353). La señal más consistente del tramo final: máximos
+   de serie concentrados en g1.0M+ con oscilación amplia — tendencia
+   suave real pero ruidosa; el punto terminal es lo que cuenta.
 3. El tramo g1.0M+ concentra los puntos más fuertes de la curva —
    g1043K (cons_inf máx 0.676), g1096K (remask máx, C4 mínimo), g1175K
    (gx ctx máx) — consistente con deriva, no con meseta dura.
