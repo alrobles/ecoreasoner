@@ -25,20 +25,26 @@
 | continuo | TIMEOUT sixhour ×~190 olas | 0 | SIGUSR1→save→exit 42→resubmit |
 | 10-15 | batería terminal cayó en nodo MI210 | 0 (detectado) | `--constraint` NVIDIA añadido a los 3 sbatch de eval |
 
-## Estado de la curva (EMA, pre-terminal)
+## Veredicto terminal — g1300000 (batería consolidada 10-15)
 
-ctxnec pairwise banda 0.739–0.761 (ruido eval ±1.5pt), tendencia suave
-~0.743→0.75. `cons_inf` 0.66–0.67 estable. Generativas con oscilación
-amplia pero **máximos de serie concentrados en g1.0M+** (gx_ctx 0.314 en
-g1201K, remask 0.353, gx_inf 0.337 en g1284K). Lectura: deriva lenta real,
-no meseta plana ni ruptura — **la fila terminal decide el veredicto final**.
+| métrica | valor | lectura |
+|---|---:|---|
+| **ctxnec pw** | **0.7517** | lado alto de banda (máx 0.761) — NO descendió |
+| cons_inf | 0.670 | techo de serie (máx 0.676) |
+| gx ctx | 0.303 | banda media |
+| remask gx | 0.342 | banda alta (máx 0.353) |
+| C4 drop | −9.1 | fragilidad típica del tramo |
+| denseL3 | 0.521 | estable |
+
+La curva cerró en su mejor zona: deriva lenta real hasta el último
+paso. El presupuesto se agotó con la métrica todavía subiendo en el
+margen — la exposición no saturó; el cuello siguiente es capacidad.
 
 ## Lo que implica
 
-**Inmediato (corriendo)**
-- Batería terminal sobre `g1300000` (jobs 31810931-33): dense + cons_inf +
-  ctxnec/remask — la última fila de la tabla y el dato que cierra la
-  pregunta de exposición.
+**Hecho**
+- Batería terminal consolidada (jobs 31810931-33 COMPLETED): fila final
+  de la tabla en PROGRESS-REPORT-2026-10-09 §1.
 
 **Decisiones que quedan sobre la mesa**
 1. **sciev #4** — punto terminal de la trayectoria backbone→decisión,
