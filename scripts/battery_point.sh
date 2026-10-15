@@ -24,16 +24,19 @@ fi
 mkdir -p "$SNAP"
 for f in model.pt ema_model.pt; do
     [ -f "$SRC/$f" ] || continue
+    [ "$SRC/$f" -ef "$SNAP/$f" ] && continue    # ya hardlinkeado -> mismo inode
     ln "$SRC/$f" "$SNAP/$f" 2>/dev/null || cp -f "$SRC/$f" "$SNAP/$f"
 done
 echo "snap g$G -> $SNAP ($(ls "$SNAP" | tr '\n' ' '))"
 
 cd "$BASE"
-sbatch --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,OUTDIR=$BASE/$CURVE/g$G/dense" \
+NVIDIA_ONLY="q6000|a100|l40|a40|q8000|pro6000"   # sin constraint el eval CUDA puede caer en mi210 (FAIL 10-15)
+sbatch --constraint="$NVIDIA_ONLY" \
+    --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,OUTDIR=$BASE/$CURVE/g$G/dense" \
     scripts/g_eval_holdout_v5.slurm
-sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
+sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval --constraint="$NVIDIA_ONLY" \
     --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,PAIRS=$BASE/runs/pairs_l3_inf,MODES=consistency consistency_profile,OUTDIR=$BASE/$CURVE/g$G/cons_inf" \
     scripts/c_contrast.slurm
-sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval \
+sbatch --partition=sixhour --gres=gpu:1 --job-name=c-eval --constraint="$NVIDIA_ONLY" \
     --export="ALL,RUNDIR=$BASE/$OUT,CKPT_DIR=$SNAP,EVAL_CFG=$EVAL_CFG,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency consistency_profile remask,OUTDIR=$BASE/$CURVE/g$G/cons_ctxnec" \
     scripts/c_contrast.slurm
