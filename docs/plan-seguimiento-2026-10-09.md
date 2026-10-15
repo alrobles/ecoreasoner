@@ -77,16 +77,24 @@ relanzar ola con `sbatch scripts/v5_1b_ddp.slurm` (INIT=último ckpt).
    mainline a ~55-75K/día. ¿Se acepta ETA ~10-13/14 o se modula?
 4. **MI210**: tras el smoke, ¿segundo backbone big-batch en pools
    lentos (q6000/v100) o isla MI210 extra para v5?
+   **DECIDIDO 10-15**: segundo backbone en pool MI210 — **v6-2b**, brazo
+   de capacidad: misma receta/corpus/batch que v5-1b, única variable
+   `--layers 12→24` (~570M act / ~2.1B totales, 2×). Hipótesis bajo
+   prueba: el cuello generativo (gen_exact ~0.30, chat degenerado) es
+   de capacidad — si v6-2b mueve gen_exact/remask sobre la curva
+   comparable, confirmado. Script `scripts/v6_2b_mi210.slurm` +
+   `eval-moe-v6.yaml` + `watch_v6_battery.sh` (watcher propio).
 5. **Papers**: P8 (systems+harness+falsaciones) ya tiene todo el
    material; P9 espera el ckpt terminal. ¿Se empieza a escribir P8 ya?
 
 ## 5. Definición de "fase cerrada"
 
-- [ ] Curva g207K→g1.3M con batería terminal consolidada
-- [ ] sciev 4º punto (trayectoria backbone→decisión completa: 4 pts)
-- [ ] UNAM_QA_SFT_READY.flag + SFT-v3 evaluado (sonda paramétrica final)
-- [ ] Veredicto final tesis: exposición → meseta documentada
-  (binding ~0.744, generación ~0.29, chat=no, 2 falsaciones
+- [x] Curva g207K→g1.3M con batería terminal consolidada (g1300000: ctxnec 0.752)
+- [ ] sciev 4º punto (trayectoria backbone→decisión completa: 4 pts) — coordinado vía nota en sciev-code + addendum set comparable
+- [ ] UNAM_QA_SFT_READY.flag + SFT-v3 evaluado (sonda paramétrica final) — flag ya escrito; falta lanzar/evaluar SFT-v3
+- [ ] **Brazo capacidad v6-2b en MI210** — curva comparable contra v5-1b; veredicto "capacidad vs receta" sobre gen_exact
+- [ ] Veredicto final tesis: exposición → deriva lenta hasta el terminal
+  (binding 0.752, generación ~0.30, chat=no, 2 falsaciones
   estructurales + SFT como sonda)
 
 ## 6. Coordinación sciev (sesiones Devin paralelas — añadido 10-11)

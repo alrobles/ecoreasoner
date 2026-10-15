@@ -1,0 +1,52 @@
+# eval-moe-v6.yaml — config de EVAL para el brazo de capacidad v6-2b
+# (runs/v6-2b): MoE 768/24L/12H/16E top-1, ~2.1B totales / ~570M activos.
+# MISMO bloque eval/train que eval-moe-v5 -> comparable directo punto a
+# punto contra la curva v5-1b (solo cambia model.layers: 12 -> 24).
+
+job:
+  name: eval-moe-v6
+  partition: sixhour
+  gres: gpu:1
+  cpus: 8
+  mem: 40G
+  time: "00:50:00"
+
+model:
+  vocab: 126080
+  hidden: 768
+  layers: 24
+  heads: 12
+  ff_mult: 4
+  seq_len: 768
+  n_experts: 16
+  k: 1
+  use_rope: false
+  weight_tying: false
+
+train:
+  mask_type: span
+  mask_p: 0.15
+  mask_schedule: uniform
+  span_len: 64
+  curriculum: 0
+  whole_stage: true
+  lr: 2.0e-4
+  lr_decay: cosine
+  lr_min_ratio: 0.1
+  warmup: 200
+  grad_clip: 1.0
+  ema_decay: 0.0
+
+eval:
+  mask_p: 0.15
+  n_pairs: 256
+  temp: 1.0
+  steps: 8
+  max_new: 128
+  batch: 8
+
+out:
+  dir: /beegfs/a474r867/ecoreasoner/runs
+  tag: eval-moe-v6
+
+seed: 7331

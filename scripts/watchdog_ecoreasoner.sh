@@ -28,6 +28,7 @@ guard(){
 }
 
 guard watch_v5_battery.sh ""
+guard watch_v6_battery.sh ""
 guard watch_mtolmo.sh    "UNAM_EN_MT_DONE.flag"
 guard watch_unam_qa.sh   "UNAM_QA_SFT_READY.flag"
 
@@ -36,24 +37,30 @@ guard watch_unam_qa.sh   "UNAM_QA_SFT_READY.flag"
 # durante 2h a 8.5K pasos del terminal). Si no hay job v5-1b en cola/activo
 # y no hay training_complete.flag, resubmit.
 mainline_guard(){
+  local name=$1 rundir=$2 slurm=$3 extra=$4 opts=${5:-}
   local r=/beegfs/a474r867/ecoreasoner
   local nj flagd
   nj=$(ssh -o ConnectTimeout=15 -o BatchMode=yes kuhpc \
-       "squeue -u a474r867 -h -n v5-1b 2>/dev/null | wc -l" 2>/dev/null) \
-    || { log "mainline: ssh fallo, skip"; return; }
+       "squeue -u a474r867 -h -n $name 2>/dev/null | wc -l" 2>/dev/null) \
+    || { log "$name: ssh fallo, skip"; return; }
   [ "${nj:-0}" -gt 0 ] && return
   flagd=$(ssh -o ConnectTimeout=15 -o BatchMode=yes kuhpc \
-       "[ -f $r/runs/v5-1b/training_complete.flag ] && echo 1 || echo 0" 2>/dev/null)
+       "[ -f $r/runs/$rundir/training_complete.flag ] && echo 1 || echo 0" 2>/dev/null)
   [ "$flagd" = "1" ] && return
   # No resubmitir si state.json se escribio hace <40min: la ola puede estar
   # a medio transicionar (sbatch ya emitido, job en PD bajo otro nombre).
+  # Y si nunca existio state.json, el run no arranco -> no es responsable
+  # de este guard (arranque inicial es manual).
   stale=$(ssh -o ConnectTimeout=15 -o BatchMode=yes kuhpc \
-       "[ -f $r/runs/v5-1b/state.json ] && [ \$(( \$(date +%s) - \$(stat -c %Y $r/runs/v5-1b/state.json) )) -gt 2400 ] && echo 1 || echo 0" 2>/dev/null)
+       "[ -f $r/runs/$rundir/state.json ] && [ \$(( \$(date +%s) - \$(stat -c %Y $r/runs/$rundir/state.json) )) -gt 2400 ] && echo 1 || echo 0" 2>/dev/null)
   [ "$stale" != "1" ] && return
-  log "mainline SIN job, SIN flag, state.json stale -> resubmit v5-1b"
+  log "$name SIN job, SIN flag, state.json stale -> resubmit"
   ssh -o ConnectTimeout=15 -o BatchMode=yes kuhpc \
-    "cd $r && sbatch --ntasks=3 --ntasks-per-node=3 --gres=gpu:3 \
-     --export=AUTO_RESUBMIT=1,WAVE_ID=v5-1b,WAVE_OUT=$r/runs/v5-1b,TARGET_STEPS=1300000,DATA_CACHE=$r/data/train_ids_v5pdb.npz,N_EXPERTS=16,SHAPE_N=3,SHAPE_G=gpu:3 \
-     scripts/v5_1b_ddp.slurm" >> "$LOG" 2>&1
+    "cd $r && sbatch --export=\"$extra\" $opts $slurm" >> "$LOG" 2>&1
 }
-mainline_guard
+mainline_guard v5-1b v5-1b scripts/v5_1b_ddp.slurm \
+  "AUTO_RESUBMIT=1,WAVE_ID=v5-1b,WAVE_OUT=/beegfs/a474r867/ecoreasoner/runs/v5-1b,TARGET_STEPS=1300000,DATA_CACHE=/beegfs/a474r867/ecoreasoner/data/train_ids_v5pdb.npz,N_EXPERTS=16,SHAPE_N=3,SHAPE_G=gpu:3" \
+  "--ntasks=3 --ntasks-per-node=3 --gres=gpu:3"
+mainline_guard v6-2b-mi210 v6-2b scripts/v6_2b_mi210.slurm \
+  "AUTO_RESUBMIT=1,WAVE_ID=v6-2b,WAVE_OUT=/beegfs/a474r867/ecoreasoner/runs/v6-2b,TARGET_STEPS=1300000,N_EXPERTS=16,LAYERS=24,NRANKS=3,BATCH=4,ACCUM=1" \
+  ""
