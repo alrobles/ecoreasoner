@@ -30,15 +30,19 @@ while :; do
      latest=\$(ls -d $OUT/checkpoint-g*/model.pt 2>/dev/null | grep -v incomplete | sed 's|.*/checkpoint-g||; s|/model.pt||' | sort -n | tail -1); \
      evaled=\$(ls -d $CURVE/g* 2>/dev/null | sed 's|.*/g||; s/-.*//' | sort -n | tail -1); \
      btj=\$(squeue -u a474r867 -h -n holdout-v5,c-eval | wc -l); \
-     echo \"latest=\${latest:-0} evaled=\${evaled:-0} btj=\$btj\"" \
+     [ -f $OUT/training_complete.flag ] && done=1 || done=0; \
+     echo \"latest=\${latest:-0} evaled=\${evaled:-0} btj=\$btj done=\$done\"" \
     2>/dev/null | tail -1)
   latest=$(echo "$st" | sed -n 's/.*latest=\([0-9]*\).*/\1/p')
   evaled=$(echo "$st" | sed -n 's/.*evaled=\([0-9]*\).*/\1/p')
   btj=$(echo "$st"    | sed -n 's/.*btj=\([0-9]*\).*/\1/p')
-  latest=${latest:-0}; evaled=${evaled:-0}; btj=${btj:-0}
-  log "estado: latest=g$latest evaled=g$evaled btj=$btj"
+  donef=$(echo "$st"  | sed -n 's/.*done=\([0-9]*\).*/\1/p')
+  latest=${latest:-0}; evaled=${evaled:-0}; btj=${btj:-0}; donef=${donef:-0}
+  log "estado: latest=g$latest evaled=g$evaled btj=$btj done=$donef"
 
-  if [ "$btj" = "0" ] && [ $((latest - evaled)) -ge "$STEP_GAP" ]; then
+  # Dispara si gap>=STEP_GAP (mid-run) o si el run TERMINO y el ckpt
+  # final aun no esta evaluado (gap terminal puede ser < STEP_GAP).
+  if [ "$btj" = "0" ] && { [ $((latest - evaled)) -ge "$STEP_GAP" ] || { [ "$donef" = "1" ] && [ "$latest" -gt "$evaled" ]; }; }; then
     log "lanzando battery en checkpoint-g$latest"
     ssh -o ConnectTimeout=15 -o BatchMode=yes "$REMOTE" \
       "cd $BASE && bash scripts/battery_point.sh $latest" \

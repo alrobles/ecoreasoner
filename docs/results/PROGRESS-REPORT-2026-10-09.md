@@ -1,13 +1,16 @@
 # EcoReasoner — Reporte de avance dLLM (2026-10-09)
 
-Estado: **activo — último tramo**. Mainline `v5-1b` en **g1.2915M/1.3M
-(99.3%)** — el terminal cae en la próxima ola (job 31680271 corriendo).
-Hubo un **apagón de beegfs ~10-07→10-08 (~24h de cómputo perdido)** ya
-resuelto, y hoy 10-14 una **muerte silenciosa de la cadena
-AUTO_RESUBMIT** (~2h perdidas, causa: sbatch del `finalize()` bajo
-`2>/dev/null || true` falló sin registrar) — reparada con relanzamiento
-manual + guard de mainline en el watchdog (§6). Doce puntos de curva
-post-revival consolidados. **Chat-SFT v2: chat=no (veredicto §3)**.
+Estado: **v5-1b COMPLETO — g1,300,000 alcanzado 10-14 21:21**
+(`training_complete.flag`, `checkpoint-g1300000`, srun exit 0). ~11.96B
+tok / 17.38M docs / 1.3M pasos — el mainline terminó. Hubo un
+**apagón de beegfs ~10-07→10-08 (~24h perdidas)** y el 10-14 una
+**muerte silenciosa de la cadena AUTO_RESUBMIT** (~2h, sbatch del
+`finalize()` tragado por `2>/dev/null || true`) — ambos reparados;
+guard de mainline añadido al watchdog (§6). 12 puntos de curva
+post-revival + **batería terminal en vuelo** (jobs 31748266-68; el
+watcher la disparó al detectar el flag — fix aplicado porque el gap
+terminal 15.5K < STEP_GAP 25K habría dejado el ckpt terminal sin
+evaluar). **Chat-SFT v2: chat=no (veredicto §3)**.
 **UNAM-EN→QA→npz COMPLETO: `sft_ids_v3_unam.npz` 148,838 pares /
 14.43M tok, `UNAM_QA_SFT_READY` escrito** (10-12 00:34). Continuación
 del PROGRESS-REPORT-2026-10-04.
@@ -187,7 +190,7 @@ SFT-v3 (UNAM-QA) dará el punto de comparación sobre el ckpt terminal.
 | # | Punto | Estado | Próxima acción |
 |---|---|---|---|
 | P1 | Decisión fgmode | CERRADO: falsado (FLAT) | — |
-| P2 | Exposición | **99.3%** (g1,291,501/1.3M) | terminal en la ola en curso → batería terminal automática |
+| P2 | Exposición | **COMPLETO: g1.3M 10-14 21:21** | batería terminal en vuelo (31748266-68) → lectura final |
 | P3 | sciev backbone→decisión | 3 puntos; harness dev activo | 4º punto sobre ckpt terminal — coordinado vía nota en sciev-code |
 | P5 | Chat-SFT v2 | **CERRADO: chat=no** (evals + probe, §3) | SFT-v3 (UNAM-QA) repetirá la sonda sobre ckpt terminal — decisión del usuario |
 | P6 | Corpus UNAM-EN | **COMPLETO**: 4,873 docs → QA 24,017 pares → npz 148,838/14.43M tok | `sft_ids_v3_unam.npz` listo |
