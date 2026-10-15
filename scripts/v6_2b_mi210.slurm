@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:mi210:3
 #SBATCH --constraint="mi210"
-#SBATCH --mem=170G
+#SBATCH --mem=120G
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=/beegfs/a474r867/ecoreasoner/logs/v6_2b_mi210_%j.out
 #SBATCH --error=/beegfs/a474r867/ecoreasoner/logs/v6_2b_mi210_%j.err
@@ -17,7 +17,7 @@
 #   b_l=0.30,b_h=0.99 + curriculum + CF1.0 + EMA 0.999, lr 2e-4 w800),
 #   MISMO batch 9216 tok/step, MISMO target 1.3M -> curva comparable
 #   punto a punto con v5-1b. UNICO cambio: --layers 12 -> 24
-#   (~2x params activos: ~570M act / ~2.1B totales).
+#   (+28% activos ~365M, 2x profundidad, ~2.06B totales).
 # Stack: venv_rocm (torch 2.5.1+rocm6.2, SIN apptainer) + torchrun
 # intra-nodo + RCCL via SHM (NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1).
 # VRAM: bs4/rank ~2x el uso de L12 (~16.4GB -> ~33GB) < 64GB OK.

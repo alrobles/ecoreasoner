@@ -1,5 +1,5 @@
 # eval-moe-v6.yaml — config de EVAL para el brazo de capacidad v6-2b
-# (runs/v6-2b): MoE 768/24L/12H/16E top-1, ~2.1B totales / ~570M activos.
+# (runs/v6-2b): MoE 768/24L/12H/16E top-1, ~2.06B totales / ~365M activos.
 # MISMO bloque eval/train que eval-moe-v5 -> comparable directo punto a
 # punto contra la curva v5-1b (solo cambia model.layers: 12 -> 24).
 

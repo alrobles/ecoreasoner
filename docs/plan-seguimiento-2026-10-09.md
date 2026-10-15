@@ -79,7 +79,7 @@ relanzar ola con `sbatch scripts/v5_1b_ddp.slurm` (INIT=último ckpt).
    lentos (q6000/v100) o isla MI210 extra para v5?
    **DECIDIDO 10-15**: segundo backbone en pool MI210 — **v6-2b**, brazo
    de capacidad: misma receta/corpus/batch que v5-1b, única variable
-   `--layers 12→24` (~570M act / ~2.1B totales, 2×). Hipótesis bajo
+   `--layers 12→24` (+28% activos a ~365M, 2.06B totales; verificado job 31836910). Hipótesis bajo
    prueba: el cuello generativo (gen_exact ~0.30, chat degenerado) es
    de capacidad — si v6-2b mueve gen_exact/remask sobre la curva
    comparable, confirmado. Script `scripts/v6_2b_mi210.slurm` +
