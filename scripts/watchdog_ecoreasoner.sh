@@ -31,6 +31,7 @@ guard watch_v5_battery.sh ""
 guard watch_v6_battery.sh ""
 guard watch_mtolmo.sh    "UNAM_EN_MT_DONE.flag"
 guard watch_unam_qa.sh   "UNAM_QA_SFT_READY.flag"
+guard watch_sft_v3.sh    "SFT_V3_DONE.flag"
 
 # Guard mainline: la cadena AUTO_RESUBMIT puede morir si el sbatch dentro de
 # finalize() falla (visto 10-14: ola TIMEOUT, sbatch silencioso -> sin job
