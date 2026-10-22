@@ -52,7 +52,8 @@ while :; do
      btj=\$(squeue -u a474r867 -h -n c-eval | wc -l); \
      evl=\$(wc -l < $OUT/eval_devin_hard.gen.jsonl 2>/dev/null || echo 0); \
      batt=0; [ -f $REG_DIR/logicdiff_summary.json ] && batt=1; \
-     echo \"latest=\${latest:-0} sftj=\$sftj evj=\$evj btj=\$btj evl=\$evl batt=\$batt\"" \
+     hasdir=0; [ -d $OUT ] && hasdir=1; \
+     echo \"latest=\${latest:-0} sftj=\$sftj evj=\$evj btj=\$btj evl=\$evl batt=\$batt hasdir=\$hasdir\"" \
     2>/dev/null | tail -1)
   log "estado: $st"
   latest=$(echo "$st" | sed -n 's/.*latest=\([0-9]*\).*/\1/p')
@@ -61,8 +62,16 @@ while :; do
   btj=$(echo "$st"    | sed -n 's/.*btj=\([0-9]*\).*/\1/p')
   evl=$(echo "$st"    | sed -n 's/.*evl=\([0-9]*\).*/\1/p')
   batt=$(echo "$st"   | sed -n 's/.*batt=\([0-9]*\).*/\1/p')
+  hasdir=$(echo "$st" | sed -n 's/.*hasdir=\([0-9]*\).*/\1/p')
   latest=${latest:-0}; sftj=${sftj:-0}; evj=${evj:-0}; btj=${btj:-0}
-  evl=${evl:-0}; batt=${batt:-0}
+  evl=${evl:-0}; batt=${batt:-0}; hasdir=${hasdir:-1}
+
+  # guard blip beegfs: dir OUT existe pero ls vino vacio => NO resubmit
+  # (un ls vacio transitorio ya provoco olas OFFSET=0 falsas el 10-20)
+  if [ "$latest" = "0" ] && [ "$hasdir" = "1" ]; then
+    log "latest vacio con OUT existente (blip beegfs?) — ciclo saltado"
+    sleep "$INTERVAL"; continue
+  fi
 
   # done = ambas evals terminadas
   if [ "$evl" -ge 3000 ] && [ "$batt" = "1" ]; then
@@ -87,7 +96,7 @@ while :; do
     if [ "$BATT_SENT" = "0" ] && [ "$btj" = "0" ] && [ "$batt" = "0" ]; then
       log "lanzando regresion ctxnec (consistency+remask) sobre checkpoint-g$latest"
       ssh -o ConnectTimeout=15 -o BatchMode=yes "$REMOTE" \
-        "cd $BASE && sbatch --partition=sixhour --export=\"ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency remask,OUTDIR=$REG_DIR\" scripts/c_contrast.slurm" \
+        "cd $BASE && sbatch --partition=sixhour --gres=gpu:1 --constraint=\"q6000|a100|l40|a40|q8000|pro6000\" --export=\"ALL,RUNDIR=$BASE/$OUT,PAIRS=$BASE/runs/pairs_l3_ctxnec,MODES=consistency remask,OUTDIR=$REG_DIR\" scripts/c_contrast.slurm" \
         2>/dev/null | tail -1 | tee -a "$LOG"
       BATT_SENT=1
     fi

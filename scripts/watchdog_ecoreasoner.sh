@@ -32,6 +32,21 @@ guard watch_v6_battery.sh ""
 guard watch_mtolmo.sh    "UNAM_EN_MT_DONE.flag"
 guard watch_unam_qa.sh   "UNAM_QA_SFT_READY.flag"
 guard watch_sft_v3.sh    "SFT_V3_DONE.flag"
+guard watch_sft_v4.sh    "SFT_V4_DONE.flag"
+guard watch_mt_v4.sh     "SFT_V4_MT_READY.flag"
+
+# bootstrap sft-v4 (aprobado 10-22): al caer SFT_V3_DONE, sembrar init con el
+# ckpt terminal de sft-v3 y arrancar el watcher v4 (TARGET_GN=16000 ~= 2ep).
+if [ -f "$DIR/data/SFT_V3_DONE.flag" ] && [ ! -f "$DIR/data/sft_v4_init.txt" ] \
+   && [ ! -f "$DIR/data/SFT_V4_DONE.flag" ]; then
+  V3LAST=$(ssh -o ConnectTimeout=15 -o BatchMode=yes kuhpc \
+    "ls -d /beegfs/a474r867/ecoreasoner/runs/sft-v3/checkpoint-g*/model.pt 2>/dev/null | grep -v incomplete | sort -V | tail -1 | xargs -r dirname" 2>/dev/null)
+  if [ -n "$V3LAST" ]; then
+    echo "$V3LAST" > "$DIR/data/sft_v4_init.txt"
+    log "bootstrap sft-v4: init=$V3LAST (TARGET_GN=16000)"
+    cd "$DIR" && TARGET_GN=16000 nohup bash scripts/watch_sft_v4.sh > /dev/null 2>&1 &
+  fi
+fi
 
 # Guard mainline: la cadena AUTO_RESUBMIT puede morir si el sbatch dentro de
 # finalize() falla (visto 10-14: ola TIMEOUT, sbatch silencioso -> sin job
@@ -62,6 +77,6 @@ mainline_guard(){
 mainline_guard v5-1b v5-1b scripts/v5_1b_ddp.slurm \
   "AUTO_RESUBMIT=1,WAVE_ID=v5-1b,WAVE_OUT=/beegfs/a474r867/ecoreasoner/runs/v5-1b,TARGET_STEPS=1300000,DATA_CACHE=/beegfs/a474r867/ecoreasoner/data/train_ids_v5pdb.npz,N_EXPERTS=16,SHAPE_N=3,SHAPE_G=gpu:3" \
   "--ntasks=3 --ntasks-per-node=3 --gres=gpu:3"
-mainline_guard v6-2b-mi210 v6-2b scripts/v6_2b_mi210.slurm \
-  "AUTO_RESUBMIT=1,WAVE_ID=v6-2b,WAVE_OUT=/beegfs/a474r867/ecoreasoner/runs/v6-2b,TARGET_STEPS=1300000,N_EXPERTS=16,LAYERS=24,NRANKS=3,BATCH=4,ACCUM=1" \
-  ""
+mainline_guard v6-2b-nv v6-2b scripts/v6_2b_nv.slurm \
+  "AUTO_RESUBMIT=1,WAVE_ID=v6-2b,WAVE_OUT=/beegfs/a474r867/ecoreasoner/runs/v6-2b,TARGET_STEPS=1300000,N_EXPERTS=16,LAYERS=24,SHAPE_N=3,SHAPE_G=gpu:3" \
+  "--ntasks=3 --ntasks-per-node=3 --gres=gpu:3"

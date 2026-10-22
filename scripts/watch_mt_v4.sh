@@ -65,7 +65,7 @@ while :; do
   pend=${pend:-?}; run=${run:-0}
   log "qa pendientes=$pend tasks_vivas=$run"
   if [ "$pend" = "0" ]; then break; fi
-  if [ "$run" = "0" ] && [ "$pend" != "?" ]; then
+  if [ "$run" = "0" ] && [ "$pend" != "?" ] && [ "$pend" != "-1" ] && [ -n "$pend" ]; then
     log "flota qagen muerta con pendientes -> relanzando array 0-$((NSHARDS-1))"
     ssh -o ConnectTimeout=15 -o BatchMode=yes "$REMOTE" \
       "cd $BASE && sbatch --array=0-$((NSHARDS-1)) --export=ALL,INDIR=$INDOCS,OUTDIR=$QADIR,NSHARDS=$NSHARDS,K=4 scripts/qa_gen_mt.slurm" \
