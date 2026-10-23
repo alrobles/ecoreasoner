@@ -65,6 +65,36 @@ Estado auditado desde `reumanlab` (post cambio de máquina; antes
   lanza `watch_sft_v4.sh` con `TARGET_GN=16000` (~2 épocas de
   `sft_ids_v4_mt.npz`, 66K docs). Aprobado por Angel 10-22.
 
+## Update 10-22 ~23:00 — segundo fallo: OOM en isla 48GB
+
+- 1ª ola NV (32248027) y ~40 resubmits murieron en ~1:50 en r32r05n01
+  (GPUs 44.4GiB): `CUDA OOM` en cross_entropy/backward — el tier
+  40–60G con EMA-GPU quedaba en ~43.9GB, sin margen.
+- Fix: tier 48GB ahora `bs2 acc2 + zero1 + grad_ckpt + EMA-CPU@8`
+  (~35GB estimado). Redeploy + ola 32262353 con el fix.
+- sbatch congela el script al submit: la ola PD vieja se canceló y
+  se resubmityó para hornear el fix (no esperar al resubmit natural).
+
+## SFT-v3 — VEREDICTO (10-22, flag caído 12:05)
+
+- Regresión ctxnec sobre g37000-EMA: **consistency L3 pairwise_acc
+  0.7208** (mean_delta 7.29, n=1200) — el SFT NO erosionó el binding
+  (mainline terminal: 0.752; dentro de banda).
+- remask L3 pairwise 0.2692, gen_exact_ok 0.287 / bad 0.075.
+- Subtipos consistency: role_swap 0.90, entity_rebind 0.80,
+  value_rebind 0.63, direction_rebind 0.45 (el más débil).
+- `SFT_V3_DONE.flag` escrito → bootstrap automático lanzó sft-v4.
+
+## SFT-v4 (multi-turno) — COMPLETO el mismo día (flag 19:47)
+
+- Olas sft-v4 g0→g16000 en ~5.4h (job 32248292 r13r22n01) +
+  evals automáticas (evalqa-sft 1h19 + c-eval 36min).
+- Regresión ctxnec g16000-EMA: consistency **0.7233** (≈v3 0.7208 —
+  datos MT tampoco erosionan binding), remask 0.275.
+- Generativa eval_devin_hard: gold_recall ~0.08-0.14 (≈v3 — la sonda
+  sigue mostrando el cuello generativo, como se esperaba).
+- `SFT_V4_DONE.flag` escrito → cadena SFT cerrada.
+
 ## Lecciones / pendientes
 
 - MI210/ROCm: el pool queda **sospechoso para workloads DDP** — si se

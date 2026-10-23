@@ -49,9 +49,10 @@ if [ "${VRAM_MIB:-0}" -ge 60000 ]; then
     BATCH=${BATCH:-4}; ACCUM=${ACCUM:-1}; CKPT_FLAG=${CKPT_FLAG:-}; ZERO_FLAG=${ZERO_FLAG:-}
     EMA_ARGS=${EMA_ARGS:---ema_device cuda}
 elif [ "${VRAM_MIB:-0}" -ge 40000 ]; then
-    # islas 48GB (a40/l40/q8000/a100-40): bs2+ckpt+zero1 ~42GB total
+    # islas ~44-48GB (a40/l40/q8000/a100-40): bs2+ckpt+zero1+EMA-CPU
+    # (EMA-GPU OOMaba: 43.9/44.4GiB en cross_entropy — medido 10-22)
     BATCH=${BATCH:-2}; ACCUM=${ACCUM:-2}; CKPT_FLAG=${CKPT_FLAG:---grad_ckpt}; ZERO_FLAG=${ZERO_FLAG:---zero1}
-    EMA_ARGS=${EMA_ARGS:---ema_device cuda}
+    EMA_ARGS=${EMA_ARGS:---ema_device cpu --ema_every 8}
 else
     # defensivo (no deberia ocurrir con el constraint actual)
     BATCH=${BATCH:-1}; ACCUM=${ACCUM:-4}; CKPT_FLAG=${CKPT_FLAG:---grad_ckpt}; ZERO_FLAG=${ZERO_FLAG:---zero1}
