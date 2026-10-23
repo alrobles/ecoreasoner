@@ -13,8 +13,8 @@ Convención: **[AUTO]** corre solo · **[MANUAL]** acción nuestra ·
 
 | # | objetivo | estado | tipo |
 |---|----------|--------|------|
-| O1 | v6-2b entrena en NVIDIA sin crash-loop | validado via canary | AUTO |
-| O2 | Verificar 1ª ola NV (steps reales + ckpt) | **HECHO 10-23 02:00** — canary 32262493 A40: resume g12501 + 100 steps sin OOM + ckpt g12601 escrito | MANUAL |
+| O1 | v6-2b entrena en NVIDIA sin crash-loop | **HECHO 10-23 07:15** — ola 32262467 (3×A40): +2000 pasos en 4.5h continuas, ckpts g13001/g14001/g14501 | AUTO |
+| O2 | Verificar 1ª ola NV (steps reales + ckpt) | **HECHO** — canary 32262493 (resume+steps+save) + mainline confirmado en producción | MANUAL |
 | O3 | Curva v6-2b con baterías c/25K hasta señal legible (~g100-300K) | watcher vivo | AUTO |
 | O4 | Veredicto capacidad-vs-receta (gen_exact v6 vs curva v5-1b) | pendiente O3 | DECISIÓN |
 | O5 | Probe chat multi-turno sobre sft-v4-g16000 | pendiente | MANUAL |

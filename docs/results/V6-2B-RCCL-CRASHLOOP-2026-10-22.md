@@ -118,6 +118,25 @@ checkpoint-g12601 escrito + state.json + train.log
   solo para validar; el mainline medirá su propio throughput a 3
   ranks (NCCL sano en NVIDIA, nada del deadlock RCCL).
 
+## Update 10-23 ~07:15 — MAINLINE NVIDIA entrenando (O1 cerrado)
+
+Ola 32262467 aterrizó 02:39 en r32r05n01 (3×A40) tras la expiración
+del batch P41W5. 4.5h continuas sin fallo:
+
+```
+resume g12501 → step 14530 (07:09) — +2000 pasos en una noche
+ckpts mainline: g13001 (03:46), g14001, g14501 (07:06)
+state.json → 14501 ; .err limpio (solo warnings benignos)
+```
+
+- **+2000 pasos en 4.5h > todo lo que MI210 logró en 6 días**
+  (se quedó en g12501). El crash-loop queda falsado: era RCCL/SHM,
+  no el workload.
+- Throughput ~450 pasos/h (~5.6 s/step, 9216 tok/step ≈ 1.65K tok/s
+  agregado). Bajo vs lo ideal — nodo compartido (jobs ajenos en la
+  4ª GPU). AUTO_RESUBMIT rota nodos cada ola; aceptable por ahora.
+- Primera batería automática disparará ~g37501 vía watch_v6_battery.
+
 ## Lecciones / pendientes
 
 - MI210/ROCm: el pool queda **sospechoso para workloads DDP** — si se
