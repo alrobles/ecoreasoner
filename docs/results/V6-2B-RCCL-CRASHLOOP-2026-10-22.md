@@ -95,6 +95,29 @@ Estado auditado desde `reumanlab` (post cambio de máquina; antes
   sigue mostrando el cuello generativo, como se esperaba).
 - `SFT_V4_DONE.flag` escrito → cadena SFT cerrada.
 
+## Update 10-23 ~02:00 — VALIDACIÓN canary (O2 cerrado)
+
+Cola sixhour saturada (258 PD); ola mainline 32262467 sigue PD. Se
+lanzó **canary 1-GPU aislado** (`scripts/v6_2b_nv_canary.slurm`,
+OUT `runs/v6-2b-canary` con ckpt g12501+state.json copiados — el
+mainline `runs/v6-2b` intacto). Job 32262493 → r32r05n01 A40-46GB.
+
+Verificado en `logs/v6_2b_cnr_32262493.out`:
+
+```
+EMA cargada ; Resumed checkpoint-g12501 (step 12501)
+masking/curriculum on ; step 12510→12600 loss ~4.4-6.7 (~1.2s/step)
+checkpoint-g12601 escrito + state.json + train.log
+```
+
+- **Resume cross-stack completo** (model+optim+EMA) — ROCm→CUDA OK.
+- **El fix de memoria aguanta**: tier 40-60G (bs2 acc2 +zero1
+  +grad_ckpt +EMA-CPU@8) pasó el forward/backward donde murió la
+  ola 44GB. Sin OOM, sin colectiva colgada.
+- ~2.6K tok/s en 1×A40 (bs2acc2=3072 tok/step). El canary existió
+  solo para validar; el mainline medirá su propio throughput a 3
+  ranks (NCCL sano en NVIDIA, nada del deadlock RCCL).
+
 ## Lecciones / pendientes
 
 - MI210/ROCm: el pool queda **sospechoso para workloads DDP** — si se

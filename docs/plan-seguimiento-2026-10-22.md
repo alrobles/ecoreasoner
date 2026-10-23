@@ -13,8 +13,8 @@ Convención: **[AUTO]** corre solo · **[MANUAL]** acción nuestra ·
 
 | # | objetivo | estado | tipo |
 |---|----------|--------|------|
-| O1 | v6-2b entrena en NVIDIA sin crash-loop | ola en cola | AUTO |
-| O2 | Verificar 1ª ola NV (steps reales + ckpt g13001) | espera arranque | MANUAL |
+| O1 | v6-2b entrena en NVIDIA sin crash-loop | validado via canary | AUTO |
+| O2 | Verificar 1ª ola NV (steps reales + ckpt) | **HECHO 10-23 02:00** — canary 32262493 A40: resume g12501 + 100 steps sin OOM + ckpt g12601 escrito | MANUAL |
 | O3 | Curva v6-2b con baterías c/25K hasta señal legible (~g100-300K) | watcher vivo | AUTO |
 | O4 | Veredicto capacidad-vs-receta (gen_exact v6 vs curva v5-1b) | pendiente O3 | DECISIÓN |
 | O5 | Probe chat multi-turno sobre sft-v4-g16000 | pendiente | MANUAL |
@@ -39,8 +39,8 @@ Convención: **[AUTO]** corre solo · **[MANUAL]** acción nuestra ·
 
 | cuándo | evento | tipo |
 |---|---|---|
-| ~10-23 mañana | ola 32262353 arranca (estimado 05:17; puede ser antes) | AUTO |
-| +5min arranque | **verificación O2**: `step` lines en train.log, VRAM ok | MANUAL |
+| ~10-23 | ~~verificación O2~~ **hecha via canary** (32262493 en A40: resume+steps+save OK — memoria validada) | MANUAL |
+| cuando libere GPU | ola mainline 32262467 (3 ranks) arranca → resume g12501 real | AUTO |
 | +2-4h | ckpt g13001 → confirma pipeline completo (resume+save NV) | AUTO |
 | ~c/1-2 días | batería automática c/25K si la ola vive | AUTO |
 | ~1-2 sem | señal O4 legible comparando gen_exact/remask vs curva v5-1b | DECISIÓN |
