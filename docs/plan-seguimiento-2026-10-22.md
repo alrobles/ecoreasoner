@@ -17,7 +17,7 @@ Convención: **[AUTO]** corre solo · **[MANUAL]** acción nuestra ·
 | O2 | Verificar 1ª ola NV (steps reales + ckpt) | **HECHO** — canary 32262493 (resume+steps+save) + mainline confirmado en producción | MANUAL |
 | O3 | Curva v6-2b con baterías c/25K hasta señal legible (~g100-300K) | watcher vivo | AUTO |
 | O4 | Veredicto capacidad-vs-receta (gen_exact v6 vs curva v5-1b) | pendiente O3 | DECISIÓN |
-| O5 | Probe chat multi-turno sobre sft-v4-g16000 | pendiente | MANUAL |
+| O5 | Probe chat multi-turno sobre sft-v4-g16000 | **HECHO 10-23 ~09:00** — 0% frontera de turno, degeneración severa → cuello = capacidad, no datos | MANUAL |
 | O6 | sciev 4º punto sobre g1300000 | bloqueado externo | DECISIÓN |
 | O7 | P8 (systems+harness+falsaciones) — redacción | todo el material listo | MANUAL |
 | O8 | Integración UNAM-EN al corpus (dosis vs solo-QA) | abierto desde 10-04 | DECISIÓN |
@@ -58,12 +58,18 @@ Convención: **[AUTO]** corre solo · **[MANUAL]** acción nuestra ·
 | `step` en log pero loss NaN | ckpt ROCm malo | re-resume desde g12001 (ocultar g12501) |
 | allreduce hang en NVIDIA | no debería (NCCL estable en v5) | escalar a Angel — sería bug nuevo |
 
-## 4. O5 — probe chat sft-v4 (el test barato pendiente)
+## 4. O5 — probe chat sft-v4 — HECHO (10-23)
 
-sft-v4-g16000 ya tiene los datos multi-turno encima (66K docs, 39.7%
-multi-span). Falta la sonda de chat: generar K diálogos 4-turnos y
-medir coherencia/formato. Es el primer dato de si el cuello de chat
-es datos o capacidad — pista independiente de la curva v6.
+`probe_sft_mt.{py,slurm}`: 6 diálogos × 4 turnos, decode por
+confianza sobre g16000-EMA (job 32268861, RTX 6000, ~25min).
+
+Resultado: `eos=0% next_turn=0% max_new=100% leaks=0`. Degeneración
+semántica desde turno 0 ("a species or a species...", español →
+sopa de dígitos). **El cuello de chat es capacidad del backbone,
+no datos MT** — sft-v4 absorbió el formato (consistency 0.7233)
+pero 1.13B no sostiene generación coherente. Refuerza la motivación
+de v6-2b; caveat: ventana fija LLaDA puede inflar el conteo max_new,
+pero la degeneración es real bajo cualquier decode.
 
 ## 5. O6 — sciev (sin cambios)
 
