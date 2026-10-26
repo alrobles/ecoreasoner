@@ -24,7 +24,7 @@ guard(){
   if pgrep -f "$script" >/dev/null; then return; fi
   if [ -n "$flag" ] && [ -f "$DIR/data/$flag" ]; then return; fi
   log "watcher $script muerto y sin flag ${flag:-NONE} -> relanzando"
-  cd "$DIR" && nohup bash "scripts/$script" > /dev/null 2>&1 &
+  setsid nohup bash "$DIR/scripts/$script" > /dev/null 2>&1 < /dev/null &
 }
 
 guard watch_v5_battery.sh ""
@@ -44,7 +44,7 @@ if [ -f "$DIR/data/SFT_V3_DONE.flag" ] && [ ! -f "$DIR/data/sft_v4_init.txt" ] \
   if [ -n "$V3LAST" ]; then
     echo "$V3LAST" > "$DIR/data/sft_v4_init.txt"
     log "bootstrap sft-v4: init=$V3LAST (TARGET_GN=16000)"
-    cd "$DIR" && TARGET_GN=16000 nohup bash scripts/watch_sft_v4.sh > /dev/null 2>&1 &
+    TARGET_GN=16000 setsid nohup bash "$DIR/scripts/watch_sft_v4.sh" > /dev/null 2>&1 < /dev/null &
   fi
 fi
 
